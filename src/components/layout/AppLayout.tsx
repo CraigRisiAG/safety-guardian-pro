@@ -1,0 +1,111 @@
+import { ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  AlertTriangle, 
+  Siren, 
+  ShieldCheck,
+  Settings,
+  Bell
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+
+interface AppLayoutProps {
+  children: ReactNode;
+}
+
+const navigation = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
+  { name: 'Drills', href: '/drills', icon: Siren },
+  { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck },
+];
+
+export function AppLayout({ children }: AppLayoutProps) {
+  const location = useLocation();
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border">
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg gradient-safe">
+              <ShieldCheck className="w-6 h-6 text-safe-foreground" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-sidebar-foreground">SafeGuard</h1>
+              <p className="text-xs text-sidebar-foreground/60">Health & Safety</p>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 space-y-1">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Bottom section */}
+          <div className="p-3 border-t border-sidebar-border">
+            <Link
+              to="/settings"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+              Settings
+            </Link>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="pl-64">
+        {/* Top bar */}
+        <header className="sticky top-0 z-40 h-16 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+          <div className="flex items-center justify-between h-full px-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {navigation.find(n => n.href === location.pathname)?.name || 'SafeGuard'}
+              </h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-emergency rounded-full" />
+              </Button>
+              <div className="flex items-center gap-3 pl-3 border-l border-border">
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                  <span className="text-sm font-medium text-primary-foreground">SO</span>
+                </div>
+                <span className="text-sm font-medium">Safety Officer</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
