@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
 import { buildings } from '@/data/mockData';
 import { SafetyCheckIn as SafetyCheckInType, Drill } from '@/types/safety';
-import { ShieldCheck, Siren } from 'lucide-react';
+import { ShieldCheck, Siren, CheckCircle2, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+
+// Simulated drill state - in production this would come from a backend
+const DRILL_DURATION_MS = 120000; // 2 minutes for demo
 
 export default function SafetyCheckIn() {
-  // For demo, simulate an active drill
-  const [activeDrill] = useState<Drill | null>({
+  const [drillStartTime] = useState(() => Date.now() - 5 * 60 * 1000);
+  const [drillEndTime, setDrillEndTime] = useState<number | null>(null);
+  const [isAllClear, setIsAllClear] = useState(false);
+  const [showAllClearNotification, setShowAllClearNotification] = useState(false);
+  
+  // For demo, simulate an active drill that will end
+  const [activeDrill, setActiveDrill] = useState<Drill | null>({
     id: 'drill-active',
     type: 'fire',
     status: 'active',
@@ -16,12 +25,66 @@ export default function SafetyCheckIn() {
       floorIds: ['floor-1', 'floor-2', 'floor-3'],
       areaIds: [],
     },
-    startedAt: new Date(Date.now() - 5 * 60 * 1000),
+    startedAt: new Date(drillStartTime),
     initiatedBy: 'Safety Officer',
   });
 
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [userCheckIn, setUserCheckIn] = useState<SafetyCheckInType | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+  // Simulate real-time drill status polling
+  useEffect(() => {
+    if (isAllClear) return;
+
+    // Check localStorage for drill end signal (simulates real-time)
+    const checkDrillStatus = () => {
+      const storedEndTime = localStorage.getItem('drill_end_time');
+      if (storedEndTime) {
+        const endTime = parseInt(storedEndTime, 10);
+        if (Date.now() >= endTime) {
+          handleDrillEnd();
+        } else {
+          setTimeRemaining(Math.max(0, endTime - Date.now()));
+        }
+      }
+    };
+
+    // Poll every second for status updates
+    const interval = setInterval(checkDrillStatus, 1000);
+    checkDrillStatus();
+
+    // For demo: auto-end drill after duration
+    const demoTimer = setTimeout(() => {
+      localStorage.setItem('drill_end_time', String(Date.now()));
+    }, DRILL_DURATION_MS);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(demoTimer);
+    };
+  }, [isAllClear]);
+
+  const handleDrillEnd = useCallback(() => {
+    setIsAllClear(true);
+    setDrillEndTime(Date.now());
+    setActiveDrill(prev => prev ? { ...prev, status: 'completed', completedAt: new Date() } : null);
+    setShowAllClearNotification(true);
+    
+    // Show toast notification
+    toast.success('All Clear! The drill has ended.', {
+      duration: 10000,
+      icon: <CheckCircle2 className="w-5 h-5 text-safe" />,
+    });
+
+    // Clear localStorage
+    localStorage.removeItem('drill_end_time');
+  }, []);
+
+  // For demo: Allow manually triggering end drill
+  const triggerEndDrill = () => {
+    localStorage.setItem('drill_end_time', String(Date.now()));
+  };
 
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
@@ -108,10 +171,63 @@ export default function SafetyCheckIn() {
             )}
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            <Siren className="w-4 h-4 inline mr-1" />
-            Drill in progress at {building?.name}
-          </p>
+          {/* All Clear Notification Overlay */}
+          {showAllClearNotification && (
+            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in">
+              <div className="bg-card border border-safe/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-xl">
+                <div className="p-4 gradient-safe rounded-full mb-4 mx-auto w-fit">
+                  <CheckCircle2 className="w-12 h-12 text-safe-foreground" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground mb-2">All Clear!</h2>
+                <p className="text-muted-foreground mb-6">
+                  The safety drill has ended. Thank you for participating. You may now return to your normal activities.
+                </p>
+                <Button 
+                  onClick={() => setShowAllClearNotification(false)}
+                  className="gradient-safe text-safe-foreground w-full"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Status indicator */}
+          <div className={`text-center text-sm mt-6 p-3 rounded-lg ${
+            isAllClear 
+              ? 'bg-safe-muted text-safe' 
+              : 'bg-muted text-muted-foreground'
+          }`}>
+            {isAllClear ? (
+              <span className="flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Drill completed - All Clear
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <Siren className="w-4 h-4 animate-pulse" />
+                Drill in progress at {building?.name}
+                {timeRemaining !== null && (
+                  <span className="ml-2 font-mono">
+                    ({Math.ceil(timeRemaining / 1000)}s remaining)
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          {/* Demo: End drill button */}
+          {!isAllClear && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={triggerEndDrill}
+              className="mt-4 w-full text-xs"
+            >
+              <Bell className="w-3 h-3 mr-1" />
+              Demo: Trigger All-Clear
+            </Button>
+          )}
         </div>
       </div>
     );
