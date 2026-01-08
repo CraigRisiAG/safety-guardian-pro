@@ -12,6 +12,7 @@ import CheckIn from "./pages/CheckIn";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import SafetyCheckIn from "./pages/SafetyCheckIn";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
+            <Route path="/safety-checkin" element={<SafetyCheckIn />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
