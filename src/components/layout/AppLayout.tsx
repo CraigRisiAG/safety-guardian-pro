@@ -20,6 +20,7 @@ const navigation = [
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
   { name: 'Drills', href: '/drills', icon: Siren },
   { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck },
+  { name: 'Admin', href: '/admin', icon: Settings },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -63,16 +64,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             })}
           </nav>
 
-          {/* Bottom section */}
-          <div className="p-3 border-t border-sidebar-border">
-            <Link
-              to="/settings"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
-          </div>
+          {/* Bottom section - removed duplicate settings link */}
         </div>
       </aside>
 

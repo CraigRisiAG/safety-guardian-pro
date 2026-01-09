@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import SafetyCheckIn from "./pages/SafetyCheckIn";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CheckIn />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Admin />
                 </ProtectedRoute>
               }
             />
