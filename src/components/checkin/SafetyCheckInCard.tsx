@@ -41,8 +41,8 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-// Demo staff codes - in production, validate against backend
-const VALID_STAFF_CODES = ['STAFF001', 'STAFF002', 'STAFF123', 'ADMIN999'];
+// Demo staff codes - in production, validate against backend (integers only)
+const VALID_STAFF_CODES = ['1234', '5678', '9999', '0000'];
 
 export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: SafetyCheckInCardProps) {
   const [status, setStatus] = useState<'safe' | 'needs-assistance' | null>(null);
@@ -65,9 +65,9 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
   const selectedFloor = floors.find(f => f.id === floorId);
 
   const validateStaffCode = (code: string) => {
-    const isValid = VALID_STAFF_CODES.includes(code.toUpperCase());
+    const isValid = VALID_STAFF_CODES.includes(code);
     setStaffCodeValid(isValid);
-    if (!isValid && code.length >= 6) {
+    if (!isValid && code.length >= 4) {
       toast.error('Invalid staff code');
     }
     return isValid;
@@ -197,16 +197,20 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
               <div className="relative">
                 <Input
                   id="staff-code"
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={staffCode}
                   onChange={(e) => {
-                    setStaffCode(e.target.value.toUpperCase());
-                    if (e.target.value.length >= 6) {
-                      validateStaffCode(e.target.value);
+                    const numericValue = e.target.value.replace(/\D/g, '');
+                    setStaffCode(numericValue);
+                    if (numericValue.length >= 4) {
+                      validateStaffCode(numericValue);
                     } else {
                       setStaffCodeValid(null);
                     }
                   }}
-                  placeholder="Enter staff code"
+                  placeholder="Enter 4-digit code"
                   className={cn(
                     staffCodeValid === true && 'border-safe',
                     staffCodeValid === false && 'border-destructive'
@@ -216,7 +220,7 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
                   <ShieldCheck className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-safe" />
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Demo codes: STAFF001, STAFF123</p>
+              <p className="text-xs text-muted-foreground">Demo codes: 1234, 5678, 9999</p>
             </div>
           )}
 
