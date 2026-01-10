@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, Siren } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -119,7 +119,20 @@ const Login: React.FC = () => {
             </p>
           </form>
 
-          <div className="mt-6 p-4 bg-slate-700 rounded-lg border border-slate-600">
+          <div className="mt-6 p-4 bg-amber-900/50 rounded-lg border border-amber-700">
+            <Link
+              to="/safety-checkin"
+              className="flex items-center justify-center gap-2 text-amber-200 hover:text-amber-100 font-semibold"
+            >
+              <Siren className="w-4 h-4" />
+              Safety Check-In (No Login Required)
+            </Link>
+            <p className="text-xs text-amber-300/70 mt-1 text-center">
+              For emergency drill check-ins only
+            </p>
+          </div>
+
+          <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
             <p className="text-xs text-slate-300 mb-2">
               <span className="font-semibold">Demo credentials:</span>
             </p>

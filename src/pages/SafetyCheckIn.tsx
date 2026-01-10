@@ -2,14 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
 import { buildings } from '@/data/mockData';
 import { SafetyCheckIn as SafetyCheckInType, Drill } from '@/types/safety';
-import { ShieldCheck, Siren, CheckCircle2, Bell } from 'lucide-react';
+import { ShieldCheck, Siren, CheckCircle2, Bell, Users, User, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
 
 // Simulated drill state - in production this would come from a backend
 const DRILL_DURATION_MS = 120000; // 2 minutes for demo
 
 export default function SafetyCheckIn() {
+  const { isAuthenticated, user } = useAuth();
   const [drillStartTime] = useState(() => Date.now() - 5 * 60 * 1000);
   const [drillEndTime, setDrillEndTime] = useState<number | null>(null);
   const [isAllClear, setIsAllClear] = useState(false);
@@ -86,18 +89,30 @@ export default function SafetyCheckIn() {
     localStorage.setItem('drill_end_time', String(Date.now()));
   };
 
+  const [checkInDetails, setCheckInDetails] = useState<{
+    userType?: 'guest' | 'staff';
+    personName?: string;
+    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
+  }>({});
+
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
     floorId: string;
     areaId: string;
     notes?: string;
+    userType?: 'guest' | 'staff';
+    staffCode?: string;
+    personName?: string;
+    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
   }) => {
     if (!activeDrill) return;
+
+    const displayName = isAuthenticated && user ? user.name : data.personName || 'Guest';
 
     const newCheckIn: SafetyCheckInType = {
       id: `checkin-${Date.now()}`,
       drillId: activeDrill.id,
-      personName: 'User',
+      personName: displayName,
       status: data.status,
       location: {
         buildingId: activeDrill.location.buildingId,
@@ -108,8 +123,18 @@ export default function SafetyCheckIn() {
       notes: data.notes,
     };
     setUserCheckIn(newCheckIn);
+    setCheckInDetails({
+      userType: data.userType,
+      personName: data.personName,
+      additionalPeople: data.additionalPeople,
+    });
     setHasCheckedIn(true);
-    toast.success(data.status === 'safe' ? 'Marked as safe!' : 'Assistance request submitted');
+    
+    const additionalCount = data.additionalPeople?.length || 0;
+    const message = additionalCount > 0 
+      ? `${additionalCount + 1} people checked in successfully!`
+      : data.status === 'safe' ? 'Marked as safe!' : 'Assistance request submitted';
+    toast.success(message);
   };
 
   const building = activeDrill ? buildings.find(b => b.id === activeDrill.location.buildingId) : null;
@@ -158,10 +183,43 @@ export default function SafetyCheckIn() {
             </p>
             
             <div className="mt-6 p-4 bg-background/50 rounded-lg">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                {checkInDetails.userType === 'guest' && <User className="w-4 h-4 text-info" />}
+                {checkInDetails.userType === 'staff' && <KeyRound className="w-4 h-4 text-primary" />}
+                {isAuthenticated && <Users className="w-4 h-4 text-safe" />}
+                <span className="text-sm font-medium">
+                  {isAuthenticated ? user?.name : checkInDetails.personName}
+                </span>
+                {checkInDetails.userType && (
+                  <Badge variant="secondary" className="text-xs">
+                    {checkInDetails.userType === 'guest' ? 'Guest' : 'Staff'}
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">Your reported location</p>
               <p className="font-medium text-foreground">{area?.name}, {floor?.name}</p>
               <p className="text-sm text-muted-foreground">{building?.name}</p>
             </div>
+
+            {/* Show additional people checked in */}
+            {checkInDetails.additionalPeople && checkInDetails.additionalPeople.length > 0 && (
+              <div className="mt-4 p-4 bg-background/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Additional people checked in
+                </p>
+                <div className="space-y-1">
+                  {checkInDetails.additionalPeople.map((person, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{person.name}</span>
+                      <Badge variant={person.status === 'safe' ? 'default' : 'destructive'} className="text-xs">
+                        {person.status === 'safe' ? 'Safe' : 'Needs Help'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {userCheckIn.notes && (
               <div className="mt-4 p-4 bg-background/50 rounded-lg text-left">
@@ -237,7 +295,16 @@ export default function SafetyCheckIn() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full">
-        <SafetyCheckInCard drill={activeDrill} onCheckIn={handleCheckIn} />
+        {isAuthenticated && (
+          <div className="mb-4 p-3 bg-safe-muted rounded-lg text-center">
+            <p className="text-sm text-safe flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" />
+              Logged in as <span className="font-semibold">{user?.name}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">You can check in multiple people</p>
+          </div>
+        )}
+        <SafetyCheckInCard drill={activeDrill} onCheckIn={handleCheckIn} isLoggedIn={isAuthenticated} />
       </div>
     </div>
   );
