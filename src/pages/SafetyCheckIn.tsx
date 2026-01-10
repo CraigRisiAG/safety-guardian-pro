@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
 import { buildings } from '@/data/mockData';
 import { SafetyCheckIn as SafetyCheckInType, Drill } from '@/types/safety';
-import { ShieldCheck, Siren, CheckCircle2, Bell, Users, User, KeyRound } from 'lucide-react';
+import { ShieldCheck, Siren, CheckCircle2, Bell, Users, User, KeyRound, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +13,15 @@ import { Badge } from '@/components/ui/badge';
 const DRILL_DURATION_MS = 120000; // 2 minutes for demo
 
 export default function SafetyCheckIn() {
-  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
   const [drillStartTime] = useState(() => Date.now() - 5 * 60 * 1000);
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
+  };
   const [drillEndTime, setDrillEndTime] = useState<number | null>(null);
   const [isAllClear, setIsAllClear] = useState(false);
   const [showAllClearNotification, setShowAllClearNotification] = useState(false);
@@ -296,11 +304,22 @@ export default function SafetyCheckIn() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full">
         {isAuthenticated && (
-          <div className="mb-4 p-3 bg-safe-muted rounded-lg text-center">
-            <p className="text-sm text-safe flex items-center justify-center gap-2">
-              <Users className="w-4 h-4" />
-              Logged in as <span className="font-semibold">{user?.name}</span>
-            </p>
+          <div className="mb-4 p-3 bg-safe-muted rounded-lg">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-safe flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Logged in as <span className="font-semibold">{user?.name}</span>
+              </p>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-destructive h-8"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                Logout
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">You can check in multiple people</p>
           </div>
         )}
