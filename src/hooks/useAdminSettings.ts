@@ -142,6 +142,20 @@ export function useAdminSettings() {
     return newPermission;
   }, []);
 
+  const bulkAddUserPermissions = useCallback((permissions: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    const newPermissions: UserPermission[] = permissions.map((permission, index) => ({
+      ...permission,
+      id: `perm-${Date.now()}-${index}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    setSettings((prev) => ({
+      ...prev,
+      userPermissions: [...prev.userPermissions, ...newPermissions],
+    }));
+    return newPermissions;
+  }, []);
+
   const updateUserPermission = useCallback((id: string, updates: Partial<UserPermission>) => {
     setSettings((prev) => ({
       ...prev,
@@ -258,6 +272,7 @@ export function useAdminSettings() {
     deleteBuilding,
     // User permissions
     addUserPermission,
+    bulkAddUserPermissions,
     updateUserPermission,
     deleteUserPermission,
     // Compliance checks
