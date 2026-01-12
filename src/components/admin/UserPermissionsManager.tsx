@@ -11,12 +11,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding } from '@/types/admin';
+import { BulkUserUpload } from './BulkUserUpload';
 import { toast } from 'sonner';
 
 interface UserPermissionsManagerProps {
   permissions: UserPermission[];
   buildings: CustomBuilding[];
   onAdd: (permission: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>) => UserPermission;
+  onBulkAdd: (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   onUpdate: (id: string, updates: Partial<UserPermission>) => void;
   onDelete: (id: string) => void;
 }
@@ -29,7 +31,7 @@ const roleColors: Record<UserRole, string> = {
   super_admin: 'bg-emergency-muted text-emergency',
 };
 
-export function UserPermissionsManager({ permissions, buildings, onAdd, onUpdate, onDelete }: UserPermissionsManagerProps) {
+export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAdd, onUpdate, onDelete }: UserPermissionsManagerProps) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<UserPermission | null>(null);
   const [formData, setFormData] = useState({
@@ -218,11 +220,13 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onUpdate
             Manage user roles and access controls
           </CardDescription>
         </div>
-        <Dialog open={isAddingUser} onOpenChange={(open) => { setIsAddingUser(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add User
+        <div className="flex items-center gap-2">
+          <BulkUserUpload buildings={buildings} onBulkAdd={onBulkAdd} />
+          <Dialog open={isAddingUser} onOpenChange={(open) => { setIsAddingUser(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add User
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
@@ -241,6 +245,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onUpdate
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {permissions.length === 0 ? (

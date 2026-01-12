@@ -170,6 +170,7 @@ export default function Admin() {
               permissions={adminSettings.settings.userPermissions}
               buildings={adminSettings.settings.buildings}
               onAdd={adminSettings.addUserPermission}
+              onBulkAdd={adminSettings.bulkAddUserPermissions}
               onUpdate={adminSettings.updateUserPermission}
               onDelete={adminSettings.deleteUserPermission}
             />
