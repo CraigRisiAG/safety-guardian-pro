@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle2, X, Code2, Copy, Play } from 'lucide-react';
+import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle2, X, Code2, Copy, Play, Terminal, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { UserPermission, UserRole, ROLE_LABELS, CustomBuilding } from '@/types/admin';
 import { toast } from 'sonner';
+import { simulateBulkImport, getApiDocumentation } from '@/services/mockUserApi';
 import * as XLSX from 'xlsx';
 
 interface BulkUserUploadProps {
@@ -29,6 +31,18 @@ interface ParsedUser {
   canManageUsers: boolean;
   isValid: boolean;
   errors: string[];
+}
+
+interface ApiResponseDisplay {
+  success: boolean;
+  data?: {
+    imported: number;
+    failed: number;
+    errors: { index: number; email: string; reason: string }[];
+  };
+  error?: string;
+  timestamp: string;
+  requestId: string;
 }
 
 const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
@@ -62,7 +76,11 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [jsonInput, setJsonInput] = useState('');
   const [activeTab, setActiveTab] = useState('excel');
+  const [apiResponse, setApiResponse] = useState<ApiResponseDisplay | null>(null);
+  const [showApiDocs, setShowApiDocs] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const apiDocs = getApiDocumentation();
 
   const downloadTemplate = () => {
     const templateData = [
@@ -234,13 +252,14 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     }
   };
 
-  const handleJsonImport = () => {
+  const handleJsonImport = async () => {
     if (!jsonInput.trim()) {
       toast.error('Please enter JSON data');
       return;
     }
 
     setIsProcessing(true);
+    setApiResponse(null);
 
     try {
       const jsonData = JSON.parse(jsonInput);
@@ -251,17 +270,66 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
         return;
       }
 
-      const parsed: ParsedUser[] = jsonData.map((row: any) => validateAndParseUser(row, true));
+      // Use the mock API service for realistic simulation
+      const response = await simulateBulkImport(jsonData, buildings);
+      
+      // Display API response
+      setApiResponse({
+        success: response.success,
+        data: response.data ? {
+          imported: response.data.imported,
+          failed: response.data.failed,
+          errors: response.data.errors
+        } : undefined,
+        error: response.error,
+        timestamp: response.timestamp,
+        requestId: response.requestId
+      });
+
+      if (!response.success) {
+        toast.error(response.error || 'API request failed');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Convert API response users to ParsedUser format for display
+      const parsed: ParsedUser[] = response.data!.users.map(user => ({
+        userName: user.userName,
+        email: user.email,
+        role: user.role,
+        staffCode: undefined,
+        buildingAccess: user.buildingAccess,
+        canStartDrills: user.canStartDrills,
+        canResolveIncidents: user.canResolveIncidents,
+        canManageUsers: user.canManageUsers,
+        isValid: true,
+        errors: []
+      }));
+
+      // Add failed users with errors
+      response.data!.errors.forEach(err => {
+        parsed.push({
+          userName: '',
+          email: err.email,
+          role: 'viewer',
+          buildingAccess: [],
+          canStartDrills: false,
+          canResolveIncidents: false,
+          canManageUsers: false,
+          isValid: false,
+          errors: [err.reason]
+        });
+      });
 
       setParsedUsers(parsed);
       
-      const validCount = parsed.filter(u => u.isValid).length;
-      const invalidCount = parsed.length - validCount;
+      const validCount = response.data!.imported;
+      const invalidCount = response.data!.failed;
       
       if (invalidCount > 0) {
-        toast.warning(`Parsed ${parsed.length} users. ${invalidCount} have errors.`);
+        toast.warning(`API processed ${validCount + invalidCount} users. ${invalidCount} failed validation.`);
       } else {
-        toast.success(`Parsed ${parsed.length} users successfully`);
+        toast.success(`API processed ${validCount} users successfully`);
       }
     } catch (error) {
       console.error('Error parsing JSON:', error);
@@ -279,6 +347,11 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
   const loadApiExample = () => {
     setJsonInput(API_EXAMPLE_JSON);
     toast.success('Example loaded into editor');
+  };
+
+  const copyCurlCommand = () => {
+    navigator.clipboard.writeText(apiDocs.curlExample);
+    toast.success('cURL command copied to clipboard');
   };
 
   const handleImport = () => {
@@ -304,6 +377,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     toast.success(`Imported ${validUsers.length} users successfully`);
     setParsedUsers([]);
     setJsonInput('');
+    setApiResponse(null);
     setIsOpen(false);
   };
 
@@ -315,6 +389,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     setIsOpen(false);
     setParsedUsers([]);
     setJsonInput('');
+    setApiResponse(null);
     setActiveTab('excel');
   };
 
@@ -403,9 +478,13 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Paste JSON data or use the API endpoint format below
+                  Simulate API request with JSON data
                 </p>
                 <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowApiDocs(!showApiDocs)}>
+                    <BookOpen className="w-4 h-4 mr-1" />
+                    {showApiDocs ? 'Hide Docs' : 'API Docs'}
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={copyApiExample}>
                     <Copy className="w-4 h-4 mr-1" />
                     Copy Example
@@ -421,7 +500,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
                 placeholder={API_EXAMPLE_JSON}
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
-                className="font-mono text-sm h-48"
+                className="font-mono text-sm h-40"
               />
               
               <Button 
@@ -430,28 +509,138 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
                 className="w-full"
               >
                 <Play className="w-4 h-4 mr-2" />
-                {isProcessing ? 'Processing...' : 'Parse JSON'}
+                {isProcessing ? 'Sending Request...' : 'Send API Request'}
               </Button>
             </div>
 
-            {/* API Documentation */}
-            {parsedUsers.length === 0 && (
+            {/* API Response Display */}
+            {apiResponse && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">API Response:</p>
+                <div className={`p-3 rounded-lg font-mono text-xs overflow-auto max-h-32 ${
+                  apiResponse.success ? 'bg-safe-muted/30 border border-safe/30' : 'bg-emergency-muted/30 border border-emergency/30'
+                }`}>
+                  <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
+                </div>
+              </div>
+            )}
+
+            {/* Expandable API Documentation */}
+            {showApiDocs && parsedUsers.length === 0 && (
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="endpoint">
+                  <AccordionTrigger className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4" />
+                      Endpoint Details
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">POST</Badge>
+                        <code className="bg-muted px-2 py-1 rounded">{apiDocs.endpoint.replace('POST ', '')}</code>
+                      </div>
+                      <p className="text-muted-foreground">{apiDocs.description}</p>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="text-xs">
+                          <span className="font-medium">Auth:</span> {apiDocs.authentication}
+                        </div>
+                        <div className="text-xs">
+                          <span className="font-medium">Rate Limit:</span> {apiDocs.rateLimit}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="request">
+                  <AccordionTrigger className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-4 h-4" />
+                      Request Format
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium mb-1">Headers:</p>
+                        <pre className="bg-muted p-2 rounded text-xs overflow-auto">
+{JSON.stringify(apiDocs.requestFormat.headers, null, 2)}
+                        </pre>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium mb-1">Body (array of user objects):</p>
+                        <ul className="text-xs list-disc list-inside space-y-1 text-muted-foreground">
+                          <li><strong>name</strong> - Full name (required)</li>
+                          <li><strong>email</strong> - Email address (required)</li>
+                          <li><strong>role</strong> - viewer, reporter, responder, admin, or super_admin</li>
+                          <li><strong>staffCode</strong> - Numeric string (integers only)</li>
+                          <li><strong>buildingAccess</strong> - Array of building names or ["all"]</li>
+                          <li><strong>canStartDrills</strong> - true/false</li>
+                          <li><strong>canResolveIncidents</strong> - true/false</li>
+                          <li><strong>canManageUsers</strong> - true/false</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="curl">
+                  <AccordionTrigger className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4" />
+                      cURL Example
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="relative">
+                      <pre className="bg-muted p-3 rounded text-xs overflow-auto whitespace-pre-wrap">
+{apiDocs.curlExample}
+                      </pre>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="absolute top-2 right-2"
+                        onClick={copyCurlCommand}
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="errors">
+                  <AccordionTrigger className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Error Codes
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-1">
+                      {Object.entries(apiDocs.errorCodes).map(([code, desc]) => (
+                        <div key={code} className="flex items-center gap-2 text-xs">
+                          <Badge variant="outline" className="font-mono">{code}</Badge>
+                          <span className="text-muted-foreground">{desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
+            {/* Simple info when docs hidden */}
+            {!showApiDocs && parsedUsers.length === 0 && (
               <Alert>
                 <Code2 className="h-4 w-4" />
                 <AlertDescription>
-                  <p className="font-medium mb-1">JSON format (array of objects):</p>
-                  <ul className="text-sm list-disc list-inside space-y-1">
-                    <li><strong>name</strong> - Full name (required)</li>
-                    <li><strong>email</strong> - Email address (required)</li>
-                    <li><strong>role</strong> - viewer, reporter, responder, admin, or super_admin</li>
-                    <li><strong>staffCode</strong> - Numeric string (integers only)</li>
-                    <li><strong>buildingAccess</strong> - Array of building names or ["all"]</li>
-                    <li><strong>canStartDrills</strong> - true/false</li>
-                    <li><strong>canResolveIncidents</strong> - true/false</li>
-                    <li><strong>canManageUsers</strong> - true/false</li>
-                  </ul>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    This simulates a POST request to: <code className="bg-muted px-1 rounded">/api/users/bulk-import</code>
+                  <p className="text-sm">
+                    Simulates <code className="bg-muted px-1 rounded">POST /api/v1/users/bulk-import</code>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Click "API Docs" for full endpoint documentation including headers, request format, and error codes.
                   </p>
                 </AlertDescription>
               </Alert>
