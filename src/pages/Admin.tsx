@@ -54,29 +54,29 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 h-16 bg-sidebar border-b border-sidebar-border">
-        <div className="flex items-center justify-between h-full px-6">
-          <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-40 h-14 sm:h-16 bg-sidebar border-b border-sidebar-border">
+        <div className="flex items-center justify-between h-full px-4 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Link to="/">
               <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg gradient-safe">
-                <Settings className="w-6 h-6 text-safe-foreground" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg gradient-safe">
+                <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-safe-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-sidebar-foreground">Admin Panel</h1>
-                <p className="text-xs text-sidebar-foreground/60">System Configuration</p>
+                <h1 className="text-base sm:text-lg font-semibold text-sidebar-foreground">Admin Panel</h1>
+                <p className="text-xs text-sidebar-foreground/60 hidden sm:block">System Configuration</p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/">
-              <Button variant="outline" className="border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent">
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Back to Dashboard
+              <Button variant="outline" size="sm" className="border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent">
+                <ShieldCheck className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
               </Button>
             </Link>
           </div>
@@ -84,57 +84,57 @@ export default function Admin() {
       </header>
 
       {/* Main Content */}
-      <div className="container max-w-7xl mx-auto p-6">
+      <div className="container max-w-7xl mx-auto p-4 sm:p-6">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card className="glass-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-info-muted">
-                  <Building2 className="w-6 h-6 text-info" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-lg bg-info-muted">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{adminSettings.settings.buildings.length}</p>
-                  <p className="text-sm text-muted-foreground">Buildings</p>
+                  <p className="text-xl sm:text-2xl font-bold">{adminSettings.settings.buildings.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Buildings</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="glass-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-safe-muted">
-                  <Users className="w-6 h-6 text-safe" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-lg bg-safe-muted">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-safe" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{adminSettings.settings.userPermissions.length}</p>
-                  <p className="text-sm text-muted-foreground">Users</p>
+                  <p className="text-xl sm:text-2xl font-bold">{adminSettings.settings.userPermissions.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Users</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="glass-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-warning-muted">
-                  <ClipboardCheck className="w-6 h-6 text-warning" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-lg bg-warning-muted">
+                  <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{adminSettings.settings.safetyCheckItems.length}</p>
-                  <p className="text-sm text-muted-foreground">Safety Checks</p>
+                  <p className="text-xl sm:text-2xl font-bold">{adminSettings.settings.safetyCheckItems.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Safety Checks</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="glass-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-emergency-muted">
-                  <FileText className="w-6 h-6 text-emergency" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-lg bg-emergency-muted">
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-emergency" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{adminSettings.settings.customIncidentFields.filter(f => f.enabled).length}</p>
-                  <p className="text-sm text-muted-foreground">Custom Fields</p>
+                  <p className="text-xl sm:text-2xl font-bold">{adminSettings.settings.customIncidentFields.filter(f => f.enabled).length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Custom Fields</p>
                 </div>
               </div>
             </CardContent>
@@ -142,16 +142,16 @@ export default function Admin() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full grid-cols-4 h-auto p-1">
             {adminSections.map((section) => (
               <TabsTrigger
                 key={section.id}
                 value={section.id}
-                className="flex items-center gap-2 py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 px-1 sm:px-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
-                <section.icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{section.name}</span>
+                <section.icon className="w-4 h-4 shrink-0" />
+                <span className="hidden md:inline text-xs lg:text-sm truncate">{section.name}</span>
               </TabsTrigger>
             ))}
           </TabsList>
