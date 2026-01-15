@@ -86,21 +86,21 @@ export default function Incidents() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Incident Management</h1>
-            <p className="text-muted-foreground mt-1">Track and manage safety incidents</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Incident Management</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Track and manage safety incidents</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2 w-full sm:w-auto">
                 <Plus className="w-4 h-4" />
                 Report Incident
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <IncidentForm 
                 onSubmit={handleSubmit} 
                 onCancel={() => setIsDialogOpen(false)} 
@@ -110,8 +110,8 @@ export default function Incidents() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search incidents..."
@@ -120,29 +120,31 @@ export default function Incidents() {
               className="pl-9"
             />
           </div>
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Severity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Severities</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="investigating">Investigating</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2 sm:gap-4">
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="flex-1 sm:w-40">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="flex-1 sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="investigating">Investigating</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Incidents List */}
@@ -157,34 +159,34 @@ export default function Incidents() {
                 const location = getLocationName(incident);
                 const StatusIcon = statusStyles[incident.status].icon;
                 return (
-                  <div key={incident.id} className="px-6 py-4 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-start gap-4">
+                  <div key={incident.id} className="px-4 sm:px-6 py-4 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start gap-3 sm:gap-4">
                       <div className={cn(
-                        'p-2 rounded-lg',
+                        'p-2 rounded-lg shrink-0',
                         statusStyles[incident.status].bg
                       )}>
-                        <StatusIcon className={cn('w-5 h-5', statusStyles[incident.status].color)} />
+                        <StatusIcon className={cn('w-4 h-4 sm:w-5 sm:h-5', statusStyles[incident.status].color)} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="font-semibold text-foreground">{incident.title}</h3>
-                            <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{incident.title}</h3>
+                            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-1">
                               {incident.description}
                             </p>
                           </div>
                           <span className={cn(
-                            'inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border shrink-0',
+                            'inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full border shrink-0 self-start',
                             severityStyles[incident.severity]
                           )}>
                             {incident.severity}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                          <span>{location.area}, {location.floor}</span>
-                          <span>•</span>
-                          <span>Reported by {incident.reportedBy}</span>
-                          <span>•</span>
+                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
+                          <span className="truncate">{location.area}, {location.floor}</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="hidden sm:inline">Reported by {incident.reportedBy}</span>
+                          <span className="hidden sm:inline">•</span>
                           <span>{formatDistanceToNow(incident.reportedAt, { addSuffix: true })}</span>
                         </div>
                       </div>
