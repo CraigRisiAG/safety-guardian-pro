@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
+import { FloorCheckInProgress } from '@/components/checkin/FloorCheckInProgress';
 import { mockDrills, mockCheckIns, buildings } from '@/data/mockData';
 import { SafetyCheckIn, Drill } from '@/types/safety';
-import { ShieldCheck, AlertCircle, Clock, Users, MapPin } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Clock, Users, MapPin, Percent } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,6 +16,15 @@ const drillTypeLabels = {
   evacuation: 'Evacuation Drill',
   medical: 'Medical Emergency Drill',
 };
+
+// Mock expected headcount per floor (in production, this comes from admin settings)
+const MOCK_FLOOR_HEADCOUNTS = [
+  { floorId: 'floor-1', expectedHeadcount: 8 },
+  { floorId: 'floor-2', expectedHeadcount: 12 },
+  { floorId: 'floor-3', expectedHeadcount: 10 },
+  { floorId: 'floor-4', expectedHeadcount: 6 },
+  { floorId: 'floor-5', expectedHeadcount: 4 },
+];
 
 export default function CheckIn() {
   // For demo, simulate an active drill
@@ -33,6 +43,8 @@ export default function CheckIn() {
   
   const [checkIns, setCheckIns] = useState<SafetyCheckIn[]>(mockCheckIns);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
+
+  const building = buildings.find(b => b.id === activeDrill.location.buildingId);
 
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
@@ -58,11 +70,22 @@ export default function CheckIn() {
     toast.success(data.status === 'safe' ? 'Marked as safe!' : 'Assistance request submitted');
   };
 
-  const stats = {
-    safe: checkIns.filter(c => c.status === 'safe').length,
-    needsAssistance: checkIns.filter(c => c.status === 'needs-assistance').length,
-    pending: 15 - checkIns.length, // Mock total of 15 people
-  };
+  // Calculate stats with expected headcount
+  const stats = useMemo(() => {
+    const relevantFloorIds = activeDrill.location.floorIds;
+    const totalExpected = MOCK_FLOOR_HEADCOUNTS
+      .filter(h => relevantFloorIds.includes(h.floorId))
+      .reduce((sum, h) => sum + h.expectedHeadcount, 0);
+    
+    const drillCheckIns = checkIns.filter(c => c.drillId === activeDrill.id);
+    const safe = drillCheckIns.filter(c => c.status === 'safe').length;
+    const needsAssistance = drillCheckIns.filter(c => c.status === 'needs-assistance').length;
+    const checkedIn = safe + needsAssistance;
+    const pending = Math.max(0, totalExpected - checkedIn);
+    const percentage = totalExpected > 0 ? Math.round((checkedIn / totalExpected) * 100) : 0;
+    
+    return { safe, needsAssistance, pending, totalExpected, checkedIn, percentage };
+  }, [checkIns, activeDrill]);
 
   const getLocationName = (checkIn: SafetyCheckIn) => {
     const building = buildings.find(b => b.id === checkIn.location.buildingId);
@@ -107,30 +130,51 @@ export default function CheckIn() {
 
         {/* Status Dashboard */}
         <div className="space-y-6 lg:order-2">
+          {/* Overall Percentage */}
+          <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-3xl font-bold text-primary">
+              <Percent className="w-7 h-7" />
+              {stats.percentage}%
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {stats.checkedIn} of {stats.totalExpected} accounted for
+            </p>
+          </div>
+
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-safe-muted border border-safe/20 rounded-xl p-4 text-center">
-              <div className="flex items-center justify-center gap-2 text-2xl font-bold text-safe">
-                <ShieldCheck className="w-6 h-6" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-safe-muted border border-safe/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="flex items-center justify-center gap-1 sm:gap-2 text-xl sm:text-2xl font-bold text-safe">
+                <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                 {stats.safe}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Safe</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Safe</p>
             </div>
-            <div className="bg-warning-muted border border-warning/20 rounded-xl p-4 text-center">
-              <div className="flex items-center justify-center gap-2 text-2xl font-bold text-warning">
-                <AlertCircle className="w-6 h-6" />
+            <div className="bg-warning-muted border border-warning/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="flex items-center justify-center gap-1 sm:gap-2 text-xl sm:text-2xl font-bold text-warning">
+                <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                 {stats.needsAssistance}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Need Help</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Need Help</p>
             </div>
-            <div className="bg-muted border border-border rounded-xl p-4 text-center">
-              <div className="flex items-center justify-center gap-2 text-2xl font-bold text-muted-foreground">
-                <Clock className="w-6 h-6" />
+            <div className="bg-muted border border-border rounded-xl p-3 sm:p-4 text-center">
+              <div className="flex items-center justify-center gap-1 sm:gap-2 text-xl sm:text-2xl font-bold text-muted-foreground">
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                 {stats.pending}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Pending</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Pending</p>
             </div>
           </div>
+
+          {/* Floor-by-floor progress */}
+          {building && (
+            <FloorCheckInProgress
+              building={building}
+              drillFloorIds={activeDrill.location.floorIds}
+              checkIns={checkIns.filter(c => c.drillId === activeDrill.id)}
+              floorHeadcounts={MOCK_FLOOR_HEADCOUNTS}
+            />
+          )}
 
           {/* Recent Check-ins */}
           <div className="bg-card border border-border rounded-xl shadow-sm">

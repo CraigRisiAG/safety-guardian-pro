@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Users, Trash2, Edit2, Shield, Building2 } from 'lucide-react';
+import { Plus, Users, Trash2, Edit2, Shield, Building2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding } from '@/types/admin';
+import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS } from '@/types/admin';
 import { BulkUserUpload } from './BulkUserUpload';
 import { toast } from 'sonner';
 
@@ -39,6 +39,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     email: '',
     role: 'reporter' as UserRole,
     buildingAccess: [] as string[],
+    primaryFloorId: '',
+    workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WorkDay[],
     canStartDrills: false,
     canResolveIncidents: false,
     canManageUsers: false,
@@ -50,6 +52,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       email: '',
       role: 'reporter',
       buildingAccess: [],
+      primaryFloorId: '',
+      workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       canStartDrills: false,
       canResolveIncidents: false,
       canManageUsers: false,
@@ -67,6 +71,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       email: formData.email.trim(),
       role: formData.role,
       buildingAccess: formData.buildingAccess,
+      primaryFloorId: formData.primaryFloorId || undefined,
+      workDays: formData.workDays,
       canStartDrills: formData.canStartDrills,
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
@@ -83,6 +89,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       email: formData.email,
       role: formData.role,
       buildingAccess: formData.buildingAccess,
+      primaryFloorId: formData.primaryFloorId || undefined,
+      workDays: formData.workDays,
       canStartDrills: formData.canStartDrills,
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
@@ -98,6 +106,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       email: user.email,
       role: user.role,
       buildingAccess: user.buildingAccess,
+      primaryFloorId: user.primaryFloorId || '',
+      workDays: user.workDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       canStartDrills: user.canStartDrills,
       canResolveIncidents: user.canResolveIncidents,
       canManageUsers: user.canManageUsers,
@@ -111,6 +121,15 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: prev.buildingAccess.includes(buildingId)
         ? prev.buildingAccess.filter(id => id !== buildingId)
         : [...prev.buildingAccess, buildingId],
+    }));
+  };
+
+  const toggleWorkDay = (day: WorkDay) => {
+    setFormData(prev => ({
+      ...prev,
+      workDays: prev.workDays.includes(day)
+        ? prev.workDays.filter(d => d !== day)
+        : [...prev.workDays, day],
     }));
   };
 
@@ -175,6 +194,29 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
             ))
           )}
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          <Calendar className="w-4 h-4" />
+          Work Days
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          {ALL_WORK_DAYS.map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleWorkDay(day)}
+              className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                formData.workDays.includes(day)
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:bg-muted'
+              }`}
+            >
+              {WORK_DAY_LABELS[day]}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Select the days this person normally works in the office</p>
       </div>
       <div className="space-y-3">
         <Label>Permissions</Label>
@@ -260,8 +302,9 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Building Access</TableHead>
-                <TableHead>Permissions</TableHead>
+                <TableHead className="hidden md:table-cell">Work Days</TableHead>
+                <TableHead className="hidden lg:table-cell">Building Access</TableHead>
+                <TableHead className="hidden sm:table-cell">Permissions</TableHead>
                 <TableHead className="w-20">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -279,7 +322,27 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                       {ROLE_LABELS[permission.role]}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="flex flex-wrap gap-0.5">
+                      {(permission.workDays || []).length === 0 ? (
+                        <span className="text-sm text-muted-foreground">Not set</span>
+                      ) : (
+                        ALL_WORK_DAYS.map((day) => (
+                          <span
+                            key={day}
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              (permission.workDays || []).includes(day)
+                                ? 'bg-primary/20 text-primary font-medium'
+                                : 'bg-muted text-muted-foreground/40'
+                            }`}
+                          >
+                            {WORK_DAY_LABELS[day][0]}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     <div className="flex flex-wrap gap-1">
                       {permission.buildingAccess.length === 0 ? (
                         <span className="text-sm text-muted-foreground">No access</span>
@@ -301,7 +364,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <div className="flex flex-wrap gap-1">
                       {permission.canStartDrills && <Badge variant="secondary" className="text-xs">Drills</Badge>}
                       {permission.canResolveIncidents && <Badge variant="secondary" className="text-xs">Incidents</Badge>}

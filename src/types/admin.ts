@@ -22,8 +22,24 @@ export interface CustomArea {
   floorId: string;
   name: string;
   capacity?: number;
+  expectedHeadcount?: number; // Number of people expected to be in this area during drills
   hasEmergencyEquipment?: boolean;
 }
+
+// Days of the week for work schedule
+export type WorkDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export const WORK_DAY_LABELS: Record<WorkDay, string> = {
+  monday: 'Mon',
+  tuesday: 'Tue',
+  wednesday: 'Wed',
+  thursday: 'Thu',
+  friday: 'Fri',
+  saturday: 'Sat',
+  sunday: 'Sun',
+};
+
+export const ALL_WORK_DAYS: WorkDay[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 // User permissions
 export type UserRole = 'viewer' | 'reporter' | 'responder' | 'admin' | 'super_admin';
@@ -35,6 +51,8 @@ export interface UserPermission {
   email: string;
   role: UserRole;
   buildingAccess: string[]; // building IDs
+  primaryFloorId?: string; // Which floor they typically work on
+  workDays: WorkDay[]; // Days they normally work in the office
   canStartDrills: boolean;
   canResolveIncidents: boolean;
   canManageUsers: boolean;

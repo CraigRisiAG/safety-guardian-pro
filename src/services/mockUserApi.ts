@@ -134,6 +134,7 @@ export const simulateBulkImport = async (
       email: user.email.trim().toLowerCase(),
       role: validRole!,
       buildingAccess,
+      workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       canStartDrills: user.canStartDrills === true,
       canResolveIncidents: user.canResolveIncidents === true,
       canManageUsers: user.canManageUsers === true

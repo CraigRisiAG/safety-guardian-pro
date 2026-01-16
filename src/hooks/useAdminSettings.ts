@@ -40,6 +40,7 @@ const getDefaultSettings = (): AdminSettings => ({
       email: 'safety@example.com',
       role: 'super_admin',
       buildingAccess: ['building-1', 'building-2'],
+      workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       canStartDrills: true,
       canResolveIncidents: true,
       canManageUsers: true,
