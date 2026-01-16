@@ -368,6 +368,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
       role: u.role,
       staffCode: u.staffCode,
       buildingAccess: u.buildingAccess,
+      workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday')[],
       canStartDrills: u.canStartDrills,
       canResolveIncidents: u.canResolveIncidents,
       canManageUsers: u.canManageUsers,
