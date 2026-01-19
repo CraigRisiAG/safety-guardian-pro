@@ -41,6 +41,7 @@ const getDefaultSettings = (): AdminSettings => ({
       role: 'super_admin',
       buildingAccess: ['building-1', 'building-2'],
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      safetyRoles: ['health_safety_officer'],
       canStartDrills: true,
       canResolveIncidents: true,
       canManageUsers: true,

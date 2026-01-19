@@ -18,6 +18,7 @@ import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
+import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 const adminSections = [
@@ -173,6 +174,10 @@ export default function Admin() {
               onBulkAdd={adminSettings.bulkAddUserPermissions}
               onUpdate={adminSettings.updateUserPermission}
               onDelete={adminSettings.deleteUserPermission}
+            />
+            <SafetyRoleCoverageReport
+              permissions={adminSettings.settings.userPermissions}
+              buildings={adminSettings.settings.buildings}
             />
           </TabsContent>
 

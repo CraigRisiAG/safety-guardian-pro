@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Users, Trash2, Edit2, Shield, Building2, Calendar } from 'lucide-react';
+import { Plus, Users, Trash2, Edit2, Shield, Building2, Calendar, Flame, HardHat, HeartPulse, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS } from '@/types/admin';
+import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, SAFETY_ROLE_LABELS, SAFETY_ROLE_COLORS, ALL_SAFETY_ROLES } from '@/types/admin';
 import { BulkUserUpload } from './BulkUserUpload';
 import { toast } from 'sonner';
 
@@ -41,6 +41,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     buildingAccess: [] as string[],
     primaryFloorId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WorkDay[],
+    safetyRoles: [] as SafetyRole[],
     canStartDrills: false,
     canResolveIncidents: false,
     canManageUsers: false,
@@ -54,6 +55,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: [],
       primaryFloorId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      safetyRoles: [],
       canStartDrills: false,
       canResolveIncidents: false,
       canManageUsers: false,
@@ -73,6 +75,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
       workDays: formData.workDays,
+      safetyRoles: formData.safetyRoles,
       canStartDrills: formData.canStartDrills,
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
@@ -91,6 +94,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
       workDays: formData.workDays,
+      safetyRoles: formData.safetyRoles,
       canStartDrills: formData.canStartDrills,
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
@@ -108,6 +112,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: user.buildingAccess,
       primaryFloorId: user.primaryFloorId || '',
       workDays: user.workDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      safetyRoles: user.safetyRoles || [],
       canStartDrills: user.canStartDrills,
       canResolveIncidents: user.canResolveIncidents,
       canManageUsers: user.canManageUsers,
@@ -131,6 +136,24 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
         ? prev.workDays.filter(d => d !== day)
         : [...prev.workDays, day],
     }));
+  };
+
+  const toggleSafetyRole = (role: SafetyRole) => {
+    setFormData(prev => ({
+      ...prev,
+      safetyRoles: prev.safetyRoles.includes(role)
+        ? prev.safetyRoles.filter(r => r !== role)
+        : [...prev.safetyRoles, role],
+    }));
+  };
+
+  const getSafetyRoleIcon = (role: SafetyRole) => {
+    switch (role) {
+      case 'fire_marshall': return Flame;
+      case 'evacuation_warden': return HardHat;
+      case 'first_aider': return HeartPulse;
+      case 'health_safety_officer': return ShieldCheck;
+    }
   };
 
   const UserFormContent = () => (
@@ -218,6 +241,33 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
         </div>
         <p className="text-xs text-muted-foreground">Select the days this person normally works in the office</p>
       </div>
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          <Shield className="w-4 h-4" />
+          Safety Roles
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          {ALL_SAFETY_ROLES.map((role) => {
+            const Icon = getSafetyRoleIcon(role);
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => toggleSafetyRole(role)}
+                className={`px-3 py-1.5 text-sm rounded-md border transition-colors flex items-center gap-1.5 ${
+                  formData.safetyRoles.includes(role)
+                    ? SAFETY_ROLE_COLORS[role]
+                    : 'bg-background border-border hover:bg-muted'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {SAFETY_ROLE_LABELS[role]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">Assign emergency preparedness roles (fire marshall, first aid, etc.)</p>
+      </div>
       <div className="space-y-3">
         <Label>Permissions</Label>
         <div className="space-y-2">
@@ -303,8 +353,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="hidden md:table-cell">Work Days</TableHead>
-                <TableHead className="hidden lg:table-cell">Building Access</TableHead>
-                <TableHead className="hidden sm:table-cell">Permissions</TableHead>
+                <TableHead className="hidden lg:table-cell">Safety Roles</TableHead>
+                <TableHead className="hidden xl:table-cell">Building Access</TableHead>
                 <TableHead className="w-20">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -344,6 +394,23 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <div className="flex flex-wrap gap-1">
+                      {(permission.safetyRoles || []).length === 0 ? (
+                        <span className="text-sm text-muted-foreground">None</span>
+                      ) : (
+                        (permission.safetyRoles || []).map((role) => {
+                          const Icon = getSafetyRoleIcon(role);
+                          return (
+                            <Badge key={role} variant="outline" className={`text-xs ${SAFETY_ROLE_COLORS[role]}`}>
+                              <Icon className="w-3 h-3 mr-1" />
+                              {SAFETY_ROLE_LABELS[role]}
+                            </Badge>
+                          );
+                        })
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    <div className="flex flex-wrap gap-1">
                       {permission.buildingAccess.length === 0 ? (
                         <span className="text-sm text-muted-foreground">No access</span>
                       ) : (
@@ -362,13 +429,6 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                           +{permission.buildingAccess.length - 2} more
                         </Badge>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {permission.canStartDrills && <Badge variant="secondary" className="text-xs">Drills</Badge>}
-                      {permission.canResolveIncidents && <Badge variant="secondary" className="text-xs">Incidents</Badge>}
-                      {permission.canManageUsers && <Badge variant="secondary" className="text-xs">Users</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>
