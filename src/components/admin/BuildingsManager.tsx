@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Building2, Trash2, Edit2, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
+import { Plus, Building2, Trash2, Edit2, ChevronDown, ChevronRight, MapPin, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,8 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
   // Area management
   const [addingAreaTo, setAddingAreaTo] = useState<{ buildingId: string; floorId: string } | null>(null);
   const [newAreaName, setNewAreaName] = useState('');
+  const [newAreaHeadcount, setNewAreaHeadcount] = useState('');
+  const [editingArea, setEditingArea] = useState<{ buildingId: string; floorId: string; area: CustomArea } | null>(null);
 
   const toggleExpanded = (buildingId: string) => {
     setExpandedBuildings(prev => 
@@ -113,6 +115,7 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
       id: `area-${Date.now()}`,
       floorId,
       name: newAreaName.trim(),
+      expectedHeadcount: newAreaHeadcount ? parseInt(newAreaHeadcount) : undefined,
     };
 
     onUpdate(buildingId, {
@@ -123,8 +126,30 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
       ),
     });
     setNewAreaName('');
+    setNewAreaHeadcount('');
     setAddingAreaTo(null);
     toast.success('Area added successfully');
+  };
+
+  const handleUpdateArea = () => {
+    if (!editingArea) return;
+    const building = buildings.find(b => b.id === editingArea.buildingId);
+    if (!building) return;
+
+    onUpdate(editingArea.buildingId, {
+      floors: building.floors.map(f =>
+        f.id === editingArea.floorId
+          ? {
+              ...f,
+              areas: f.areas.map(a =>
+                a.id === editingArea.area.id ? editingArea.area : a
+              ),
+            }
+          : f
+      ),
+    });
+    setEditingArea(null);
+    toast.success('Area updated successfully');
   };
 
   const handleDeleteArea = (buildingId: string, floorId: string, areaId: string) => {
@@ -342,29 +367,104 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
                               {/* Areas */}
                               <div className="pl-4 space-y-1">
                                 {floor.areas.map((area) => (
-                                  <div key={area.id} className="flex items-center justify-between text-sm py-1">
-                                    <span className="text-muted-foreground">{area.name}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5 text-destructive opacity-50 hover:opacity-100"
-                                      onClick={() => handleDeleteArea(building.id, floor.id, area.id)}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
+                                  <div key={area.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/50 last:border-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-muted-foreground">{area.name}</span>
+                                      {area.expectedHeadcount !== undefined && area.expectedHeadcount > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          <Users className="w-3 h-3 mr-1" />
+                                          {area.expectedHeadcount}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Dialog open={editingArea?.area.id === area.id} onOpenChange={(open) => !open && setEditingArea(null)}>
+                                        <DialogTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5"
+                                            onClick={() => setEditingArea({ buildingId: building.id, floorId: floor.id, area: { ...area } })}
+                                          >
+                                            <Edit2 className="w-3 h-3" />
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                          <DialogHeader>
+                                            <DialogTitle>Edit Area</DialogTitle>
+                                            <DialogDescription>Update area details and expected headcount.</DialogDescription>
+                                          </DialogHeader>
+                                          {editingArea && (
+                                            <div className="space-y-4 py-4">
+                                              <div className="space-y-2">
+                                                <Label>Area Name</Label>
+                                                <Input
+                                                  value={editingArea.area.name}
+                                                  onChange={(e) => setEditingArea({
+                                                    ...editingArea,
+                                                    area: { ...editingArea.area, name: e.target.value }
+                                                  })}
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="flex items-center gap-2">
+                                                  <Users className="w-4 h-4" />
+                                                  Expected Headcount
+                                                </Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  placeholder="Number of people expected in this area"
+                                                  value={editingArea.area.expectedHeadcount || ''}
+                                                  onChange={(e) => setEditingArea({
+                                                    ...editingArea,
+                                                    area: { ...editingArea.area, expectedHeadcount: e.target.value ? parseInt(e.target.value) : undefined }
+                                                  })}
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                  Used for drill check-in progress tracking
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                          <DialogFooter>
+                                            <Button variant="outline" onClick={() => setEditingArea(null)}>Cancel</Button>
+                                            <Button onClick={handleUpdateArea}>Save Changes</Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-5 w-5 text-destructive opacity-50 hover:opacity-100"
+                                        onClick={() => handleDeleteArea(building.id, floor.id, area.id)}
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 ))}
                                 {addingAreaTo?.buildingId === building.id && addingAreaTo?.floorId === floor.id ? (
-                                  <div className="flex items-center gap-2 pt-1">
-                                    <Input
-                                      placeholder="Area name"
-                                      className="h-7 text-sm"
-                                      value={newAreaName}
-                                      onChange={(e) => setNewAreaName(e.target.value)}
-                                      onKeyDown={(e) => e.key === 'Enter' && handleAddArea(building.id, floor.id)}
-                                    />
-                                    <Button size="sm" className="h-7 text-xs" onClick={() => handleAddArea(building.id, floor.id)}>Add</Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingAreaTo(null); setNewAreaName(''); }}>Cancel</Button>
+                                  <div className="space-y-2 pt-2">
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        placeholder="Area name"
+                                        className="h-7 text-sm"
+                                        value={newAreaName}
+                                        onChange={(e) => setNewAreaName(e.target.value)}
+                                      />
+                                      <Input
+                                        type="number"
+                                        placeholder="Headcount"
+                                        className="h-7 text-sm w-24"
+                                        value={newAreaHeadcount}
+                                        onChange={(e) => setNewAreaHeadcount(e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button size="sm" className="h-7 text-xs" onClick={() => handleAddArea(building.id, floor.id)}>Add</Button>
+                                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingAreaTo(null); setNewAreaName(''); setNewAreaHeadcount(''); }}>Cancel</Button>
+                                    </div>
                                   </div>
                                 ) : (
                                   <Button

@@ -41,6 +41,25 @@ export const WORK_DAY_LABELS: Record<WorkDay, string> = {
 
 export const ALL_WORK_DAYS: WorkDay[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+// Safety roles for emergency preparedness
+export type SafetyRole = 'fire_marshall' | 'evacuation_warden' | 'first_aider' | 'health_safety_officer';
+
+export const SAFETY_ROLE_LABELS: Record<SafetyRole, string> = {
+  fire_marshall: 'Fire Marshall',
+  evacuation_warden: 'Evacuation Warden',
+  first_aider: 'First Aider',
+  health_safety_officer: 'H&S Officer',
+};
+
+export const SAFETY_ROLE_COLORS: Record<SafetyRole, string> = {
+  fire_marshall: 'bg-red-100 text-red-700 border-red-200',
+  evacuation_warden: 'bg-orange-100 text-orange-700 border-orange-200',
+  first_aider: 'bg-green-100 text-green-700 border-green-200',
+  health_safety_officer: 'bg-blue-100 text-blue-700 border-blue-200',
+};
+
+export const ALL_SAFETY_ROLES: SafetyRole[] = ['fire_marshall', 'evacuation_warden', 'first_aider', 'health_safety_officer'];
+
 // User permissions
 export type UserRole = 'viewer' | 'reporter' | 'responder' | 'admin' | 'super_admin';
 
@@ -53,6 +72,7 @@ export interface UserPermission {
   buildingAccess: string[]; // building IDs
   primaryFloorId?: string; // Which floor they typically work on
   workDays: WorkDay[]; // Days they normally work in the office
+  safetyRoles: SafetyRole[]; // Safety/emergency roles assigned to this user
   canStartDrills: boolean;
   canResolveIncidents: boolean;
   canManageUsers: boolean;
