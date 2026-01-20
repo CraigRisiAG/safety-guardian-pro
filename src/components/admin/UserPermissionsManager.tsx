@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Users, Trash2, Edit2, Shield, Building2, Calendar, Flame, HardHat, HeartPulse, ShieldCheck } from 'lucide-react';
+import { Plus, Users, Trash2, Edit2, Shield, Building2, Calendar, Flame, HardHat, HeartPulse, ShieldCheck, Filter, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ const roleColors: Record<UserRole, string> = {
 export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAdd, onUpdate, onDelete }: UserPermissionsManagerProps) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<UserPermission | null>(null);
+  const [floorFilter, setFloorFilter] = useState<string>('all');
   const [formData, setFormData] = useState({
     userName: '',
     email: '',
@@ -46,6 +47,21 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     canResolveIncidents: false,
     canManageUsers: false,
   });
+
+  // Get all floors from all buildings for filtering
+  const allFloors = buildings.flatMap(building => 
+    building.floors.map(floor => ({
+      id: floor.id,
+      name: floor.name,
+      buildingId: building.id,
+      buildingName: building.name,
+    }))
+  );
+
+  // Filter permissions by selected floor
+  const filteredPermissions = floorFilter === 'all' 
+    ? permissions 
+    : permissions.filter(p => p.primaryFloorId === floorFilter);
 
   const resetForm = () => {
     setFormData({
@@ -220,6 +236,31 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       </div>
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
+          <Layers className="w-4 h-4" />
+          Primary Floor Assignment
+        </Label>
+        <Select 
+          value={formData.primaryFloorId || 'none'} 
+          onValueChange={(value) => setFormData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select primary floor" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-muted-foreground">No primary floor</span>
+            </SelectItem>
+            {allFloors.map((floor) => (
+              <SelectItem key={floor.id} value={floor.id}>
+                {floor.buildingName} - {floor.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">The floor where this person typically works</p>
+      </div>
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
           <Calendar className="w-4 h-4" />
           Work Days
         </Label>
@@ -340,11 +381,56 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
         </div>
       </CardHeader>
       <CardContent>
+        {/* Floor Filter */}
+        {permissions.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 pb-4 border-b">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter by Floor:</span>
+            </div>
+            <Select value={floorFilter} onValueChange={setFloorFilter}>
+              <SelectTrigger className="w-full sm:w-64">
+                <SelectValue placeholder="Select a floor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    All Users ({permissions.length})
+                  </div>
+                </SelectItem>
+                {allFloors.map((floor) => {
+                  const count = permissions.filter(p => p.primaryFloorId === floor.id).length;
+                  return (
+                    <SelectItem key={floor.id} value={floor.id}>
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4" />
+                        {floor.buildingName} - {floor.name} ({count})
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            {floorFilter !== 'all' && (
+              <Button variant="ghost" size="sm" onClick={() => setFloorFilter('all')}>
+                Clear filter
+              </Button>
+            )}
+          </div>
+        )}
+
         {permissions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No users configured yet.</p>
             <p className="text-sm">Click "Add User" to get started.</p>
+          </div>
+        ) : filteredPermissions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Layers className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No users assigned to this floor.</p>
+            <p className="text-sm">Users need a primary floor assignment to appear here.</p>
           </div>
         ) : (
           <Table>
@@ -352,6 +438,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead className="hidden sm:table-cell">Primary Floor</TableHead>
                 <TableHead className="hidden md:table-cell">Work Days</TableHead>
                 <TableHead className="hidden lg:table-cell">Safety Roles</TableHead>
                 <TableHead className="hidden xl:table-cell">Building Access</TableHead>
@@ -359,7 +446,9 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
               </TableRow>
             </TableHeader>
             <TableBody>
-              {permissions.map((permission) => (
+              {filteredPermissions.map((permission) => {
+                const primaryFloor = allFloors.find(f => f.id === permission.primaryFloorId);
+                return (
                 <TableRow key={permission.id}>
                   <TableCell>
                     <div>
@@ -371,6 +460,16 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                     <Badge className={roleColors[permission.role]}>
                       {ROLE_LABELS[permission.role]}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {primaryFloor ? (
+                      <Badge variant="outline" className="text-xs">
+                        <Layers className="w-3 h-3 mr-1" />
+                        {primaryFloor.buildingName} - {primaryFloor.name}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not set</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-0.5">
@@ -474,7 +573,8 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
