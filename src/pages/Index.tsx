@@ -3,9 +3,9 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentIncidents } from '@/components/dashboard/RecentIncidents';
 import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
+import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm';
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
-
 const Index = () => {
   const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
   
@@ -68,7 +68,7 @@ const Index = () => {
             <div className="px-4 sm:px-6 py-4 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">Quick Actions</h3>
             </div>
-            <div className="p-4 sm:p-6 grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="p-4 sm:p-6 grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <a 
                 href="/incidents" 
                 className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-warning-muted hover:bg-warning-muted/80 transition-colors cursor-pointer"
@@ -90,6 +90,7 @@ const Index = () => {
                 <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
               </a>
+              <ComplianceCheckForm />
               <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-colors cursor-pointer">
                 <Users className="w-6 h-6 sm:w-8 sm:h-8 text-info" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">View Personnel</span>
