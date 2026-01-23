@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { History, ClipboardCheck, CheckCircle2, XCircle, AlertTriangle, Building2, Calendar, User, Filter } from 'lucide-react';
+import { History, ClipboardCheck, CheckCircle2, XCircle, AlertTriangle, Building2, Calendar, User, Filter, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { format, parseISO, isAfter, subDays } from 'date-fns';
+import { toast } from 'sonner';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
@@ -102,6 +103,65 @@ export function ComplianceHistoryDialog() {
 
   const hasActiveFilters = typeFilter !== 'all' || buildingFilter !== 'all' || statusFilter !== 'all' || dateFilter !== 'all';
 
+  const exportToCSV = () => {
+    if (filteredRecords.length === 0) {
+      toast.error('No records to export');
+      return;
+    }
+
+    const headers = [
+      'Date',
+      'Time',
+      'Check Type',
+      'Building',
+      'Floor',
+      'Area',
+      'Completed By',
+      'Email',
+      'Status',
+      'Items Checked',
+      'Total Items',
+      'Notes'
+    ];
+
+    const rows = filteredRecords.map((record: CompletedCheckRecord) => {
+      const areaName = getAreaName(record.buildingId, record.floorId, record.areaId);
+      const checkedCount = record.checkItems.filter(i => i.checked).length;
+      
+      return [
+        format(record.completedAt, 'yyyy-MM-dd'),
+        format(record.completedAt, 'HH:mm:ss'),
+        CHECK_TYPE_LABELS[record.checkType],
+        getBuildingName(record.buildingId),
+        getFloorName(record.buildingId, record.floorId),
+        areaName || '',
+        record.completedBy.userName,
+        record.completedBy.email,
+        record.status.charAt(0).toUpperCase() + record.status.slice(1),
+        checkedCount.toString(),
+        record.checkItems.length.toString(),
+        record.notes?.replace(/"/g, '""') || ''
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `compliance-checks-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success(`Exported ${filteredRecords.length} record${filteredRecords.length !== 1 ? 's' : ''} to CSV`);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -179,8 +239,20 @@ export function ComplianceHistoryDialog() {
             </Button>
           )}
 
-          <div className="ml-auto text-sm text-muted-foreground">
-            {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={exportToCSV}
+              disabled={filteredRecords.length === 0}
+              className="h-8 text-xs"
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              Export CSV
+            </Button>
           </div>
         </div>
 
