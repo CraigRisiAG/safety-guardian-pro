@@ -6,6 +6,7 @@ import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
 import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm';
 import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWidget';
 import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistoryDialog';
+import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 const Index = () => {
@@ -97,6 +98,7 @@ const Index = () => {
               </a>
               <ComplianceCheckForm />
               <ComplianceHistoryDialog />
+              <ComplianceCalendarDialog />
               <a 
                 href="/admin?tab=users" 
                 className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-colors cursor-pointer"
