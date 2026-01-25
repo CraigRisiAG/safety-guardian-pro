@@ -187,6 +187,7 @@ export default function Admin() {
               items={adminSettings.settings.safetyCheckItems}
               categories={adminSettings.settings.complianceCategories}
               buildings={adminSettings.settings.buildings}
+              users={adminSettings.settings.userPermissions}
               onAddCheck={adminSettings.addComplianceCheck}
               onUpdateCheck={adminSettings.updateComplianceCheck}
               onDeleteCheck={adminSettings.deleteComplianceCheck}

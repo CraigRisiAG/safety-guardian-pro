@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ClipboardCheck, Trash2, Edit2, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, ClipboardCheck, Trash2, Edit2, Calendar, AlertTriangle, CheckCircle2, Users, Bell, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,15 +12,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { ComplianceCheck, SafetyCheckItem, ComplianceCategory, CustomBuilding } from '@/types/admin';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { ComplianceCheck, SafetyCheckItem, ComplianceCategory, CustomBuilding, UserPermission } from '@/types/admin';
 import { toast } from 'sonner';
 import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface ComplianceManagerProps {
   checks: ComplianceCheck[];
   items: SafetyCheckItem[];
   categories: ComplianceCategory[];
   buildings: CustomBuilding[];
+  users: UserPermission[];
   onAddCheck: (check: Omit<ComplianceCheck, 'id'>) => ComplianceCheck;
   onUpdateCheck: (id: string, updates: Partial<ComplianceCheck>) => void;
   onDeleteCheck: (id: string) => void;
@@ -37,8 +41,11 @@ const frequencyLabels = {
   annually: 'Annually',
 };
 
-const getNextDueDate = (frequency: ComplianceCheck['frequency']): Date => {
+const getNextDueDate = (frequency: ComplianceCheck['frequency'], customDays?: number): Date => {
   const now = new Date();
+  if (frequency === 'daily' && customDays) {
+    return addDays(now, customDays);
+  }
   switch (frequency) {
     case 'daily': return addDays(now, 1);
     case 'weekly': return addWeeks(now, 1);
@@ -54,6 +61,7 @@ export function ComplianceManager({
   items, 
   categories, 
   buildings,
+  users,
   onAddCheck, 
   onUpdateCheck, 
   onDeleteCheck,
@@ -69,6 +77,12 @@ export function ComplianceManager({
     frequency: 'monthly' as ComplianceCheck['frequency'],
     buildingIds: [] as string[],
     category: categories[0]?.id || '',
+    assignedUsers: [] as string[],
+    isRecurring: true,
+    customFrequencyDays: undefined as number | undefined,
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
+    reminderDaysBefore: 1,
   });
   const [itemFormData, setItemFormData] = useState({
     name: '',
@@ -87,11 +101,29 @@ export function ComplianceManager({
       description: checkFormData.description.trim(),
       frequency: checkFormData.frequency,
       buildingIds: checkFormData.buildingIds,
-      nextDue: getNextDueDate(checkFormData.frequency),
+      nextDue: checkFormData.startDate || getNextDueDate(checkFormData.frequency, checkFormData.customFrequencyDays),
       status: 'pending',
       category: checkFormData.category,
+      assignedUsers: checkFormData.assignedUsers,
+      isRecurring: checkFormData.isRecurring,
+      customFrequencyDays: checkFormData.customFrequencyDays,
+      startDate: checkFormData.startDate,
+      endDate: checkFormData.endDate,
+      reminderDaysBefore: checkFormData.reminderDaysBefore,
     });
-    setCheckFormData({ name: '', description: '', frequency: 'monthly', buildingIds: [], category: categories[0]?.id || '' });
+    setCheckFormData({ 
+      name: '', 
+      description: '', 
+      frequency: 'monthly', 
+      buildingIds: [], 
+      category: categories[0]?.id || '',
+      assignedUsers: [],
+      isRecurring: true,
+      customFrequencyDays: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      reminderDaysBefore: 1,
+    });
     setIsAddingCheck(false);
     toast.success('Compliance check added successfully');
   };
@@ -119,7 +151,7 @@ export function ComplianceManager({
     onUpdateCheck(checkId, {
       status: 'completed',
       lastCompleted: new Date(),
-      nextDue: getNextDueDate(check.frequency),
+      nextDue: check.isRecurring ? getNextDueDate(check.frequency, check.customFrequencyDays) : check.nextDue,
     });
     toast.success('Check marked as complete');
   };
@@ -131,6 +163,20 @@ export function ComplianceManager({
         ? prev.buildingIds.filter(id => id !== buildingId)
         : [...prev.buildingIds, buildingId],
     }));
+  };
+
+  const toggleUserForCheck = (userId: string) => {
+    setCheckFormData(prev => ({
+      ...prev,
+      assignedUsers: prev.assignedUsers.includes(userId)
+        ? prev.assignedUsers.filter(id => id !== userId)
+        : [...prev.assignedUsers, userId],
+    }));
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user?.userName || 'Unknown User';
   };
 
   const getStatusBadge = (status: ComplianceCheck['status']) => {
@@ -173,11 +219,11 @@ export function ComplianceManager({
                     Add Check
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Add Compliance Check</DialogTitle>
+                    <DialogTitle>Schedule Recurring Compliance Check</DialogTitle>
                     <DialogDescription>
-                      Create a new scheduled compliance check.
+                      Create a new scheduled compliance check with custom frequency and user assignments.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -197,34 +243,185 @@ export function ComplianceManager({
                         onChange={(e) => setCheckFormData(prev => ({ ...prev, description: e.target.value }))}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Frequency</Label>
-                        <Select value={checkFormData.frequency} onValueChange={(value: ComplianceCheck['frequency']) => setCheckFormData(prev => ({ ...prev, frequency: value }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(frequencyLabels).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>{label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+
+                    {/* Recurring Settings */}
+                    <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                          <Label className="font-medium">Recurring Schedule</Label>
+                        </div>
+                        <Switch
+                          checked={checkFormData.isRecurring}
+                          onCheckedChange={(checked) => setCheckFormData(prev => ({ ...prev, isRecurring: checked }))}
+                        />
                       </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Frequency</Label>
+                          <Select value={checkFormData.frequency} onValueChange={(value: ComplianceCheck['frequency']) => setCheckFormData(prev => ({ ...prev, frequency: value }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(frequencyLabels).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>{label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Category</Label>
+                          <Select value={checkFormData.category} onValueChange={(value) => setCheckFormData(prev => ({ ...prev, category: value }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((cat) => (
+                                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {checkFormData.frequency === 'daily' && (
+                        <div className="space-y-2">
+                          <Label>Custom Interval (Days)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="e.g., 3 for every 3 days"
+                            value={checkFormData.customFrequencyDays || ''}
+                            onChange={(e) => setCheckFormData(prev => ({ 
+                              ...prev, 
+                              customFrequencyDays: e.target.value ? parseInt(e.target.value) : undefined 
+                            }))}
+                          />
+                          <p className="text-xs text-muted-foreground">Leave empty for daily checks</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Start Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !checkFormData.startDate && "text-muted-foreground"
+                                )}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {checkFormData.startDate ? format(checkFormData.startDate, "PPP") : "Pick start date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={checkFormData.startDate}
+                                onSelect={(date) => setCheckFormData(prev => ({ ...prev, startDate: date }))}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>End Date (Optional)</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !checkFormData.endDate && "text-muted-foreground"
+                                )}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {checkFormData.endDate ? format(checkFormData.endDate, "PPP") : "No end date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={checkFormData.endDate}
+                                onSelect={(date) => setCheckFormData(prev => ({ ...prev, endDate: date }))}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
-                        <Label>Category</Label>
-                        <Select value={checkFormData.category} onValueChange={(value) => setCheckFormData(prev => ({ ...prev, category: value }))}>
+                        <Label className="flex items-center gap-2">
+                          <Bell className="w-4 h-4" />
+                          Reminder (Days Before Due)
+                        </Label>
+                        <Select 
+                          value={String(checkFormData.reminderDaysBefore)} 
+                          onValueChange={(value) => setCheckFormData(prev => ({ ...prev, reminderDaysBefore: parseInt(value) }))}
+                        >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {categories.map((cat) => (
-                              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                            ))}
+                            <SelectItem value="0">No reminder</SelectItem>
+                            <SelectItem value="1">1 day before</SelectItem>
+                            <SelectItem value="2">2 days before</SelectItem>
+                            <SelectItem value="3">3 days before</SelectItem>
+                            <SelectItem value="7">1 week before</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
+
+                    {/* Assigned Users */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Assign Users
+                      </Label>
+                      <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                        {users.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-2">
+                            No users available. Add users in the Permissions tab first.
+                          </p>
+                        ) : (
+                          users.map((user) => (
+                            <div key={user.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={checkFormData.assignedUsers.includes(user.id)}
+                                onCheckedChange={() => toggleUserForCheck(user.id)}
+                              />
+                              <label className="text-sm cursor-pointer flex-1">
+                                {user.userName}
+                                <span className="text-muted-foreground ml-2">({user.email})</span>
+                              </label>
+                              {user.safetyRoles.length > 0 && (
+                                <div className="flex gap-1">
+                                  {user.safetyRoles.slice(0, 2).map(role => (
+                                    <Badge key={role} variant="outline" className="text-xs">
+                                      {role.replace('_', ' ')}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {checkFormData.assignedUsers.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {checkFormData.assignedUsers.length} user(s) selected
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Buildings */}
                     <div className="space-y-2">
                       <Label>Applicable Buildings</Label>
                       <div className="border rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
@@ -242,7 +439,7 @@ export function ComplianceManager({
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddingCheck(false)}>Cancel</Button>
-                    <Button onClick={handleAddCheck}>Add Check</Button>
+                    <Button onClick={handleAddCheck}>Schedule Check</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -256,21 +453,44 @@ export function ComplianceManager({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {checks.map((check) => (
+                    {checks.map((check) => (
                     <div key={check.id} className="flex items-center justify-between p-4 border rounded-lg bg-background">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-medium">{check.name}</h4>
                           {getStatusBadge(check.status)}
+                          {check.isRecurring && (
+                            <Badge variant="outline" className="text-xs">
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                              Recurring
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{check.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>Frequency: {frequencyLabels[check.frequency]}</span>
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                          <span>Frequency: {frequencyLabels[check.frequency]}{check.customFrequencyDays ? ` (every ${check.customFrequencyDays} days)` : ''}</span>
                           <span>Next Due: {format(new Date(check.nextDue), 'MMM d, yyyy')}</span>
                           {check.lastCompleted && (
                             <span>Last Completed: {format(new Date(check.lastCompleted), 'MMM d, yyyy')}</span>
                           )}
                         </div>
+                        {check.assignedUsers && check.assignedUsers.length > 0 && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <Users className="w-3 h-3 text-muted-foreground" />
+                            <div className="flex flex-wrap gap-1">
+                              {check.assignedUsers.slice(0, 3).map(userId => (
+                                <Badge key={userId} variant="secondary" className="text-xs">
+                                  {getUserName(userId)}
+                                </Badge>
+                              ))}
+                              {check.assignedUsers.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{check.assignedUsers.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button 

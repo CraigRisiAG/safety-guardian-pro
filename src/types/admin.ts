@@ -105,9 +105,15 @@ export interface ComplianceCheck {
   buildingIds: string[];
   lastCompleted?: Date;
   nextDue: Date;
-  assignedTo?: string;
+  assignedTo?: string; // Primary assignee user ID
+  assignedUsers: string[]; // List of user IDs assigned to this check
   status: 'pending' | 'completed' | 'overdue' | 'not_applicable';
   category: string;
+  isRecurring: boolean;
+  customFrequencyDays?: number; // For custom frequency intervals
+  startDate?: Date; // When the recurring schedule starts
+  endDate?: Date; // Optional end date for the recurring schedule
+  reminderDaysBefore?: number; // Days before due date to send reminder
 }
 
 export interface SafetyCheckItem {
