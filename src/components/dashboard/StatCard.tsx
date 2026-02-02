@@ -10,9 +10,11 @@ interface StatCardProps {
     isPositive: boolean;
   };
   variant?: 'default' | 'safe' | 'warning' | 'emergency' | 'info';
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
-export function StatCard({ title, value, icon, trend, variant = 'default' }: StatCardProps) {
+export function StatCard({ title, value, icon, trend, variant = 'default', onClick, clickable }: StatCardProps) {
   const variantStyles = {
     default: 'bg-card border-border',
     safe: 'bg-safe-muted border-safe/20',
@@ -29,11 +31,20 @@ export function StatCard({ title, value, icon, trend, variant = 'default' }: Sta
     info: 'bg-info/10 text-info',
   };
 
+  const isClickable = clickable || !!onClick;
+
   return (
-    <div className={cn(
-      'p-6 rounded-xl border shadow-sm animate-fade-in',
-      variantStyles[variant]
-    )}>
+    <div 
+      className={cn(
+        'p-6 rounded-xl border shadow-sm animate-fade-in',
+        variantStyles[variant],
+        isClickable && 'cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200'
+      )}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); } : undefined}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

@@ -7,9 +7,13 @@ import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm'
 import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWidget';
 import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistoryDialog';
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
+import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
+
 const Index = () => {
+  const { settings, updateUserPermission } = useAdminSettings();
   const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
   
   const openIncidents = mockIncidents.filter(i => i.status !== 'resolved').length;
@@ -55,10 +59,20 @@ const Index = () => {
             variant="safe"
             trend={{ value: 3, isPositive: true }}
           />
-          <StatCard
-            title="Total Personnel"
-            value={156}
-            icon={<Users className="w-5 h-5" />}
+          <PersonnelDialog
+            personnel={settings.userPermissions}
+            buildings={settings.buildings}
+            onUpdate={updateUserPermission}
+            trigger={
+              <div>
+                <StatCard
+                  title="Total Personnel"
+                  value={settings.userPermissions.length}
+                  icon={<Users className="w-5 h-5" />}
+                  clickable
+                />
+              </div>
+            }
           />
         </div>
 
