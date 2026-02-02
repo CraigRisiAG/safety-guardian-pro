@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Users, Building2, Layers, MapPin, Calendar, Activity, Edit2, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Users, Building2, Layers, MapPin, Calendar, Activity, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,27 +9,243 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, SAFETY_ROLE_LABELS, SAFETY_ROLE_COLORS, ALL_SAFETY_ROLES, ROLE_LABELS, UserRole } from '@/types/admin';
 import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 interface PersonnelDialogProps {
   personnel: UserPermission[];
   buildings: CustomBuilding[];
   onUpdate: (id: string, updates: Partial<UserPermission>) => void;
+  onBulkAdd: (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   trigger: React.ReactNode;
 }
 
 type SortField = 'name' | 'building' | 'floor' | 'participation';
 type SortDirection = 'asc' | 'desc';
 
-export function PersonnelDialog({ personnel, buildings, onUpdate, trigger }: PersonnelDialogProps) {
+const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
+
+export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, trigger }: PersonnelDialogProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterBuilding, setFilterBuilding] = useState<string>('all');
+  const [showUpload, setShowUpload] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  interface ParsedUser {
+    userName: string;
+    email: string;
+    role: UserRole;
+    buildingAccess: string[];
+    primaryFloorId?: string;
+    workDays: WorkDay[];
+    isValid: boolean;
+    errors: string[];
+  }
+
+  const parseBoolean = (value: any): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      return ['yes', 'true', '1', 'y'].includes(value.toLowerCase().trim());
+    }
+    return Boolean(value);
+  };
+
+  const parseRole = (value: string): UserRole | null => {
+    const normalized = value?.toLowerCase().trim().replace(/\s+/g, '_');
+    if (VALID_ROLES.includes(normalized as UserRole)) {
+      return normalized as UserRole;
+    }
+    return null;
+  };
+
+  const parseBuildingAccess = (value: string | string[]): string[] => {
+    if (!value) return [];
+    const names = Array.isArray(value) ? value : value.split(',').map(s => s.trim());
+    if (names.length === 1 && names[0].toLowerCase() === 'all') {
+      return buildings.map(b => b.id);
+    }
+    return names.map(name => {
+      const building = buildings.find(b => b.name.toLowerCase() === name.toLowerCase().trim());
+      return building?.id;
+    }).filter(Boolean) as string[];
+  };
+
+  const parseFloorId = (value: string): string | undefined => {
+    if (!value) return undefined;
+    for (const building of buildings) {
+      const floor = building.floors.find(f => 
+        f.name.toLowerCase() === value.toLowerCase().trim() ||
+        `${building.name} - ${f.name}`.toLowerCase() === value.toLowerCase().trim()
+      );
+      if (floor) return floor.id;
+    }
+    return undefined;
+  };
+
+  const parseWorkDays = (value: string): WorkDay[] => {
+    if (!value) return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+    const dayMap: Record<string, WorkDay> = {
+      'mon': 'monday', 'monday': 'monday',
+      'tue': 'tuesday', 'tuesday': 'tuesday',
+      'wed': 'wednesday', 'wednesday': 'wednesday',
+      'thu': 'thursday', 'thursday': 'thursday',
+      'fri': 'friday', 'friday': 'friday',
+      'sat': 'saturday', 'saturday': 'saturday',
+      'sun': 'sunday', 'sunday': 'sunday',
+    };
+    return value.split(',').map(d => dayMap[d.toLowerCase().trim()]).filter(Boolean) as WorkDay[];
+  };
+
+  const validateAndParseUser = (row: any): ParsedUser => {
+    const errors: string[] = [];
+    
+    const userName = (row['Name']?.toString().trim() || '');
+    const email = (row['Email']?.toString().trim() || '');
+    const roleStr = (row['Role']?.toString() || 'reporter');
+    const buildingAccessValue = (row['Building']?.toString() || row['Building Access']?.toString() || '');
+    const floorValue = (row['Floor']?.toString() || row['Primary Floor']?.toString() || '');
+    const workDaysValue = (row['Work Days']?.toString() || '');
+
+    if (!userName) errors.push('Name is required');
+    if (!email) errors.push('Email is required');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push('Invalid email format');
+    }
+
+    const role = parseRole(roleStr);
+    if (!role) {
+      errors.push(`Invalid role: ${roleStr}`);
+    }
+
+    const buildingAccess = parseBuildingAccess(buildingAccessValue);
+    const primaryFloorId = parseFloorId(floorValue);
+    const workDays = parseWorkDays(workDaysValue);
+
+    return {
+      userName,
+      email,
+      role: role || 'reporter',
+      buildingAccess,
+      primaryFloorId,
+      workDays,
+      isValid: errors.length === 0,
+      errors,
+    };
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessing(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      const parsed: ParsedUser[] = jsonData.map((row: any) => validateAndParseUser(row));
+
+      setParsedUsers(parsed);
+      
+      const validCount = parsed.filter(u => u.isValid).length;
+      const invalidCount = parsed.length - validCount;
+      
+      if (invalidCount > 0) {
+        toast.warning(`Parsed ${parsed.length} users. ${invalidCount} have errors.`);
+      } else {
+        toast.success(`Parsed ${parsed.length} users successfully`);
+      }
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      toast.error('Failed to parse file. Please check the format.');
+    } finally {
+      setIsProcessing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        'Name': 'John Smith',
+        'Email': 'john@example.com',
+        'Role': 'reporter',
+        'Building': 'Main Office Building',
+        'Floor': 'Ground Floor',
+        'Work Days': 'Mon, Tue, Wed, Thu, Fri',
+      },
+      {
+        'Name': 'Jane Doe',
+        'Email': 'jane@example.com',
+        'Role': 'admin',
+        'Building': 'Research Center',
+        'Floor': 'First Floor',
+        'Work Days': 'Mon, Tue, Wed',
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
+    
+    ws['!cols'] = [
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 25 },
+    ];
+
+    XLSX.writeFile(wb, 'personnel_import_template.xlsx');
+    toast.success('Template downloaded');
+  };
+
+  const handleImport = () => {
+    const validUsers = parsedUsers.filter(u => u.isValid);
+    if (validUsers.length === 0) {
+      toast.error('No valid users to import');
+      return;
+    }
+
+    const usersToAdd = validUsers.map(u => ({
+      userId: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userName: u.userName,
+      email: u.email,
+      role: u.role,
+      buildingAccess: u.buildingAccess,
+      primaryFloorId: u.primaryFloorId,
+      workDays: u.workDays,
+      safetyRoles: [] as SafetyRole[],
+      canStartDrills: false,
+      canResolveIncidents: false,
+      canManageUsers: false,
+    }));
+
+    onBulkAdd(usersToAdd);
+    toast.success(`Imported ${validUsers.length} personnel successfully`);
+    setParsedUsers([]);
+    setShowUpload(false);
+  };
+
+  const cancelUpload = () => {
+    setParsedUsers([]);
+    setShowUpload(false);
+  };
 
   // Helper to get building/floor/area names
   const getLocationInfo = (person: UserPermission) => {
@@ -170,11 +386,139 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, trigger }: Per
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Personnel Directory ({personnel.length} total)
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Personnel Directory ({personnel.length} total)
+            </DialogTitle>
+            <Button
+              variant={showUpload ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowUpload(!showUpload)}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {showUpload ? 'Hide Upload' : 'Import from File'}
+            </Button>
+          </div>
         </DialogHeader>
+
+        {/* Upload Section */}
+        {showUpload && (
+          <div className="border rounded-lg p-4 bg-muted/30 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4" />
+                Import Personnel from Excel/CSV
+              </h4>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+                  <Download className="w-4 h-4 mr-1" />
+                  Download Template
+                </Button>
+              </div>
+            </div>
+
+            {parsedUsers.length === 0 ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="personnel-upload-input"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {isProcessing ? 'Processing...' : 'Select File'}
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Supports .xlsx, .xls, and .csv files
+                  </span>
+                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium mb-1">Required columns:</p>
+                    <ul className="text-sm list-disc list-inside space-y-0.5">
+                      <li><strong>Name</strong> - Full name (required)</li>
+                      <li><strong>Email</strong> - Email address (required)</li>
+                      <li><strong>Role</strong> - viewer, reporter, responder, admin, or super_admin</li>
+                      <li><strong>Building</strong> - Building name or "All"</li>
+                      <li><strong>Floor</strong> - Primary floor name</li>
+                      <li><strong>Work Days</strong> - e.g., "Mon, Tue, Wed, Thu, Fri"</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="bg-safe/10 text-safe">
+                      {parsedUsers.filter(u => u.isValid).length} valid
+                    </Badge>
+                    {parsedUsers.filter(u => !u.isValid).length > 0 && (
+                      <Badge variant="outline" className="bg-emergency/10 text-emergency">
+                        {parsedUsers.filter(u => !u.isValid).length} with errors
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={cancelUpload}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleImport} disabled={parsedUsers.filter(u => u.isValid).length === 0}>
+                      Import {parsedUsers.filter(u => u.isValid).length} Personnel
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-40 border rounded">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Building</TableHead>
+                        <TableHead>Errors</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedUsers.map((user, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            {user.isValid ? (
+                              <Badge variant="outline" className="bg-safe/10 text-safe">Valid</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-emergency/10 text-emergency">Error</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>{user.userName || '-'}</TableCell>
+                          <TableCell>{user.email || '-'}</TableCell>
+                          <TableCell>
+                            {user.buildingAccess.length > 0 
+                              ? buildings.find(b => b.id === user.buildingAccess[0])?.name || '-'
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-emergency text-sm">
+                            {user.errors.join(', ') || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-3 py-3 border-b">
