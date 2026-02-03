@@ -13,7 +13,7 @@ import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 
 const Index = () => {
-  const { settings, updateUserPermission, bulkAddUserPermissions } = useAdminSettings();
+  const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
   
   const openIncidents = mockIncidents.filter(i => i.status !== 'resolved').length;
@@ -64,6 +64,7 @@ const Index = () => {
             buildings={settings.buildings}
             onUpdate={updateUserPermission}
             onBulkAdd={bulkAddUserPermissions}
+            onDelete={deleteUserPermission}
             trigger={
               <div>
                 <StatCard

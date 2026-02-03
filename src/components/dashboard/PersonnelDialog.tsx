@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { Users, Building2, Layers, MapPin, Calendar, Activity, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Users, Building2, Layers, MapPin, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle, Plus, UserPlus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, SAFETY_ROLE_LABELS, SAFETY_ROLE_COLORS, ALL_SAFETY_ROLES, ROLE_LABELS, UserRole } from '@/types/admin';
+import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, UserRole } from '@/types/admin';
 import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -20,43 +19,121 @@ interface PersonnelDialogProps {
   buildings: CustomBuilding[];
   onUpdate: (id: string, updates: Partial<UserPermission>) => void;
   onBulkAdd: (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
+  onDelete?: (id: string) => void;
   trigger: React.ReactNode;
 }
 
-type SortField = 'name' | 'building' | 'floor' | 'participation';
+type SortField = 'name' | 'building' | 'floor' | 'participation' | 'type';
 type SortDirection = 'asc' | 'desc';
 
 const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
 
-export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, trigger }: PersonnelDialogProps) {
+interface ParsedUser {
+  userName: string;
+  email: string;
+  role: UserRole;
+  buildingAccess: string[];
+  primaryFloorId?: string;
+  workDays: WorkDay[];
+  isValid: boolean;
+  errors: string[];
+}
+
+interface NewPersonnelForm {
+  firstName: string;
+  lastName: string;
+  email: string;
+  buildingId: string;
+  primaryFloorId: string;
+  workDays: WorkDay[];
+}
+
+export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger }: PersonnelDialogProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterBuilding, setFilterBuilding] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   const [showUpload, setShowUpload] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [newPersonnel, setNewPersonnel] = useState<NewPersonnelForm>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    buildingId: '',
+    primaryFloorId: '',
+    workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  });
 
-  interface ParsedUser {
-    userName: string;
-    email: string;
-    role: UserRole;
-    buildingAccess: string[];
-    primaryFloorId?: string;
-    workDays: WorkDay[];
-    isValid: boolean;
-    errors: string[];
-  }
+  const resetNewPersonnelForm = () => {
+    setNewPersonnel({
+      firstName: '',
+      lastName: '',
+      email: '',
+      buildingId: '',
+      primaryFloorId: '',
+      workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    });
+  };
 
-  const parseBoolean = (value: any): boolean => {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-      return ['yes', 'true', '1', 'y'].includes(value.toLowerCase().trim());
+  const handleAddPersonnel = () => {
+    if (!newPersonnel.firstName.trim() || !newPersonnel.lastName.trim()) {
+      toast.error('First name and last name are required');
+      return;
     }
-    return Boolean(value);
+
+    const userName = `${newPersonnel.firstName.trim()} ${newPersonnel.lastName.trim()}`;
+    
+    onBulkAdd([{
+      userId: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userName,
+      email: newPersonnel.email.trim() || '',
+      role: 'reporter' as UserRole,
+      buildingAccess: newPersonnel.buildingId ? [newPersonnel.buildingId] : [],
+      primaryFloorId: newPersonnel.primaryFloorId || undefined,
+      workDays: newPersonnel.workDays,
+      safetyRoles: [] as SafetyRole[],
+      canStartDrills: false,
+      canResolveIncidents: false,
+      canManageUsers: false,
+    }]);
+
+    toast.success(`${userName} added to personnel directory`);
+    resetNewPersonnelForm();
+    setShowAddForm(false);
+  };
+
+  const toggleNewPersonnelWorkDay = (day: WorkDay) => {
+    setNewPersonnel(prev => ({
+      ...prev,
+      workDays: prev.workDays.includes(day)
+        ? prev.workDays.filter(d => d !== day)
+        : [...prev.workDays, day],
+    }));
+  };
+
+  const getFloorsForBuilding = (buildingId: string) => {
+    const building = buildings.find(b => b.id === buildingId);
+    return building?.floors || [];
+  };
+
+  const isSystemUser = (person: UserPermission) => {
+    return person.role === 'admin' || person.role === 'super_admin' || person.canManageUsers;
+  };
+
+  const isManualPersonnel = (person: UserPermission) => {
+    return person.userId.startsWith('manual-') || person.userId.startsWith('user-');
+  };
+
+  const getPersonnelType = (person: UserPermission) => {
+    if (isSystemUser(person)) return 'system';
+    return 'personnel';
   };
 
   const parseRole = (value: string): UserRole | null => {
@@ -247,7 +324,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
     setShowUpload(false);
   };
 
-  // Helper to get building/floor/area names
   const getLocationInfo = (person: UserPermission) => {
     let buildingName = '-';
     let floorName = '-';
@@ -259,7 +335,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
         if (floor) {
           buildingName = building.name;
           floorName = floor.name;
-          // Get first area of the floor as default (can be enhanced with area assignment later)
           if (floor.areas.length > 0) {
             areaName = floor.areas[0].name;
           }
@@ -276,13 +351,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
     return { buildingName, floorName, areaName };
   };
 
-  // Calculate drill participation rate for each person
   const getDrillParticipation = (person: UserPermission) => {
-    // Get completed drills
     const completedDrills = mockDrills.filter(d => d.status === 'completed');
     if (completedDrills.length === 0) return { rate: 0, participated: 0, total: 0 };
 
-    // Check how many drills the person participated in
     const participatedDrills = completedDrills.filter(drill => {
       return mockCheckIns.some(
         checkIn => checkIn.drillId === drill.id && 
@@ -294,15 +366,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
     return { rate, participated: participatedDrills.length, total: completedDrills.length };
   };
 
-  // Enhanced personnel data with computed fields
   const enhancedPersonnel = useMemo(() => {
     return personnel.map(person => {
       const location = getLocationInfo(person);
       const participation = getDrillParticipation(person);
-      // Split name into first name and surname
       const nameParts = person.userName.split(' ');
       const firstName = nameParts[0] || '';
       const surname = nameParts.slice(1).join(' ') || '';
+      const personnelType = getPersonnelType(person);
       
       return {
         ...person,
@@ -310,15 +381,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
         surname,
         ...location,
         participation,
+        personnelType,
       };
     });
   }, [personnel, buildings]);
 
-  // Filter and sort personnel
   const filteredPersonnel = useMemo(() => {
     let result = enhancedPersonnel;
 
-    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(p => 
@@ -329,12 +399,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
       );
     }
 
-    // Apply building filter
     if (filterBuilding !== 'all') {
       result = result.filter(p => p.buildingAccess.includes(filterBuilding));
     }
 
-    // Apply sorting
+    if (filterType !== 'all') {
+      result = result.filter(p => p.personnelType === filterType);
+    }
+
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
@@ -350,12 +422,15 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
         case 'participation':
           comparison = a.participation.rate - b.participation.rate;
           break;
+        case 'type':
+          comparison = a.personnelType.localeCompare(b.personnelType);
+          break;
       }
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
     return result;
-  }, [enhancedPersonnel, searchQuery, filterBuilding, sortField, sortDirection]);
+  }, [enhancedPersonnel, searchQuery, filterBuilding, filterType, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -379,6 +454,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
     return 'bg-emergency text-emergency-foreground';
   };
 
+  const systemUsersCount = enhancedPersonnel.filter(p => p.personnelType === 'system').length;
+  const manualPersonnelCount = enhancedPersonnel.filter(p => p.personnelType === 'personnel').length;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -391,16 +469,140 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
               <Users className="w-5 h-5" />
               Personnel Directory ({personnel.length} total)
             </DialogTitle>
-            <Button
-              variant={showUpload ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowUpload(!showUpload)}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {showUpload ? 'Hide Upload' : 'Import from File'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant={showAddForm ? "secondary" : "default"}
+                size="sm"
+                onClick={() => {
+                  setShowAddForm(!showAddForm);
+                  if (showUpload) setShowUpload(false);
+                }}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                {showAddForm ? 'Cancel' : 'Add Personnel'}
+              </Button>
+              <Button
+                variant={showUpload ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowUpload(!showUpload);
+                  if (showAddForm) setShowAddForm(false);
+                }}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {showUpload ? 'Hide Upload' : 'Import from File'}
+              </Button>
+            </div>
           </div>
         </DialogHeader>
+
+        {/* Add Personnel Form */}
+        {showAddForm && (
+          <div className="border rounded-lg p-4 bg-muted/30 space-y-4">
+            <h4 className="font-medium flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              Add New Personnel
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>First Name *</Label>
+                <Input
+                  value={newPersonnel.firstName}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, firstName: e.target.value }))}
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name *</Label>
+                <Input
+                  value={newPersonnel.lastName}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, lastName: e.target.value }))}
+                  placeholder="Smith"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={newPersonnel.email}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="john.smith@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Building</Label>
+                <Select 
+                  value={newPersonnel.buildingId || 'none'} 
+                  onValueChange={(value) => setNewPersonnel(prev => ({ 
+                    ...prev, 
+                    buildingId: value === 'none' ? '' : value,
+                    primaryFloorId: '' 
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select building" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No building</SelectItem>
+                    {buildings.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
+                        {building.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primary Floor</Label>
+                <Select 
+                  value={newPersonnel.primaryFloorId || 'none'} 
+                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+                  disabled={!newPersonnel.buildingId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select floor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No primary floor</SelectItem>
+                    {getFloorsForBuilding(newPersonnel.buildingId).map((floor) => (
+                      <SelectItem key={floor.id} value={floor.id}>
+                        {floor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Work Days</Label>
+              <div className="flex flex-wrap gap-2">
+                {ALL_WORK_DAYS.map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleNewPersonnelWorkDay(day)}
+                    className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                      newPersonnel.workDays.includes(day)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background border-border hover:bg-muted'
+                    }`}
+                  >
+                    {WORK_DAY_LABELS[day]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { resetNewPersonnelForm(); setShowAddForm(false); }}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleAddPersonnel}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add Personnel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Upload Section */}
         {showUpload && (
@@ -520,6 +722,18 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
           </div>
         )}
 
+        {/* Type Summary */}
+        <div className="flex gap-4 text-sm text-muted-foreground py-2 border-b">
+          <span className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="text-xs">System</Badge>
+            {systemUsersCount} system users
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Badge variant="outline" className="text-xs">Personnel</Badge>
+            {manualPersonnelCount} personnel
+          </span>
+        </div>
+
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-3 py-3 border-b">
           <div className="relative flex-1">
@@ -553,6 +767,16 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="system">System Users</SelectItem>
+              <SelectItem value="personnel">Personnel</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Personnel Table */}
@@ -565,6 +789,12 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
                   onClick={() => handleSort('name')}
                 >
                   Name <SortIcon field="name" />
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('type')}
+                >
+                  Type <SortIcon field="type" />
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 hidden md:table-cell"
@@ -586,16 +816,16 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
                 >
                   Drill Participation <SortIcon field="participation" />
                 </TableHead>
-                <TableHead className="w-20">Actions</TableHead>
+                <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPersonnel.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    {searchQuery || filterBuilding !== 'all' 
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    {searchQuery || filterBuilding !== 'all' || filterType !== 'all'
                       ? 'No personnel match your filters'
-                      : 'No personnel configured yet'}
+                      : 'No personnel configured yet. Add personnel manually or import from file.'}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -612,6 +842,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, tri
                       toast.success('Personnel updated successfully');
                     }}
                     onCancel={() => setEditingPersonId(null)}
+                    onDelete={onDelete && !isSystemUser(person) ? () => {
+                      onDelete(person.id);
+                      toast.success('Personnel removed');
+                    } : undefined}
                     getParticipationColor={getParticipationColor}
                   />
                 ))
@@ -649,16 +883,18 @@ interface PersonnelRowProps {
     floorName: string;
     areaName: string;
     participation: { rate: number; participated: number; total: number };
+    personnelType: string;
   };
   buildings: CustomBuilding[];
   isEditing: boolean;
   onEdit: () => void;
   onSave: (updates: Partial<UserPermission>) => void;
   onCancel: () => void;
+  onDelete?: () => void;
   getParticipationColor: (rate: number) => string;
 }
 
-function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, getParticipationColor }: PersonnelRowProps) {
+function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, onDelete, getParticipationColor }: PersonnelRowProps) {
   const [editData, setEditData] = useState({
     userName: person.userName,
     primaryFloorId: person.primaryFloorId || '',
@@ -687,7 +923,7 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
   if (isEditing) {
     return (
       <TableRow className="bg-muted/30">
-        <TableCell colSpan={7}>
+        <TableCell colSpan={8}>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -781,6 +1017,13 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
           <p className="text-sm text-muted-foreground">{person.email}</p>
         </div>
       </TableCell>
+      <TableCell>
+        {person.personnelType === 'system' ? (
+          <Badge variant="secondary" className="text-xs">System</Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs">Personnel</Badge>
+        )}
+      </TableCell>
       <TableCell className="hidden md:table-cell">
         <div className="flex items-center gap-1.5">
           <Building2 className="w-4 h-4 text-muted-foreground" />
@@ -823,9 +1066,16 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
         </div>
       </TableCell>
       <TableCell>
-        <Button variant="ghost" size="icon" onClick={onEdit}>
-          <Edit2 className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" onClick={onEdit}>
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          {onDelete && (
+            <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive hover:text-destructive">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
