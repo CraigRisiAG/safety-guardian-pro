@@ -36,7 +36,7 @@ export function StatCard({ title, value, icon, trend, variant = 'default', onCli
   return (
     <div 
       className={cn(
-        'p-6 rounded-xl border shadow-sm animate-fade-in',
+        'p-6 rounded-xl border shadow-sm animate-fade-in h-full',
         variantStyles[variant],
         isClickable && 'cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200'
       )}
