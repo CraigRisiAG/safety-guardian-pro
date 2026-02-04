@@ -161,7 +161,7 @@ export function ComplianceCheckForm() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
       <DialogTrigger asChild>
-        <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer">
+        <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-primary/10 hover:bg-primary/20 transition-all cursor-pointer hover-scale">
           <ClipboardCheck className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
           <span className="font-medium text-foreground text-sm sm:text-base text-center">Compliance Check</span>
         </div>

@@ -165,7 +165,7 @@ export function ComplianceHistoryDialog() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-muted hover:bg-muted/80 transition-colors cursor-pointer">
+        <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-muted hover:bg-muted/80 transition-all cursor-pointer hover-scale">
           <History className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
           <span className="font-medium text-foreground text-sm sm:text-base text-center">Check History</span>
         </div>
