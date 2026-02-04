@@ -93,21 +93,21 @@ const Index = () => {
             <div className="p-4 sm:p-6 grid grid-cols-2 gap-3 sm:gap-4">
               <a 
                 href="/incidents" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-warning-muted hover:bg-warning-muted/80 transition-colors cursor-pointer"
+                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-warning-muted hover:bg-warning-muted/80 transition-all cursor-pointer hover-scale"
               >
                 <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-warning" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Report Incident</span>
               </a>
               <a 
                 href="/drills" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-emergency-muted hover:bg-emergency-muted/80 transition-colors cursor-pointer"
+                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-emergency-muted hover:bg-emergency-muted/80 transition-all cursor-pointer hover-scale"
               >
                 <Siren className="w-6 h-6 sm:w-8 sm:h-8 text-emergency" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Start Drill</span>
               </a>
               <a 
                 href="/check-in" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-colors cursor-pointer"
+                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale"
               >
                 <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
@@ -117,7 +117,7 @@ const Index = () => {
               <ComplianceCalendarDialog />
               <a 
                 href="/admin?tab=users" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-colors cursor-pointer"
+                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-all cursor-pointer hover-scale"
               >
                 <Users className="w-6 h-6 sm:w-8 sm:h-8 text-info" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">View Personnel</span>
