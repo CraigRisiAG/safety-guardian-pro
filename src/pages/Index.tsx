@@ -66,7 +66,7 @@ const Index = () => {
             onBulkAdd={bulkAddUserPermissions}
             onDelete={deleteUserPermission}
             trigger={
-              <div>
+              <div className="h-full">
                 <StatCard
                   title="Total Personnel"
                   value={settings.userPermissions.length}
