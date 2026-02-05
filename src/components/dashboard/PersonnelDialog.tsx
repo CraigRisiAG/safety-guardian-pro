@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, UserRole } from '@/types/admin';
+import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, UserRole, STAFF_CODE_MAX_LENGTH } from '@/types/admin';
 import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -23,7 +23,7 @@ interface PersonnelDialogProps {
   trigger: React.ReactNode;
 }
 
-type SortField = 'name' | 'building' | 'floor' | 'participation' | 'type';
+type SortField = 'name' | 'staffCode' | 'building' | 'floor' | 'participation' | 'type';
 type SortDirection = 'asc' | 'desc';
 
 const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
@@ -31,6 +31,7 @@ const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'su
 interface ParsedUser {
   userName: string;
   email: string;
+  staffCode?: string;
   role: UserRole;
   buildingAccess: string[];
   primaryFloorId?: string;
@@ -43,6 +44,7 @@ interface NewPersonnelForm {
   firstName: string;
   lastName: string;
   email: string;
+  staffCode: string;
   buildingId: string;
   primaryFloorId: string;
   workDays: WorkDay[];
@@ -66,6 +68,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     firstName: '',
     lastName: '',
     email: '',
+    staffCode: '',
     buildingId: '',
     primaryFloorId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -76,6 +79,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       firstName: '',
       lastName: '',
       email: '',
+      staffCode: '',
       buildingId: '',
       primaryFloorId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -88,12 +92,26 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       return;
     }
 
+    // Validate staff code uniqueness if provided
+    if (newPersonnel.staffCode.trim()) {
+      const isDuplicate = personnel.some(p => p.staffCode?.toLowerCase() === newPersonnel.staffCode.trim().toLowerCase());
+      if (isDuplicate) {
+        toast.error('Staff code must be unique');
+        return;
+      }
+      if (newPersonnel.staffCode.trim().length > STAFF_CODE_MAX_LENGTH) {
+        toast.error(`Staff code must be ${STAFF_CODE_MAX_LENGTH} characters or less`);
+        return;
+      }
+    }
+
     const userName = `${newPersonnel.firstName.trim()} ${newPersonnel.lastName.trim()}`;
     
     onBulkAdd([{
       userId: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userName,
       email: newPersonnel.email.trim() || '',
+      staffCode: newPersonnel.staffCode.trim() || undefined,
       role: 'reporter' as UserRole,
       buildingAccess: newPersonnel.buildingId ? [newPersonnel.buildingId] : [],
       primaryFloorId: newPersonnel.primaryFloorId || undefined,
@@ -187,6 +205,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     
     const userName = (row['Name']?.toString().trim() || '');
     const email = (row['Email']?.toString().trim() || '');
+    const staffCode = (row['Staff Code']?.toString().trim() || '');
     const roleStr = (row['Role']?.toString() || 'reporter');
     const buildingAccessValue = (row['Building']?.toString() || row['Building Access']?.toString() || '');
     const floorValue = (row['Floor']?.toString() || row['Primary Floor']?.toString() || '');
@@ -196,6 +215,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     if (!email) errors.push('Email is required');
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.push('Invalid email format');
+    }
+    if (staffCode && staffCode.length > STAFF_CODE_MAX_LENGTH) {
+      errors.push(`Staff code must be ${STAFF_CODE_MAX_LENGTH} characters or less`);
     }
 
     const role = parseRole(roleStr);
@@ -210,6 +232,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     return {
       userName,
       email,
+      staffCode: staffCode || undefined,
       role: role || 'reporter',
       buildingAccess,
       primaryFloorId,
@@ -260,6 +283,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       {
         'Name': 'John Smith',
         'Email': 'john@example.com',
+        'Staff Code': 'JS001',
         'Role': 'reporter',
         'Building': 'Main Office Building',
         'Floor': 'Ground Floor',
@@ -268,6 +292,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       {
         'Name': 'Jane Doe',
         'Email': 'jane@example.com',
+        'Staff Code': 'JD002',
         'Role': 'admin',
         'Building': 'Research Center',
         'Floor': 'First Floor',
@@ -282,6 +307,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     ws['!cols'] = [
       { wch: 20 },
       { wch: 25 },
+      { wch: 12 },
       { wch: 12 },
       { wch: 25 },
       { wch: 15 },
@@ -299,10 +325,26 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       return;
     }
 
+    // Check for duplicate staff codes within the import and against existing personnel
+    const staffCodes = new Set<string>();
+    const existingCodes = new Set(personnel.map(p => p.staffCode?.toLowerCase()).filter(Boolean));
+    
+    for (const user of validUsers) {
+      if (user.staffCode) {
+        const lowerCode = user.staffCode.toLowerCase();
+        if (existingCodes.has(lowerCode) || staffCodes.has(lowerCode)) {
+          toast.error(`Duplicate staff code found: ${user.staffCode}`);
+          return;
+        }
+        staffCodes.add(lowerCode);
+      }
+    }
+
     const usersToAdd = validUsers.map(u => ({
       userId: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userName: u.userName,
       email: u.email,
+      staffCode: u.staffCode,
       role: u.role,
       buildingAccess: u.buildingAccess,
       primaryFloorId: u.primaryFloorId,
@@ -394,6 +436,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       result = result.filter(p => 
         p.userName.toLowerCase().includes(query) ||
         p.email.toLowerCase().includes(query) ||
+        (p.staffCode && p.staffCode.toLowerCase().includes(query)) ||
         p.buildingName.toLowerCase().includes(query) ||
         p.floorName.toLowerCase().includes(query)
       );
@@ -412,6 +455,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       switch (sortField) {
         case 'name':
           comparison = a.userName.localeCompare(b.userName);
+          break;
+        case 'staffCode':
+          comparison = (a.staffCode || '').localeCompare(b.staffCode || '');
           break;
         case 'building':
           comparison = a.buildingName.localeCompare(b.buildingName);
@@ -528,6 +574,16 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                   onChange={(e) => setNewPersonnel(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="john.smith@example.com"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Staff Code</Label>
+                <Input
+                  value={newPersonnel.staffCode}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, staffCode: e.target.value.slice(0, STAFF_CODE_MAX_LENGTH) }))}
+                  placeholder="e.g. JS001"
+                  maxLength={STAFF_CODE_MAX_LENGTH}
+                />
+                <p className="text-xs text-muted-foreground">Max 8 characters, must be unique</p>
               </div>
               <div className="space-y-2">
                 <Label>Building</Label>
@@ -650,6 +706,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                     <ul className="text-sm list-disc list-inside space-y-0.5">
                       <li><strong>Name</strong> - Full name (required)</li>
                       <li><strong>Email</strong> - Email address (required)</li>
+                      <li><strong>Staff Code</strong> - Unique identifier (max 8 chars)</li>
                       <li><strong>Role</strong> - viewer, reporter, responder, admin, or super_admin</li>
                       <li><strong>Building</strong> - Building name or "All"</li>
                       <li><strong>Floor</strong> - Primary floor name</li>
@@ -739,7 +796,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, building..."
+              placeholder="Search by name, email, staff code, building..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -792,6 +849,12 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('staffCode')}
+                >
+                  Staff Code <SortIcon field="staffCode" />
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('type')}
                 >
                   Type <SortIcon field="type" />
@@ -822,7 +885,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
             <TableBody>
               {filteredPersonnel.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {searchQuery || filterBuilding !== 'all' || filterType !== 'all'
                       ? 'No personnel match your filters'
                       : 'No personnel configured yet. Add personnel manually or import from file.'}
@@ -834,6 +897,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                     key={person.id}
                     person={person}
                     buildings={buildings}
+                    allPersonnel={personnel}
                     isEditing={editingPersonId === person.id}
                     onEdit={() => setEditingPersonId(person.id)}
                     onSave={(updates) => {
@@ -886,6 +950,7 @@ interface PersonnelRowProps {
     personnelType: string;
   };
   buildings: CustomBuilding[];
+  allPersonnel: UserPermission[];
   isEditing: boolean;
   onEdit: () => void;
   onSave: (updates: Partial<UserPermission>) => void;
@@ -894,9 +959,10 @@ interface PersonnelRowProps {
   getParticipationColor: (rate: number) => string;
 }
 
-function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, onDelete, getParticipationColor }: PersonnelRowProps) {
+function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSave, onCancel, onDelete, getParticipationColor }: PersonnelRowProps) {
   const [editData, setEditData] = useState({
     userName: person.userName,
+    staffCode: person.staffCode || '',
     primaryFloorId: person.primaryFloorId || '',
     workDays: person.workDays || [],
     buildingAccess: person.buildingAccess || [],
@@ -920,10 +986,26 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
     }));
   };
 
+  const validateStaffCode = (code: string): string | null => {
+    if (!code.trim()) return null;
+    if (code.trim().length > STAFF_CODE_MAX_LENGTH) {
+      return `Staff code must be ${STAFF_CODE_MAX_LENGTH} characters or less`;
+    }
+    const isDuplicate = allPersonnel.some(
+      p => p.id !== person.id && p.staffCode?.toLowerCase() === code.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      return 'Staff code must be unique';
+    }
+    return null;
+  };
+
   if (isEditing) {
+    const staffCodeError = validateStaffCode(editData.staffCode);
+    
     return (
       <TableRow className="bg-muted/30">
-        <TableCell colSpan={8}>
+        <TableCell colSpan={9}>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -933,6 +1015,19 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
                   onChange={(e) => setEditData(prev => ({ ...prev, userName: e.target.value }))}
                   placeholder="First Last"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Staff Code</Label>
+                <Input
+                  value={editData.staffCode}
+                  onChange={(e) => setEditData(prev => ({ ...prev, staffCode: e.target.value.slice(0, STAFF_CODE_MAX_LENGTH) }))}
+                  placeholder="e.g. ABC123"
+                  maxLength={STAFF_CODE_MAX_LENGTH}
+                  className={staffCodeError ? 'border-destructive' : ''}
+                />
+                {staffCodeError && (
+                  <p className="text-xs text-destructive">{staffCodeError}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Primary Floor</Label>
@@ -999,7 +1094,11 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
               <Button variant="outline" size="sm" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={() => onSave(editData)}>
+              <Button 
+                size="sm" 
+                onClick={() => onSave({ ...editData, staffCode: editData.staffCode.trim() || undefined })}
+                disabled={!!staffCodeError}
+              >
                 Save Changes
               </Button>
             </div>
@@ -1016,6 +1115,15 @@ function PersonnelRow({ person, buildings, isEditing, onEdit, onSave, onCancel, 
           <p className="font-medium">{person.firstName} {person.surname}</p>
           <p className="text-sm text-muted-foreground">{person.email}</p>
         </div>
+      </TableCell>
+      <TableCell>
+        {person.staffCode ? (
+          <Badge variant="outline" className="font-mono text-xs">
+            {person.staffCode}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
       </TableCell>
       <TableCell>
         {person.personnelType === 'system' ? (
