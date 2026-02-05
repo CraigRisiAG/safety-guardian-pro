@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { STAFF_CODE_MAX_LENGTH } from '@/types/admin';
 
 interface SafetyCheckInCardProps {
   drill: Drill;
@@ -41,8 +42,8 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-// Demo staff codes - in production, validate against backend (integers only)
-const VALID_STAFF_CODES = ['1234', '5678', '9999', '0000'];
+// Demo staff codes - in production, validate against backend (alphanumeric, max 8 chars)
+const VALID_STAFF_CODES = ['JS001', 'JD002', 'ABC123', 'ADMIN01'];
 
 export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: SafetyCheckInCardProps) {
   const [status, setStatus] = useState<'safe' | 'needs-assistance' | null>(null);
@@ -65,9 +66,9 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
   const selectedFloor = floors.find(f => f.id === floorId);
 
   const validateStaffCode = (code: string) => {
-    const isValid = VALID_STAFF_CODES.includes(code);
+    const isValid = VALID_STAFF_CODES.some(c => c.toLowerCase() === code.toLowerCase());
     setStaffCodeValid(isValid);
-    if (!isValid && code.length >= 4) {
+    if (!isValid && code.length >= 3) {
       toast.error('Invalid staff code');
     }
     return isValid;
@@ -197,20 +198,20 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
               <div className="relative">
                 <Input
                   id="staff-code"
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  type="text"
+                  inputMode="text"
+                  maxLength={STAFF_CODE_MAX_LENGTH}
                   value={staffCode}
                   onChange={(e) => {
-                    const numericValue = e.target.value.replace(/\D/g, '');
-                    setStaffCode(numericValue);
-                    if (numericValue.length >= 4) {
-                      validateStaffCode(numericValue);
+                    const value = e.target.value.slice(0, STAFF_CODE_MAX_LENGTH);
+                    setStaffCode(value);
+                    if (value.length >= 3) {
+                      validateStaffCode(value);
                     } else {
                       setStaffCodeValid(null);
                     }
                   }}
-                  placeholder="Enter 4-digit code"
+                  placeholder="Enter staff code"
                   className={cn(
                     staffCodeValid === true && 'border-safe',
                     staffCodeValid === false && 'border-destructive'
@@ -220,7 +221,7 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
                   <ShieldCheck className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-safe" />
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Demo codes: 1234, 5678, 9999</p>
+              <p className="text-xs text-muted-foreground">Demo codes: JS001, JD002, ABC123</p>
             </div>
           )}
 

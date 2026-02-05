@@ -41,6 +41,9 @@ export const WORK_DAY_LABELS: Record<WorkDay, string> = {
 
 export const ALL_WORK_DAYS: WorkDay[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+// Staff code configuration
+export const STAFF_CODE_MAX_LENGTH = 8;
+
 // Safety roles for emergency preparedness
 export type SafetyRole = 'fire_marshall' | 'evacuation_warden' | 'first_aider' | 'health_safety_officer';
 
@@ -66,6 +69,7 @@ export type UserRole = 'viewer' | 'reporter' | 'responder' | 'admin' | 'super_ad
 export interface UserPermission {
   id: string;
   userId: string;
+  staffCode?: string; // Unique staff code (max 8 characters)
   userName: string;
   email: string;
   role: UserRole;
