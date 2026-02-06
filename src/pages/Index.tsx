@@ -11,10 +11,14 @@ import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
+import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { toast } from 'sonner';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
+  const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
+  const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
   
   const openIncidents = mockIncidents.filter(i => i.status !== 'resolved').length;
   const upcomingDrills = mockDrills.filter(d => d.status === 'scheduled').length;
@@ -23,6 +27,21 @@ const Index = () => {
     safe: mockCheckIns.filter(c => c.status === 'safe').length,
     needsAssistance: mockCheckIns.filter(c => c.status === 'needs-assistance').length,
     pending: mockCheckIns.filter(c => c.status === 'pending').length,
+  };
+
+  // Handle starting a scheduled check
+  const handleStartScheduledCheck = (check: ComplianceCheck, onBehalfOf?: UserPermission) => {
+    setSelectedCheck(check);
+    setOnBehalfOfUser(onBehalfOf || null);
+    
+    // Show a toast to guide user
+    const message = onBehalfOf 
+      ? `Starting "${check.name}" on behalf of ${onBehalfOf.userName}`
+      : `Starting "${check.name}"`;
+    toast.info(message, { 
+      description: 'Use the Compliance Check form to complete this check.',
+      duration: 4000
+    });
   };
 
   return (
@@ -83,7 +102,7 @@ const Index = () => {
           <RecentIncidents incidents={mockIncidents} />
           
           {/* Compliance Stats */}
-          <ComplianceStatsWidget />
+          <ComplianceStatsWidget onStartCheck={handleStartScheduledCheck} />
           
           {/* Quick Actions */}
           <div className="bg-card border border-border rounded-xl shadow-sm">
@@ -112,9 +131,16 @@ const Index = () => {
                 <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
               </a>
-              <ComplianceCheckForm />
+              <ComplianceCheckForm 
+                preselectedCheck={selectedCheck}
+                onBehalfOf={onBehalfOfUser}
+                onCheckComplete={() => {
+                  setSelectedCheck(null);
+                  setOnBehalfOfUser(null);
+                }}
+              />
               <ComplianceHistoryDialog />
-              <ComplianceCalendarDialog />
+              <ComplianceCalendarDialog onStartCheck={handleStartScheduledCheck} />
               <a 
                 href="/admin?tab=users" 
                 className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-info/20"
