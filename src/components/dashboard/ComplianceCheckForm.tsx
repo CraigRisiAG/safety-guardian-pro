@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { ClipboardCheck, CheckCircle2, XCircle, Building2, Layers, MapPin } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { ClipboardCheck, CheckCircle2, XCircle, Building2, Layers, MapPin, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,10 +9,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { CHECK_TYPE_LABELS, CompletedCheckRecord, CompletedCheckItem } from '@/types/compliance';
+import { ComplianceCheck, UserPermission } from '@/types/admin';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
@@ -23,9 +25,28 @@ const checkTypeCategories: Record<CompletedCheckRecord['checkType'], string[]> =
   first_aid: ['first-aid'],
 };
 
-export function ComplianceCheckForm() {
+// Map scheduled check categories to check types
+const categoryToCheckType: Record<string, CompletedCheckRecord['checkType']> = {
+  'fire-safety': 'fire',
+  'first-aid': 'first_aid',
+  'electrical': 'office',
+  'equipment': 'office',
+  'training': 'evacuation',
+};
+
+interface ComplianceCheckFormProps {
+  preselectedCheck?: ComplianceCheck | null;
+  onBehalfOf?: UserPermission | null;
+  onCheckComplete?: () => void;
+}
+
+export function ComplianceCheckForm({ 
+  preselectedCheck, 
+  onBehalfOf, 
+  onCheckComplete 
+}: ComplianceCheckFormProps) {
   const { user } = useAuth();
-  const { settings } = useAdminSettings();
+  const { settings, updateComplianceCheck } = useAdminSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [checkType, setCheckType] = useState<CompletedCheckRecord['checkType'] | ''>('');
   const [buildingId, setBuildingId] = useState('');
@@ -33,6 +54,20 @@ export function ComplianceCheckForm() {
   const [areaId, setAreaId] = useState('');
   const [notes, setNotes] = useState('');
   const [checkedItems, setCheckedItems] = useState<Record<string, { checked: boolean; notes: string }>>({});
+
+  // Auto-open and prefill when a scheduled check is selected
+  useEffect(() => {
+    if (preselectedCheck) {
+      setIsOpen(true);
+      // Map the category to a check type
+      const mappedType = categoryToCheckType[preselectedCheck.category] || 'office';
+      setCheckType(mappedType);
+      // Pre-select first building if available
+      if (preselectedCheck.buildingIds.length > 0) {
+        setBuildingId(preselectedCheck.buildingIds[0]);
+      }
+    }
+  }, [preselectedCheck]);
 
   // Get available floors for selected building
   const selectedBuilding = settings.buildings.find(b => b.id === buildingId);
@@ -56,6 +91,7 @@ export function ComplianceCheckForm() {
     setAreaId('');
     setNotes('');
     setCheckedItems({});
+    onCheckComplete?.();
   };
 
   const handleBuildingChange = (value: string) => {
@@ -100,7 +136,14 @@ export function ComplianceCheckForm() {
       return;
     }
 
-    if (!user) {
+    // Use onBehalfOf user or current user
+    const completingUser = onBehalfOf || (user ? {
+      id: user.id,
+      userName: user.name,
+      email: user.email,
+    } : null);
+
+    if (!completingUser) {
       toast.error('You must be logged in to complete a check');
       return;
     }
@@ -130,9 +173,9 @@ export function ComplianceCheckForm() {
       floorId,
       areaId: areaId || undefined,
       completedBy: {
-        userId: user.id,
-        userName: user.name,
-        email: user.email,
+        userId: 'userId' in completingUser ? completingUser.userId : completingUser.id,
+        userName: completingUser.userName,
+        email: completingUser.email,
       },
       completedAt: new Date(),
       checkItems: completedItems,
@@ -146,11 +189,23 @@ export function ComplianceCheckForm() {
     records.push(record);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 
+    // Update the scheduled check status if this was from a preselected check
+    if (preselectedCheck) {
+      updateComplianceCheck(preselectedCheck.id, {
+        status: 'completed',
+        lastCompleted: new Date(),
+      });
+    }
+
     const buildingName = selectedBuilding?.name || 'Unknown';
     const floorName = selectedFloor?.name || 'Unknown';
     
+    const completionMessage = onBehalfOf 
+      ? `${CHECK_TYPE_LABELS[checkType]} completed on behalf of ${onBehalfOf.userName}`
+      : `${CHECK_TYPE_LABELS[checkType]} completed`;
+    
     toast.success(
-      `${CHECK_TYPE_LABELS[checkType]} completed for ${buildingName} - ${floorName}`,
+      `${completionMessage} for ${buildingName} - ${floorName}`,
       { description: `Status: ${status.charAt(0).toUpperCase() + status.slice(1)}` }
     );
 
@@ -179,6 +234,25 @@ export function ComplianceCheckForm() {
 
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4 py-4">
+            {/* On Behalf Of Alert */}
+            {onBehalfOf && (
+              <Alert className="bg-info-muted border-info/30">
+                <UserCheck className="w-4 h-4 text-info" />
+                <AlertDescription className="text-sm">
+                  Completing this check on behalf of <strong>{onBehalfOf.userName}</strong>
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {/* Preselected Check Info */}
+            {preselectedCheck && (
+              <Alert className="bg-primary/10 border-primary/30">
+                <ClipboardCheck className="w-4 h-4 text-primary" />
+                <AlertDescription className="text-sm">
+                  Completing scheduled check: <strong>{preselectedCheck.name}</strong>
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Check Type */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">

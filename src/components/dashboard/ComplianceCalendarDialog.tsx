@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { 
   format, 
   startOfMonth, 
@@ -33,6 +34,7 @@ interface CalendarEvent {
   status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue';
   checkType?: string;
   building?: string;
+  checkData?: ComplianceCheck; // Reference to the actual check for navigation
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -59,7 +61,11 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   overdue: <AlertTriangle className="w-3 h-3" />,
 };
 
-export function ComplianceCalendarDialog() {
+interface ComplianceCalendarDialogProps {
+  onStartCheck?: (check: ComplianceCheck, onBehalfOf?: UserPermission) => void;
+}
+
+export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -106,6 +112,7 @@ export function ComplianceCalendarDialog() {
         status: isOverdue ? 'overdue' : 'pending',
         checkType: check.category,
         building: check.buildingIds.map(id => getBuildingName(id)).join(', '),
+        checkData: check,
       });
     });
 
@@ -155,6 +162,14 @@ export function ComplianceCalendarDialog() {
     setSelectedDate(new Date());
   };
 
+  // Handle starting a check from calendar
+  const handleStartCheck = (event: CalendarEvent) => {
+    if (event.checkData && onStartCheck) {
+      onStartCheck(event.checkData);
+      setIsOpen(false);
+    }
+  };
+
   // Stats for the legend
   const stats = useMemo(() => {
     const monthEvents = calendarEvents.filter(e => isSameMonth(e.date, currentMonth));
@@ -182,7 +197,7 @@ export function ComplianceCalendarDialog() {
             Compliance Calendar
           </DialogTitle>
           <DialogDescription>
-            View scheduled and completed compliance checks
+            View scheduled and completed compliance checks. Click on pending checks to start them.
           </DialogDescription>
         </DialogHeader>
 
@@ -319,7 +334,14 @@ export function ComplianceCalendarDialog() {
                     {selectedDateEvents.map(event => (
                       <div 
                         key={event.id} 
-                        className="p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                        className={`
+                          p-3 rounded-lg border bg-card transition-colors
+                          ${event.type === 'scheduled' && event.checkData 
+                            ? 'hover:bg-accent/50 cursor-pointer hover:border-primary/30' 
+                            : ''
+                          }
+                        `}
+                        onClick={() => event.type === 'scheduled' && handleStartCheck(event)}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <span className="font-medium text-sm">{event.title}</span>
@@ -354,6 +376,19 @@ export function ComplianceCalendarDialog() {
                             </div>
                           )}
                         </div>
+
+                        {/* Start Check Button for scheduled checks */}
+                        {event.type === 'scheduled' && event.checkData && onStartCheck && (
+                          <Button 
+                            size="sm" 
+                            variant={event.status === 'overdue' ? 'destructive' : 'default'}
+                            className="w-full mt-2"
+                            onClick={(e) => { e.stopPropagation(); handleStartCheck(event); }}
+                          >
+                            <Play className="w-3 h-3 mr-1" />
+                            Start Check
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
