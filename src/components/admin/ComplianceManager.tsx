@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, ClipboardCheck, Trash2, Edit2, Calendar, AlertTriangle, CheckCircle2, Users, Bell, RefreshCw } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, ClipboardCheck, Trash2, Edit2, Calendar, AlertTriangle, CheckCircle2, Users, Bell, RefreshCw, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,10 +14,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { ComplianceCheck, SafetyCheckItem, ComplianceCategory, CustomBuilding, UserPermission } from '@/types/admin';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ComplianceCheck, SafetyCheckItem, ComplianceCategory, CustomBuilding, UserPermission, SAFETY_ROLE_LABELS } from '@/types/admin';
 import { toast } from 'sonner';
 import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { userCanPerformCheckCategory, getQualifiedRolesDescription } from '@/utils/complianceRoles';
 
 interface ComplianceManagerProps {
   checks: ComplianceCheck[];
@@ -379,40 +381,116 @@ export function ComplianceManager({
                       </div>
                     </div>
 
-                    {/* Assigned Users */}
+                    {/* Assigned Users - Filtered by safety role qualification */}
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Users className="w-4 h-4" />
                         Assign Users
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-xs">
+                              <p className="text-xs">
+                                Only users with relevant safety roles can be assigned. 
+                                For this category: {getQualifiedRolesDescription(checkFormData.category)}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </Label>
+                      
+                      {/* Info about qualified roles */}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5">
+                        <Info className="w-3 h-3 shrink-0" />
+                        <span>Qualified roles: {getQualifiedRolesDescription(checkFormData.category)}</span>
+                      </div>
+                      
                       <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
-                        {users.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-2">
-                            No users available. Add users in the Permissions tab first.
-                          </p>
-                        ) : (
-                          users.map((user) => (
-                            <div key={user.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                checked={checkFormData.assignedUsers.includes(user.id)}
-                                onCheckedChange={() => toggleUserForCheck(user.id)}
-                              />
-                              <label className="text-sm cursor-pointer flex-1">
-                                {user.userName}
-                                <span className="text-muted-foreground ml-2">({user.email})</span>
-                              </label>
-                              {user.safetyRoles.length > 0 && (
-                                <div className="flex gap-1">
-                                  {user.safetyRoles.slice(0, 2).map(role => (
-                                    <Badge key={role} variant="outline" className="text-xs">
-                                      {role.replace('_', ' ')}
-                                    </Badge>
-                                  ))}
+                        {(() => {
+                          // Filter users who have qualifying safety roles for this category
+                          const qualifiedUsers = users.filter(user => 
+                            userCanPerformCheckCategory(user.safetyRoles, checkFormData.category)
+                          );
+                          const unqualifiedUsers = users.filter(user => 
+                            !userCanPerformCheckCategory(user.safetyRoles, checkFormData.category)
+                          );
+                          
+                          if (qualifiedUsers.length === 0 && unqualifiedUsers.length === 0) {
+                            return (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No users available. Add users in the Permissions tab first.
+                              </p>
+                            );
+                          }
+                          
+                          if (qualifiedUsers.length === 0) {
+                            return (
+                              <p className="text-sm text-warning text-center py-2">
+                                No users have the required safety roles for this category.
+                                Assign {getQualifiedRolesDescription(checkFormData.category)} roles to users first.
+                              </p>
+                            );
+                          }
+                          
+                          return (
+                            <>
+                              {qualifiedUsers.map((user) => (
+                                <div key={user.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    checked={checkFormData.assignedUsers.includes(user.id)}
+                                    onCheckedChange={() => toggleUserForCheck(user.id)}
+                                  />
+                                  <label className="text-sm cursor-pointer flex-1">
+                                    {user.userName}
+                                    <span className="text-muted-foreground ml-2">({user.email})</span>
+                                  </label>
+                                  {user.safetyRoles.length > 0 && (
+                                    <div className="flex gap-1">
+                                      {user.safetyRoles.slice(0, 2).map(role => (
+                                        <Badge key={role} variant="outline" className="text-xs bg-safe-muted/50">
+                                          {SAFETY_ROLE_LABELS[role]}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
+                              ))}
+                              
+                              {/* Show unqualified users as disabled for transparency */}
+                              {unqualifiedUsers.length > 0 && (
+                                <>
+                                  <div className="border-t my-2 pt-2">
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Not qualified for this check type:
+                                    </p>
+                                  </div>
+                                  {unqualifiedUsers.slice(0, 3).map((user) => (
+                                    <div key={user.id} className="flex items-center space-x-2 opacity-50">
+                                      <Checkbox disabled checked={false} />
+                                      <label className="text-sm text-muted-foreground flex-1">
+                                        {user.userName}
+                                      </label>
+                                      {user.safetyRoles.length > 0 ? (
+                                        <Badge variant="outline" className="text-xs">
+                                          {SAFETY_ROLE_LABELS[user.safetyRoles[0]]}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs">No safety role</Badge>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {unqualifiedUsers.length > 3 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      +{unqualifiedUsers.length - 3} more users without required roles
+                                    </p>
+                                  )}
+                                </>
                               )}
-                            </div>
-                          ))
-                        )}
+                            </>
+                          );
+                        })()}
                       </div>
                       {checkFormData.assignedUsers.length > 0 && (
                         <p className="text-xs text-muted-foreground">

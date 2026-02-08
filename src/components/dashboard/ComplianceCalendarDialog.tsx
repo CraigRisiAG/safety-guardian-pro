@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { useAuth } from '@/contexts/AuthContext';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { 
   format, 
@@ -70,6 +71,17 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { settings } = useAdminSettings();
+  const { user } = useAuth();
+
+  // Determine if current user is admin/super_admin
+  const currentUserPermission = useMemo(() => {
+    if (!user) return null;
+    return settings.userPermissions.find(
+      p => p.email.toLowerCase() === user.email.toLowerCase() || p.userId === user.id
+    );
+  }, [user, settings.userPermissions]);
+
+  const isAdmin = currentUserPermission?.role === 'admin' || currentUserPermission?.role === 'super_admin';
 
   // Load completed checks from localStorage
   const completedChecks = useMemo((): CompletedCheckRecord[] => {
@@ -95,12 +107,24 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   };
 
   // Create calendar events from scheduled and completed checks
+  // Filter based on user role - admins see all, users see only assigned
   const calendarEvents = useMemo((): CalendarEvent[] => {
     const events: CalendarEvent[] = [];
     const now = new Date();
 
+    // Filter scheduled checks based on user permissions
+    const visibleChecks = settings.complianceChecks.filter(check => {
+      // Admins and super_admins see all checks
+      if (isAdmin) return true;
+      
+      // Regular users only see their assigned checks
+      if (!currentUserPermission) return false;
+      return check.assignedUsers?.includes(currentUserPermission.id) || 
+             check.assignedTo === currentUserPermission.id;
+    });
+
     // Add scheduled checks
-    settings.complianceChecks.forEach(check => {
+    visibleChecks.forEach(check => {
       const dueDate = new Date(check.nextDue);
       const isOverdue = isBefore(dueDate, now) && check.status !== 'completed';
       
@@ -116,8 +140,15 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
       });
     });
 
-    // Add completed checks
-    completedChecks.forEach(record => {
+    // Add completed checks (all users can see their own completed checks)
+    const visibleCompletedChecks = completedChecks.filter(record => {
+      if (isAdmin) return true;
+      if (!currentUserPermission) return false;
+      return record.completedBy.userId === currentUserPermission.id || 
+             record.completedBy.userId === currentUserPermission.userId;
+    });
+
+    visibleCompletedChecks.forEach(record => {
       events.push({
         id: `completed-${record.id}`,
         title: CHECK_TYPE_LABELS[record.checkType],
@@ -130,7 +161,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, completedChecks, settings.buildings]);
+  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {
@@ -197,7 +228,10 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
             Compliance Calendar
           </DialogTitle>
           <DialogDescription>
-            View scheduled and completed compliance checks. Click on pending checks to start them.
+            {isAdmin 
+              ? 'View all scheduled and completed compliance checks. Click on pending checks to start them or complete on behalf of others.'
+              : 'View your assigned compliance checks. Click on pending checks to start them.'
+            }
           </DialogDescription>
         </DialogHeader>
 
