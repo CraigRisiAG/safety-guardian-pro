@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,8 @@ import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
-import { 
+import { QuickCheckAssignment } from './QuickCheckAssignment';
+import {
   format, 
   startOfMonth, 
   endOfMonth, 
@@ -70,6 +71,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
   const { settings } = useAdminSettings();
   const { user } = useAuth();
 
@@ -194,6 +196,11 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   };
 
   // Handle starting a check from calendar
+  // Handle assigning a new check from calendar
+  const handleAssignCheck = () => {
+    setShowAssignDialog(true);
+  };
+
   const handleStartCheck = (event: CalendarEvent) => {
     if (event.checkData && onStartCheck) {
       onStartCheck(event.checkData);
@@ -251,9 +258,20 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                   Today
                 </Button>
               </div>
-              <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleAssignCheck}
+                  className="text-xs"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Assign Check
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Day Headers */}
@@ -350,12 +368,25 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
           {/* Selected Day Details */}
           <div className="lg:w-72 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
-            <h4 className="font-semibold text-sm mb-3">
-              {selectedDate 
-                ? format(selectedDate, 'EEEE, MMMM d, yyyy')
-                : 'Select a day to view details'
-              }
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-sm">
+                {selectedDate 
+                  ? format(selectedDate, 'EEEE, MMMM d, yyyy')
+                  : 'Select a day to view details'
+                }
+              </h4>
+              {selectedDate && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAssignCheck}
+                  className="text-xs h-7"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Assign
+                </Button>
+              )}
+            </div>
             
             {selectedDate && (
               <ScrollArea className="h-[280px] lg:h-[400px]">
@@ -431,6 +462,13 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
             )}
           </div>
         </div>
+
+        {/* Quick Check Assignment Dialog */}
+        <QuickCheckAssignment
+          open={showAssignDialog}
+          onOpenChange={setShowAssignDialog}
+          initialDate={selectedDate || new Date()}
+        />
       </DialogContent>
     </Dialog>
   );
