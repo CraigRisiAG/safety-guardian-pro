@@ -8,7 +8,8 @@ import {
   Settings,
   ShieldCheck,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { UserPermissionsManager } from '@/components/admin/UserPermissionsManage
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
+import { CertificateManager } from '@/components/admin/CertificateManager';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 const adminSections = [
@@ -39,6 +41,12 @@ const adminSections = [
     name: 'Compliance & Safety Checks', 
     icon: ClipboardCheck, 
     description: 'Define safety check requirements' 
+  },
+  { 
+    id: 'certificates', 
+    name: 'H&S Certificates', 
+    icon: Award, 
+    description: 'Track safety certification validity' 
   },
   { 
     id: 'incidents', 
@@ -144,7 +152,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-5 h-auto p-1">
             {adminSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -195,6 +203,10 @@ export default function Admin() {
               onUpdateItem={adminSettings.updateSafetyCheckItem}
               onDeleteItem={adminSettings.deleteSafetyCheckItem}
             />
+          </TabsContent>
+
+          <TabsContent value="certificates" className="space-y-6">
+            <CertificateManager />
           </TabsContent>
 
           <TabsContent value="incidents" className="space-y-6">

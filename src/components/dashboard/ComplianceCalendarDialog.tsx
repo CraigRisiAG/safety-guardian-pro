@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play, Plus } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play, Plus, User, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCertificates } from '@/hooks/useCertificates';
+import { CERTIFICATE_TYPE_LABELS } from '@/types/certificates';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { QuickCheckAssignment } from './QuickCheckAssignment';
 import {
@@ -32,11 +34,12 @@ interface CalendarEvent {
   id: string;
   title: string;
   date: Date;
-  type: 'scheduled' | 'completed';
-  status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue';
+  type: 'scheduled' | 'completed' | 'recertification';
+  status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue';
   checkType?: string;
   building?: string;
-  checkData?: ComplianceCheck; // Reference to the actual check for navigation
+  completedByName?: string; // Who completed the check
+  checkData?: ComplianceCheck;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -45,6 +48,8 @@ const STATUS_COLORS: Record<string, string> = {
   partial: 'bg-warning text-warning-foreground',
   pending: 'bg-info text-info-foreground',
   overdue: 'bg-emergency/80 text-white',
+  recert_due: 'bg-warning text-warning-foreground',
+  recert_overdue: 'bg-emergency/80 text-white',
 };
 
 const STATUS_DOT_COLORS: Record<string, string> = {
@@ -53,6 +58,8 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   partial: 'bg-warning',
   pending: 'bg-info',
   overdue: 'bg-emergency',
+  recert_due: 'bg-warning',
+  recert_overdue: 'bg-emergency',
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -61,6 +68,8 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   partial: <AlertTriangle className="w-3 h-3" />,
   pending: <Clock className="w-3 h-3" />,
   overdue: <AlertTriangle className="w-3 h-3" />,
+  recert_due: <Award className="w-3 h-3" />,
+  recert_overdue: <Award className="w-3 h-3" />,
 };
 
 interface ComplianceCalendarDialogProps {
@@ -74,6 +83,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const { settings } = useAdminSettings();
   const { user } = useAuth();
+  const { certificates } = useCertificates();
 
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
@@ -159,6 +169,26 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
         status: record.status,
         checkType: record.checkType,
         building: getBuildingName(record.buildingId),
+        completedByName: record.completedBy.userName,
+      });
+    });
+
+    // Add certificate recertification events
+    const visibleCerts = certificates.filter(cert => {
+      if (isAdmin) return true;
+      if (!currentUserPermission) return false;
+      return cert.userId === currentUserPermission.id || cert.userId === currentUserPermission.userId;
+    });
+
+    visibleCerts.forEach(cert => {
+      const isOverdue = isBefore(cert.expiryDate, now);
+      events.push({
+        id: `recert-${cert.id}`,
+        title: `Recertification: ${cert.userName}`,
+        date: cert.expiryDate,
+        type: 'recertification',
+        status: isOverdue ? 'recert_overdue' : 'recert_due',
+        checkType: CERTIFICATE_TYPE_LABELS[cert.certificateType],
       });
     });
 
@@ -214,9 +244,10 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     return {
       completed: monthEvents.filter(e => e.type === 'completed').length,
       scheduled: monthEvents.filter(e => e.type === 'scheduled' && e.status === 'pending').length,
-      overdue: monthEvents.filter(e => e.status === 'overdue').length,
+      overdue: monthEvents.filter(e => e.status === 'overdue' || e.status === 'recert_overdue').length,
       passed: monthEvents.filter(e => e.status === 'pass').length,
       failed: monthEvents.filter(e => e.status === 'fail').length,
+      recertifications: monthEvents.filter(e => e.type === 'recertification').length,
     };
   }, [calendarEvents, currentMonth]);
 
@@ -425,11 +456,17 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                           <div className="flex items-center gap-1.5">
                             <CalendarCheck className="w-3 h-3" />
                             <span>
-                              {event.type === 'completed' ? 'Completed' : 'Scheduled'}
-                              {' at '}
-                              {format(event.date, 'h:mm a')}
+                              {event.type === 'completed' ? 'Completed' : event.type === 'recertification' ? 'Recertification due' : 'Scheduled'}
+                              {event.type !== 'recertification' && ` at ${format(event.date, 'h:mm a')}`}
+                              {event.type === 'recertification' && ` ${format(event.date, 'dd MMM yyyy')}`}
                             </span>
                           </div>
+                          {event.completedByName && (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <User className="w-3 h-3" />
+                              <span>By: {event.completedByName}</span>
+                            </div>
+                          )}
                           {event.building && (
                             <div className="text-xs">
                               📍 {event.building}
