@@ -8,14 +8,17 @@ import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWid
 import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistoryDialog';
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
 import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
+import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { toast } from 'sonner';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const { personnelInOfficeToday } = useOfficeAttendance();
   const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
@@ -102,7 +105,10 @@ const Index = () => {
           <RecentIncidents incidents={mockIncidents} />
           
           {/* Compliance Stats */}
-          <ComplianceStatsWidget onStartCheck={handleStartScheduledCheck} />
+          <div className="space-y-6">
+            <ComplianceStatsWidget onStartCheck={handleStartScheduledCheck} />
+            <CertificateExpiryWidget />
+          </div>
           
           {/* Quick Actions */}
           <div className="bg-card border border-border rounded-xl shadow-sm">
