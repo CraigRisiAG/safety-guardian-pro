@@ -13,6 +13,7 @@ import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpir
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
+import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { toast } from 'sonner';
@@ -20,7 +21,8 @@ import { toast } from 'sonner';
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const [activeDrill] = useState(mockDrills.find(d => d.status === 'active') || null);
+  const { activeDrill } = useDrillStatus();
+  const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
   
@@ -52,9 +54,9 @@ const Index = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Active Drill Banner */}
-        {activeDrill && (
+        {fallbackDrill && (
           <ActiveDrillBanner 
-            drill={activeDrill} 
+            drill={fallbackDrill} 
             checkInCount={checkInStats}
             onEndDrill={() => console.log('End drill')}
           />
@@ -131,13 +133,21 @@ const Index = () => {
                 <Siren className="w-6 h-6 sm:w-8 sm:h-8 text-emergency" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Start Drill</span>
               </Link>
-              <Link 
-                to="/check-in" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-safe/20"
-              >
-                <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
-                <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
-              </Link>
+              {activeDrill ? (
+                <Link 
+                  to="/check-in" 
+                  className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-safe/20"
+                >
+                  <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
+                  <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
+                </Link>
+              ) : (
+                <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-muted/50 cursor-not-allowed opacity-50">
+                  <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
+                  <span className="font-medium text-muted-foreground text-sm sm:text-base text-center">Safety Check-In</span>
+                  <span className="text-xs text-muted-foreground">No active drill</span>
+                </div>
+              )}
               <ComplianceCheckForm 
                 preselectedCheck={selectedCheck}
                 onBehalfOf={onBehalfOfUser}

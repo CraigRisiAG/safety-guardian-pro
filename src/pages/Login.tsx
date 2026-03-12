@@ -7,10 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, AlertCircle, Eye, EyeOff, Siren } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrillStatus } from "@/hooks/useDrillStatus";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
+  const { isCheckInEnabled } = useDrillStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -119,18 +121,30 @@ const Login: React.FC = () => {
             </p>
           </form>
 
-          <div className="mt-6 p-4 bg-amber-900/50 rounded-lg border border-amber-700">
-            <Link
-              to="/safety-checkin"
-              className="flex items-center justify-center gap-2 text-amber-200 hover:text-amber-100 font-semibold"
-            >
-              <Siren className="w-4 h-4" />
-              Safety Check-In (No Login Required)
-            </Link>
-            <p className="text-xs text-amber-300/70 mt-1 text-center">
-              For emergency drill check-ins only
-            </p>
-          </div>
+          {isCheckInEnabled ? (
+            <div className="mt-6 p-4 bg-amber-900/50 rounded-lg border border-amber-700">
+              <Link
+                to="/safety-checkin"
+                className="flex items-center justify-center gap-2 text-amber-200 hover:text-amber-100 font-semibold"
+              >
+                <Siren className="w-4 h-4" />
+                Safety Check-In (No Login Required)
+              </Link>
+              <p className="text-xs text-amber-300/70 mt-1 text-center">
+                For emergency drill check-ins only
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+              <div className="flex items-center justify-center gap-2 text-slate-500 font-semibold">
+                <Siren className="w-4 h-4" />
+                Safety Check-In
+              </div>
+              <p className="text-xs text-slate-500 mt-1 text-center">
+                No active drill in progress
+              </p>
+            </div>
+          )}
 
           <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
             <p className="text-xs text-slate-300 mb-2">

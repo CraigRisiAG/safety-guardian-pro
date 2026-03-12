@@ -61,6 +61,32 @@ export interface SafetyCheckIn {
   notes?: string;
 }
 
+export interface DrillRecord {
+  id: string;
+  drillId: string;
+  type: DrillType;
+  buildingId: string;
+  buildingName: string;
+  floors: { id: string; name: string }[];
+  startedAt: Date;
+  completedAt: Date;
+  durationMinutes: number;
+  initiatedBy: string;
+  checkInStats: {
+    total: number;
+    safe: number;
+    needsAssistance: number;
+    pending: number;
+  };
+  floorStats: {
+    floorId: string;
+    floorName: string;
+    safe: number;
+    needsAssistance: number;
+    pending: number;
+  }[];
+}
+
 export type DrillType = Drill['type'];
 export type IncidentSeverity = Incident['severity'];
 export type IncidentStatus = Incident['status'];
