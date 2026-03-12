@@ -13,6 +13,7 @@ import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpir
 import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
+import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { toast } from 'sonner';
