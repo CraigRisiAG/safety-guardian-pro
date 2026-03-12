@@ -132,13 +132,21 @@ const Index = () => {
                 <Siren className="w-6 h-6 sm:w-8 sm:h-8 text-emergency" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">Start Drill</span>
               </Link>
-              <Link 
-                to="/check-in" 
-                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-safe/20"
-              >
-                <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
-                <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
-              </Link>
+              {activeDrill ? (
+                <Link 
+                  to="/check-in" 
+                  className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-safe/20"
+                >
+                  <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
+                  <span className="font-medium text-foreground text-sm sm:text-base text-center">Safety Check-In</span>
+                </Link>
+              ) : (
+                <div className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-muted/50 cursor-not-allowed opacity-50">
+                  <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
+                  <span className="font-medium text-muted-foreground text-sm sm:text-base text-center">Safety Check-In</span>
+                  <span className="text-xs text-muted-foreground">No active drill</span>
+                </div>
+              )}
               <ComplianceCheckForm 
                 preselectedCheck={selectedCheck}
                 onBehalfOf={onBehalfOfUser}
