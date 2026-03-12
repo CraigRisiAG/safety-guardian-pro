@@ -13,6 +13,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useDrillStatus } from '@/hooks/useDrillStatus';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,7 +24,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
   { name: 'Drills', href: '/drills', icon: Siren },
-  { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck },
+  { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck, requiresDrill: true },
   { name: 'Admin', href: '/admin', icon: Settings },
 ];
 
