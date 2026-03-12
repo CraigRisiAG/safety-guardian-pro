@@ -54,9 +54,9 @@ const Index = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Active Drill Banner */}
-        {activeDrill && (
+        {fallbackDrill && (
           <ActiveDrillBanner 
-            drill={activeDrill} 
+            drill={fallbackDrill} 
             checkInCount={checkInStats}
             onEndDrill={() => console.log('End drill')}
           />
