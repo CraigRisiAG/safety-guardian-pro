@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, AlertCircle, Eye, EyeOff, Siren } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrillStatus } from "@/hooks/useDrillStatus";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
