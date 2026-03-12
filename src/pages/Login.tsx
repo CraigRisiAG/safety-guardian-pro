@@ -12,6 +12,7 @@ import { useDrillStatus } from "@/hooks/useDrillStatus";
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
+  const { isCheckInEnabled } = useDrillStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
