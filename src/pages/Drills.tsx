@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
+import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
 import { mockDrills, buildings } from '@/data/mockData';
-import { Drill, DrillType } from '@/types/safety';
+import { Drill, DrillType, DrillRecord } from '@/types/safety';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
