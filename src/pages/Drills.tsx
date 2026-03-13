@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
+import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
 import { mockDrills, buildings } from '@/data/mockData';
-import { Drill, DrillType } from '@/types/safety';
+import { Drill, DrillType, DrillRecord } from '@/types/safety';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,6 +45,7 @@ export default function Drills() {
   const [drills, setDrills] = useState<Drill[]>(mockDrills);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
 
   const handleStartDrill = (data: {
@@ -146,7 +148,7 @@ export default function Drills() {
                 </div>
               ) : (
                 drillRecords.map((record) => (
-                  <div key={record.id} className="bg-card border border-border rounded-xl p-6">
+                  <div key={record.id} className="bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => setSelectedRecord(record)}>
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
                         <div className={cn('p-3 rounded-lg', drillTypeColors[record.type])}>
@@ -340,6 +342,12 @@ export default function Drills() {
             </TabsContent>
           ))}
         </Tabs>
+
+        <DrillDetailDialog
+          record={selectedRecord}
+          open={!!selectedRecord}
+          onOpenChange={(open) => !open && setSelectedRecord(null)}
+        />
       </div>
     </AppLayout>
   );
