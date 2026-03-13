@@ -148,7 +148,7 @@ export default function Drills() {
                 </div>
               ) : (
                 drillRecords.map((record) => (
-                  <div key={record.id} className="bg-card border border-border rounded-xl p-6">
+                  <div key={record.id} className="bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => setSelectedRecord(record)}>
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
                         <div className={cn('p-3 rounded-lg', drillTypeColors[record.type])}>
