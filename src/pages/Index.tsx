@@ -91,6 +91,8 @@ const Index = () => {
             onUpdate={updateUserPermission}
             onBulkAdd={bulkAddUserPermissions}
             onDelete={deleteUserPermission}
+            externalOpen={personnelOpen}
+            onExternalOpenChange={setPersonnelOpen}
             trigger={
               <div className="h-full">
                 <StatCard
