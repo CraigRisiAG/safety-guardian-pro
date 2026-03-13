@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill } = useDrillStatus();
   const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
@@ -90,6 +91,8 @@ const Index = () => {
             onUpdate={updateUserPermission}
             onBulkAdd={bulkAddUserPermissions}
             onDelete={deleteUserPermission}
+            externalOpen={personnelOpen}
+            onExternalOpenChange={setPersonnelOpen}
             trigger={
               <div className="h-full">
                 <StatCard
@@ -158,13 +161,13 @@ const Index = () => {
               />
               <ComplianceHistoryDialog />
               <ComplianceCalendarDialog onStartCheck={handleStartScheduledCheck} />
-              <Link 
-                to="/admin?tab=users" 
+              <button
+                onClick={() => setPersonnelOpen(true)}
                 className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-info-muted hover:bg-info-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-info/20"
               >
                 <Users className="w-6 h-6 sm:w-8 sm:h-8 text-info" />
                 <span className="font-medium text-foreground text-sm sm:text-base text-center">View Personnel</span>
-              </Link>
+              </button>
             </div>
           </div>
         </div>

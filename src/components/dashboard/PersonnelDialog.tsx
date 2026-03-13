@@ -20,7 +20,9 @@ interface PersonnelDialogProps {
   onUpdate: (id: string, updates: Partial<UserPermission>) => void;
   onBulkAdd: (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   onDelete?: (id: string) => void;
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 type SortField = 'name' | 'staffCode' | 'building' | 'floor' | 'participation' | 'type';
@@ -50,8 +52,10 @@ interface NewPersonnelForm {
   workDays: WorkDay[];
 }
 
-export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger }: PersonnelDialogProps) {
-  const [open, setOpen] = useState(false);
+export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger, externalOpen, onExternalOpenChange }: PersonnelDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
@@ -505,9 +509,11 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger}
-      </DialogTrigger>
+      {trigger && (
+        <DialogTrigger asChild>
+          {trigger}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between">
