@@ -52,8 +52,10 @@ interface NewPersonnelForm {
   workDays: WorkDay[];
 }
 
-export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger }: PersonnelDialogProps) {
-  const [open, setOpen] = useState(false);
+export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger, externalOpen, onExternalOpenChange }: PersonnelDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
