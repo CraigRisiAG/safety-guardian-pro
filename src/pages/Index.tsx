@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill } = useDrillStatus();
   const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
