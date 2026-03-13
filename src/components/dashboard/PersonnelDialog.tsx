@@ -20,7 +20,9 @@ interface PersonnelDialogProps {
   onUpdate: (id: string, updates: Partial<UserPermission>) => void;
   onBulkAdd: (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   onDelete?: (id: string) => void;
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 type SortField = 'name' | 'staffCode' | 'building' | 'floor' | 'participation' | 'type';
