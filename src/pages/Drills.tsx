@@ -45,6 +45,7 @@ export default function Drills() {
   const [drills, setDrills] = useState<Drill[]>(mockDrills);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
 
   const handleStartDrill = (data: {
