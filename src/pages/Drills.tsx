@@ -342,6 +342,12 @@ export default function Drills() {
             </TabsContent>
           ))}
         </Tabs>
+
+        <DrillDetailDialog
+          record={selectedRecord}
+          open={!!selectedRecord}
+          onOpenChange={(open) => !open && setSelectedRecord(null)}
+        />
       </div>
     </AppLayout>
   );
