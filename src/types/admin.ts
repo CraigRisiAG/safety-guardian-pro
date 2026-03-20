@@ -66,6 +66,23 @@ export const ALL_SAFETY_ROLES: SafetyRole[] = ['fire_marshall', 'evacuation_ward
 // User permissions
 export type UserRole = 'viewer' | 'reporter' | 'responder' | 'admin' | 'super_admin';
 
+export interface ContactDetails {
+  phone?: string;
+  mobile?: string;
+}
+
+export interface LineManager {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface NextOfKin {
+  name?: string;
+  relationship?: string;
+  phone?: string;
+}
+
 export interface UserPermission {
   id: string;
   userId: string;
@@ -77,6 +94,9 @@ export interface UserPermission {
   primaryFloorId?: string; // Which floor they typically work on
   workDays: WorkDay[]; // Days they normally work in the office
   safetyRoles: SafetyRole[]; // Safety/emergency roles assigned to this user
+  contactDetails?: ContactDetails;
+  lineManager?: LineManager;
+  nextOfKin?: NextOfKin;
   canStartDrills: boolean;
   canResolveIncidents: boolean;
   canManageUsers: boolean;
