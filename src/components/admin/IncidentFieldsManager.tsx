@@ -275,7 +275,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
                       <DialogHeader>
                         <DialogTitle>Edit Field</DialogTitle>
                       </DialogHeader>
-                      <FieldFormContent />
+                      {fieldFormContent}
                       <DialogFooter>
                         <Button variant="outline" onClick={() => { setEditingField(null); resetForm(); }}>Cancel</Button>
                         <Button onClick={handleUpdateField}>Save Changes</Button>
