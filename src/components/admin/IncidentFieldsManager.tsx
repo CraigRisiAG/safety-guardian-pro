@@ -115,7 +115,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
     toast.success(`Field ${field.enabled ? 'disabled' : 'enabled'}`);
   };
 
-  const FieldFormContent = () => (
+  const fieldFormContent = (
     <div className="space-y-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -211,7 +211,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
                 Add a new field to incident reports.
               </DialogDescription>
             </DialogHeader>
-            <FieldFormContent />
+            {fieldFormContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsAddingField(false); resetForm(); }}>
                 Cancel
@@ -275,7 +275,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
                       <DialogHeader>
                         <DialogTitle>Edit Field</DialogTitle>
                       </DialogHeader>
-                      <FieldFormContent />
+                      {fieldFormContent}
                       <DialogFooter>
                         <Button variant="outline" onClick={() => { setEditingField(null); resetForm(); }}>Cancel</Button>
                         <Button onClick={handleUpdateField}>Save Changes</Button>
