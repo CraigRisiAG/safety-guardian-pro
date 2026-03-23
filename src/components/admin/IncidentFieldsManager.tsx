@@ -115,7 +115,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
     toast.success(`Field ${field.enabled ? 'disabled' : 'enabled'}`);
   };
 
-  const FieldFormContent = () => (
+  const fieldFormContent = (
     <div className="space-y-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
