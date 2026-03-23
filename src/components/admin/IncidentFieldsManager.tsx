@@ -211,7 +211,7 @@ export function IncidentFieldsManager({ fields, onAdd, onUpdate, onDelete }: Inc
                 Add a new field to incident reports.
               </DialogDescription>
             </DialogHeader>
-            <FieldFormContent />
+            {fieldFormContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsAddingField(false); resetForm(); }}>
                 Cancel
