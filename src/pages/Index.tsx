@@ -59,7 +59,14 @@ const Index = () => {
           <ActiveDrillBanner 
             drill={fallbackDrill} 
             checkInCount={checkInStats}
-            onEndDrill={() => console.log('End drill')}
+            onEndDrill={() => {
+              const record = endDrill(checkInStats);
+              if (record) {
+                toast.success('Drill ended successfully', {
+                  description: `Duration: ${record.durationMinutes} minutes. ${record.checkInStats.total} personnel accounted for.`,
+                });
+              }
+            }}
           />
         )}
 
