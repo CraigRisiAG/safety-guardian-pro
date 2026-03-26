@@ -22,7 +22,7 @@ const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const { activeDrill } = useDrillStatus();
+  const { activeDrill, endDrill } = useDrillStatus();
   const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
