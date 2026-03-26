@@ -22,7 +22,7 @@ const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const { activeDrill } = useDrillStatus();
+  const { activeDrill, endDrill } = useDrillStatus();
   const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
@@ -59,7 +59,14 @@ const Index = () => {
           <ActiveDrillBanner 
             drill={fallbackDrill} 
             checkInCount={checkInStats}
-            onEndDrill={() => console.log('End drill')}
+            onEndDrill={() => {
+              const record = endDrill(checkInStats);
+              if (record) {
+                toast.success('Drill ended successfully', {
+                  description: `Duration: ${record.durationMinutes} minutes. ${record.checkInStats.total} personnel accounted for.`,
+                });
+              }
+            }}
           />
         )}
 
