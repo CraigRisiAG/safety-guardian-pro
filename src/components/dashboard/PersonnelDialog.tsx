@@ -700,7 +700,8 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                   onValueChange={(value) => setNewPersonnel(prev => ({ 
                     ...prev, 
                     buildingId: value === 'none' ? '' : value,
-                    primaryFloorId: '' 
+                    primaryFloorId: '',
+                    primaryAreaId: '',
                   }))}
                 >
                   <SelectTrigger>
@@ -720,7 +721,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 <Label>Primary Floor</Label>
                 <Select 
                   value={newPersonnel.primaryFloorId || 'none'} 
-                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value, primaryAreaId: '' }))}
                   disabled={!newPersonnel.buildingId}
                 >
                   <SelectTrigger>
@@ -733,6 +734,27 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                         {floor.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primary Area</Label>
+                <Select
+                  value={newPersonnel.primaryAreaId || 'none'}
+                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryAreaId: value === 'none' ? '' : value }))}
+                  disabled={!newPersonnel.primaryFloorId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select area" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No primary area</SelectItem>
+                    {getFloorsForBuilding(newPersonnel.buildingId)
+                      .find(f => f.id === newPersonnel.primaryFloorId)?.areas.map(area => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
