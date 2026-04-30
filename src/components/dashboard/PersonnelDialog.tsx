@@ -52,6 +52,7 @@ interface NewPersonnelForm {
   staffCode: string;
   buildingId: string;
   primaryFloorId: string;
+  primaryAreaId: string;
   workDays: WorkDay[];
   phone: string;
   mobile: string;
@@ -86,6 +87,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     staffCode: '',
     buildingId: '',
     primaryFloorId: '',
+    primaryAreaId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     phone: '',
     mobile: '',
