@@ -52,6 +52,7 @@ interface NewPersonnelForm {
   staffCode: string;
   buildingId: string;
   primaryFloorId: string;
+  primaryAreaId: string;
   workDays: WorkDay[];
   phone: string;
   mobile: string;
@@ -86,6 +87,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     staffCode: '',
     buildingId: '',
     primaryFloorId: '',
+    primaryAreaId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     phone: '',
     mobile: '',
@@ -105,6 +107,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       staffCode: '',
       buildingId: '',
       primaryFloorId: '',
+      primaryAreaId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       phone: '',
       mobile: '',
@@ -160,6 +163,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       role: 'reporter' as UserRole,
       buildingAccess: newPersonnel.buildingId ? [newPersonnel.buildingId] : [],
       primaryFloorId: newPersonnel.primaryFloorId || undefined,
+      primaryAreaId: newPersonnel.primaryAreaId || undefined,
       workDays: newPersonnel.workDays,
       safetyRoles: [] as SafetyRole[],
       contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
@@ -457,7 +461,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         if (floor) {
           buildingName = building.name;
           floorName = floor.name;
-          if (floor.areas.length > 0) {
+          if (person.primaryAreaId) {
+            const area = floor.areas.find(a => a.id === person.primaryAreaId);
+            if (area) areaName = area.name;
+          } else if (floor.areas.length > 0) {
             areaName = floor.areas[0].name;
           }
           break;
@@ -696,7 +703,8 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                   onValueChange={(value) => setNewPersonnel(prev => ({ 
                     ...prev, 
                     buildingId: value === 'none' ? '' : value,
-                    primaryFloorId: '' 
+                    primaryFloorId: '',
+                    primaryAreaId: '',
                   }))}
                 >
                   <SelectTrigger>
@@ -716,7 +724,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 <Label>Primary Floor</Label>
                 <Select 
                   value={newPersonnel.primaryFloorId || 'none'} 
-                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value, primaryAreaId: '' }))}
                   disabled={!newPersonnel.buildingId}
                 >
                   <SelectTrigger>
@@ -729,6 +737,27 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                         {floor.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primary Area</Label>
+                <Select
+                  value={newPersonnel.primaryAreaId || 'none'}
+                  onValueChange={(value) => setNewPersonnel(prev => ({ ...prev, primaryAreaId: value === 'none' ? '' : value }))}
+                  disabled={!newPersonnel.primaryFloorId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select area" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No primary area</SelectItem>
+                    {getFloorsForBuilding(newPersonnel.buildingId)
+                      .find(f => f.id === newPersonnel.primaryFloorId)?.areas.map(area => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1145,6 +1174,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
     userName: person.userName,
     staffCode: person.staffCode || '',
     primaryFloorId: person.primaryFloorId || '',
+    primaryAreaId: person.primaryAreaId || '',
     workDays: person.workDays || [],
     buildingAccess: person.buildingAccess || [],
     contactPhone: person.contactDetails?.phone || '',
@@ -1163,6 +1193,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       name: floor.name,
       buildingId: building.id,
       buildingName: building.name,
+      areas: floor.areas,
     }))
   );
 
@@ -1208,6 +1239,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       userName: editData.userName,
       staffCode: editData.staffCode.trim() || undefined,
       primaryFloorId: editData.primaryFloorId || undefined,
+      primaryAreaId: editData.primaryAreaId || undefined,
       workDays: editData.workDays,
       buildingAccess: editData.buildingAccess,
       contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
@@ -1267,7 +1299,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                 <Label>Primary Floor</Label>
                 <Select 
                   value={editData.primaryFloorId || 'none'} 
-                  onValueChange={(value) => setEditData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value, primaryAreaId: '' }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select floor" />
@@ -1277,6 +1309,26 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                     {allFloors.map((floor) => (
                       <SelectItem key={floor.id} value={floor.id}>
                         {floor.buildingName} - {floor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primary Area</Label>
+                <Select
+                  value={editData.primaryAreaId || 'none'}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, primaryAreaId: value === 'none' ? '' : value }))}
+                  disabled={!editData.primaryFloorId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select area" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No primary area</SelectItem>
+                    {allFloors.find(f => f.id === editData.primaryFloorId)?.areas.map(area => (
+                      <SelectItem key={area.id} value={area.id}>
+                        {area.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

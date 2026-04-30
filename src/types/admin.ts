@@ -92,6 +92,7 @@ export interface UserPermission {
   role: UserRole;
   buildingAccess: string[]; // building IDs
   primaryFloorId?: string; // Which floor they typically work on
+  primaryAreaId?: string; // Which area on the primary floor they typically work in
   workDays: WorkDay[]; // Days they normally work in the office
   safetyRoles: SafetyRole[]; // Safety/emergency roles assigned to this user
   contactDetails?: ContactDetails;
