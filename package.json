@@ -8,7 +8,12 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "powershell -ExecutionPolicy Bypass -File ./database/migrations/run-migrations.ps1 -Action migrate",
+    "db:seed": "powershell -ExecutionPolicy Bypass -File ./database/migrations/run-migrations.ps1 -Action seed",
+    "db:reset": "powershell -ExecutionPolicy Bypass -File ./database/migrations/run-migrations.ps1 -Action reset",
+    "db:reseed": "powershell -ExecutionPolicy Bypass -File ./database/migrations/run-migrations.ps1 -Action reseed",
+    "db:setup": "powershell -ExecutionPolicy Bypass -File ./database/migrations/run-migrations.ps1 -Action all"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
