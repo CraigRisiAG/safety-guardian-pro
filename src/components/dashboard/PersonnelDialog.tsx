@@ -1299,21 +1299,48 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                 />
               </div>
               <div className="space-y-2">
+                <Label>Building Access</Label>
+                <Select
+                  value={editData.buildingAccess[0] || 'none'}
+                  onValueChange={(value) => setEditData(prev => ({
+                    ...prev,
+                    buildingAccess: value === 'none' ? [] : [value],
+                    primaryFloorId: '',
+                    primaryAreaId: '',
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select building" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No building</SelectItem>
+                    {buildings.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
+                        {building.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Primary Floor</Label>
-                <Select 
-                  value={editData.primaryFloorId || 'none'} 
+                <Select
+                  value={editData.primaryFloorId || 'none'}
                   onValueChange={(value) => setEditData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value, primaryAreaId: '' }))}
+                  disabled={!editData.buildingAccess[0]}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select floor" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No primary floor</SelectItem>
-                    {allFloors.map((floor) => (
-                      <SelectItem key={floor.id} value={floor.id}>
-                        {floor.buildingName} - {floor.name}
-                      </SelectItem>
-                    ))}
+                    {allFloors
+                      .filter(f => f.buildingId === editData.buildingAccess[0])
+                      .map((floor) => (
+                        <SelectItem key={floor.id} value={floor.id}>
+                          {floor.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1332,28 +1359,6 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                     {allFloors.find(f => f.id === editData.primaryFloorId)?.areas.map(area => (
                       <SelectItem key={area.id} value={area.id}>
                         {area.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Building Access</Label>
-                <Select 
-                  value={editData.buildingAccess[0] || 'none'} 
-                  onValueChange={(value) => setEditData(prev => ({ 
-                    ...prev, 
-                    buildingAccess: value === 'none' ? [] : [value] 
-                  }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select building" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No building</SelectItem>
-                    {buildings.map((building) => (
-                      <SelectItem key={building.id} value={building.id}>
-                        {building.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
