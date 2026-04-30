@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { Users, Building2, Layers, MapPin, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle, Plus, UserPlus, Trash2 } from 'lucide-react';
+import { Users, Building2, Layers, MapPin, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle, Plus, UserPlus, Trash2, Phone, User, Heart } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, UserRole, STAFF_CODE_MAX_LENGTH } from '@/types/admin';
+import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, UserRole, STAFF_CODE_MAX_LENGTH, ContactDetails, LineManager, NextOfKin } from '@/types/admin';
 import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -38,6 +38,9 @@ interface ParsedUser {
   buildingAccess: string[];
   primaryFloorId?: string;
   workDays: WorkDay[];
+  contactDetails?: ContactDetails;
+  lineManager?: LineManager;
+  nextOfKin?: NextOfKin;
   isValid: boolean;
   errors: string[];
 }
@@ -50,6 +53,14 @@ interface NewPersonnelForm {
   buildingId: string;
   primaryFloorId: string;
   workDays: WorkDay[];
+  phone: string;
+  mobile: string;
+  lineManagerName: string;
+  lineManagerEmail: string;
+  lineManagerPhone: string;
+  nextOfKinName: string;
+  nextOfKinRelationship: string;
+  nextOfKinPhone: string;
 }
 
 export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger, externalOpen, onExternalOpenChange }: PersonnelDialogProps) {
@@ -76,6 +87,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     buildingId: '',
     primaryFloorId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    phone: '',
+    mobile: '',
+    lineManagerName: '',
+    lineManagerEmail: '',
+    lineManagerPhone: '',
+    nextOfKinName: '',
+    nextOfKinRelationship: '',
+    nextOfKinPhone: '',
   });
 
   const resetNewPersonnelForm = () => {
@@ -87,6 +106,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       buildingId: '',
       primaryFloorId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      phone: '',
+      mobile: '',
+      lineManagerName: '',
+      lineManagerEmail: '',
+      lineManagerPhone: '',
+      nextOfKinName: '',
+      nextOfKinRelationship: '',
+      nextOfKinPhone: '',
     });
   };
 
@@ -111,6 +138,20 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
 
     const userName = `${newPersonnel.firstName.trim()} ${newPersonnel.lastName.trim()}`;
     
+    const contactDetails: ContactDetails = {};
+    if (newPersonnel.phone.trim()) contactDetails.phone = newPersonnel.phone.trim();
+    if (newPersonnel.mobile.trim()) contactDetails.mobile = newPersonnel.mobile.trim();
+
+    const lineManager: LineManager = {};
+    if (newPersonnel.lineManagerName.trim()) lineManager.name = newPersonnel.lineManagerName.trim();
+    if (newPersonnel.lineManagerEmail.trim()) lineManager.email = newPersonnel.lineManagerEmail.trim();
+    if (newPersonnel.lineManagerPhone.trim()) lineManager.phone = newPersonnel.lineManagerPhone.trim();
+
+    const nextOfKin: NextOfKin = {};
+    if (newPersonnel.nextOfKinName.trim()) nextOfKin.name = newPersonnel.nextOfKinName.trim();
+    if (newPersonnel.nextOfKinRelationship.trim()) nextOfKin.relationship = newPersonnel.nextOfKinRelationship.trim();
+    if (newPersonnel.nextOfKinPhone.trim()) nextOfKin.phone = newPersonnel.nextOfKinPhone.trim();
+
     onBulkAdd([{
       userId: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userName,
@@ -121,6 +162,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       primaryFloorId: newPersonnel.primaryFloorId || undefined,
       workDays: newPersonnel.workDays,
       safetyRoles: [] as SafetyRole[],
+      contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
+      lineManager: Object.keys(lineManager).length > 0 ? lineManager : undefined,
+      nextOfKin: Object.keys(nextOfKin).length > 0 ? nextOfKin : undefined,
       canStartDrills: false,
       canResolveIncidents: false,
       canManageUsers: false,
@@ -233,6 +277,20 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     const primaryFloorId = parseFloorId(floorValue);
     const workDays = parseWorkDays(workDaysValue);
 
+    const contactDetails: ContactDetails = {};
+    if (row['Phone']?.toString().trim()) contactDetails.phone = row['Phone'].toString().trim();
+    if (row['Mobile']?.toString().trim()) contactDetails.mobile = row['Mobile'].toString().trim();
+
+    const lineManager: LineManager = {};
+    if (row['Line Manager']?.toString().trim()) lineManager.name = row['Line Manager'].toString().trim();
+    if (row['Line Manager Email']?.toString().trim()) lineManager.email = row['Line Manager Email'].toString().trim();
+    if (row['Line Manager Phone']?.toString().trim()) lineManager.phone = row['Line Manager Phone'].toString().trim();
+
+    const nextOfKin: NextOfKin = {};
+    if (row['Next of Kin']?.toString().trim()) nextOfKin.name = row['Next of Kin'].toString().trim();
+    if (row['Next of Kin Relationship']?.toString().trim()) nextOfKin.relationship = row['Next of Kin Relationship'].toString().trim();
+    if (row['Next of Kin Phone']?.toString().trim()) nextOfKin.phone = row['Next of Kin Phone'].toString().trim();
+
     return {
       userName,
       email,
@@ -241,6 +299,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       buildingAccess,
       primaryFloorId,
       workDays,
+      contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
+      lineManager: Object.keys(lineManager).length > 0 ? lineManager : undefined,
+      nextOfKin: Object.keys(nextOfKin).length > 0 ? nextOfKin : undefined,
       isValid: errors.length === 0,
       errors,
     };
@@ -292,6 +353,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Building': 'Main Office Building',
         'Floor': 'Ground Floor',
         'Work Days': 'Mon, Tue, Wed, Thu, Fri',
+        'Phone': '020 1234 5678',
+        'Mobile': '07700 900123',
+        'Line Manager': 'Sarah Johnson',
+        'Line Manager Email': 'sarah@example.com',
+        'Line Manager Phone': '020 1234 5679',
+        'Next of Kin': 'Mary Smith',
+        'Next of Kin Relationship': 'Spouse',
+        'Next of Kin Phone': '07700 900456',
       },
       {
         'Name': 'Jane Doe',
@@ -301,6 +370,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Building': 'Research Center',
         'Floor': 'First Floor',
         'Work Days': 'Mon, Tue, Wed',
+        'Phone': '020 2345 6789',
+        'Mobile': '07700 900234',
+        'Line Manager': 'Tom Wilson',
+        'Line Manager Email': 'tom@example.com',
+        'Line Manager Phone': '020 2345 6790',
+        'Next of Kin': 'James Doe',
+        'Next of Kin Relationship': 'Partner',
+        'Next of Kin Phone': '07700 900789',
       },
     ];
 
@@ -309,13 +386,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
     
     ws['!cols'] = [
-      { wch: 20 },
-      { wch: 25 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 25 },
+      { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 25 },
+      { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 18 },
+      { wch: 20 }, { wch: 25 }, { wch: 18 },
+      { wch: 20 }, { wch: 18 }, { wch: 18 },
     ];
 
     XLSX.writeFile(wb, 'personnel_import_template.xlsx');
@@ -329,7 +403,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       return;
     }
 
-    // Check for duplicate staff codes within the import and against existing personnel
     const staffCodes = new Set<string>();
     const existingCodes = new Set(personnel.map(p => p.staffCode?.toLowerCase()).filter(Boolean));
     
@@ -354,6 +427,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       primaryFloorId: u.primaryFloorId,
       workDays: u.workDays,
       safetyRoles: [] as SafetyRole[],
+      contactDetails: u.contactDetails,
+      lineManager: u.lineManager,
+      nextOfKin: u.nextOfKin,
       canStartDrills: false,
       canResolveIncidents: false,
       canManageUsers: false,
@@ -442,7 +518,11 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         p.email.toLowerCase().includes(query) ||
         (p.staffCode && p.staffCode.toLowerCase().includes(query)) ||
         p.buildingName.toLowerCase().includes(query) ||
-        p.floorName.toLowerCase().includes(query)
+        p.floorName.toLowerCase().includes(query) ||
+        (p.contactDetails?.phone && p.contactDetails.phone.toLowerCase().includes(query)) ||
+        (p.contactDetails?.mobile && p.contactDetails.mobile.toLowerCase().includes(query)) ||
+        (p.lineManager?.name && p.lineManager.name.toLowerCase().includes(query)) ||
+        (p.nextOfKin?.name && p.nextOfKin.name.toLowerCase().includes(query))
       );
     }
 
@@ -514,7 +594,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
           {trigger}
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
@@ -592,6 +672,24 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 <p className="text-xs text-muted-foreground">Max 8 characters, must be unique</p>
               </div>
               <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  type="tel"
+                  value={newPersonnel.phone}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="020 1234 5678"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Mobile</Label>
+                <Input
+                  type="tel"
+                  value={newPersonnel.mobile}
+                  onChange={(e) => setNewPersonnel(prev => ({ ...prev, mobile: e.target.value }))}
+                  placeholder="07700 900123"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Building</Label>
                 <Select 
                   value={newPersonnel.buildingId || 'none'} 
@@ -635,6 +733,78 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 </Select>
               </div>
             </div>
+
+            {/* Line Manager Section */}
+            <div className="border-t pt-4">
+              <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
+                <User className="w-4 h-4 text-muted-foreground" />
+                Line Manager
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={newPersonnel.lineManagerName}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, lineManagerName: e.target.value }))}
+                    placeholder="Sarah Johnson"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={newPersonnel.lineManagerEmail}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, lineManagerEmail: e.target.value }))}
+                    placeholder="sarah@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    value={newPersonnel.lineManagerPhone}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, lineManagerPhone: e.target.value }))}
+                    placeholder="020 1234 5679"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Next of Kin Section */}
+            <div className="border-t pt-4">
+              <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
+                <Heart className="w-4 h-4 text-muted-foreground" />
+                Next of Kin
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={newPersonnel.nextOfKinName}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, nextOfKinName: e.target.value }))}
+                    placeholder="Mary Smith"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Relationship</Label>
+                  <Input
+                    value={newPersonnel.nextOfKinRelationship}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, nextOfKinRelationship: e.target.value }))}
+                    placeholder="Spouse"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    value={newPersonnel.nextOfKinPhone}
+                    onChange={(e) => setNewPersonnel(prev => ({ ...prev, nextOfKinPhone: e.target.value }))}
+                    placeholder="07700 900456"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Work Days</Label>
               <div className="flex flex-wrap gap-2">
@@ -717,6 +887,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                       <li><strong>Building</strong> - Building name or "All"</li>
                       <li><strong>Floor</strong> - Primary floor name</li>
                       <li><strong>Work Days</strong> - e.g., "Mon, Tue, Wed, Thu, Fri"</li>
+                      <li><strong>Phone / Mobile</strong> - Contact numbers</li>
+                      <li><strong>Line Manager / Line Manager Email / Line Manager Phone</strong></li>
+                      <li><strong>Next of Kin / Next of Kin Relationship / Next of Kin Phone</strong></li>
                     </ul>
                   </AlertDescription>
                 </Alert>
@@ -802,7 +975,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, staff code, building..."
+              placeholder="Search by name, email, staff code, phone, line manager..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -859,6 +1032,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 >
                   Staff Code <SortIcon field="staffCode" />
                 </TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('type')}
@@ -877,13 +1051,14 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                 >
                   Floor <SortIcon field="floor" />
                 </TableHead>
-                <TableHead className="hidden xl:table-cell">Area</TableHead>
+                <TableHead className="hidden xl:table-cell">Line Manager</TableHead>
+                <TableHead className="hidden xl:table-cell">Next of Kin</TableHead>
                 <TableHead className="hidden sm:table-cell">Work Days</TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('participation')}
                 >
-                  Drill Participation <SortIcon field="participation" />
+                  Drill Part. <SortIcon field="participation" />
                 </TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
@@ -891,7 +1066,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
             <TableBody>
               {filteredPersonnel.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                     {searchQuery || filterBuilding !== 'all' || filterType !== 'all'
                       ? 'No personnel match your filters'
                       : 'No personnel configured yet. Add personnel manually or import from file.'}
@@ -972,6 +1147,14 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
     primaryFloorId: person.primaryFloorId || '',
     workDays: person.workDays || [],
     buildingAccess: person.buildingAccess || [],
+    contactPhone: person.contactDetails?.phone || '',
+    contactMobile: person.contactDetails?.mobile || '',
+    lineManagerName: person.lineManager?.name || '',
+    lineManagerEmail: person.lineManager?.email || '',
+    lineManagerPhone: person.lineManager?.phone || '',
+    nextOfKinName: person.nextOfKin?.name || '',
+    nextOfKinRelationship: person.nextOfKin?.relationship || '',
+    nextOfKinPhone: person.nextOfKin?.phone || '',
   });
 
   const allFloors = buildings.flatMap(building => 
@@ -1006,12 +1189,39 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
     return null;
   };
 
+  const buildSaveData = () => {
+    const contactDetails: ContactDetails = {};
+    if (editData.contactPhone.trim()) contactDetails.phone = editData.contactPhone.trim();
+    if (editData.contactMobile.trim()) contactDetails.mobile = editData.contactMobile.trim();
+
+    const lineManager: LineManager = {};
+    if (editData.lineManagerName.trim()) lineManager.name = editData.lineManagerName.trim();
+    if (editData.lineManagerEmail.trim()) lineManager.email = editData.lineManagerEmail.trim();
+    if (editData.lineManagerPhone.trim()) lineManager.phone = editData.lineManagerPhone.trim();
+
+    const nextOfKin: NextOfKin = {};
+    if (editData.nextOfKinName.trim()) nextOfKin.name = editData.nextOfKinName.trim();
+    if (editData.nextOfKinRelationship.trim()) nextOfKin.relationship = editData.nextOfKinRelationship.trim();
+    if (editData.nextOfKinPhone.trim()) nextOfKin.phone = editData.nextOfKinPhone.trim();
+
+    return {
+      userName: editData.userName,
+      staffCode: editData.staffCode.trim() || undefined,
+      primaryFloorId: editData.primaryFloorId || undefined,
+      workDays: editData.workDays,
+      buildingAccess: editData.buildingAccess,
+      contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
+      lineManager: Object.keys(lineManager).length > 0 ? lineManager : undefined,
+      nextOfKin: Object.keys(nextOfKin).length > 0 ? nextOfKin : undefined,
+    };
+  };
+
   if (isEditing) {
     const staffCodeError = validateStaffCode(editData.staffCode);
     
     return (
       <TableRow className="bg-muted/30">
-        <TableCell colSpan={9}>
+        <TableCell colSpan={11}>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1034,6 +1244,24 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                 {staffCodeError && (
                   <p className="text-xs text-destructive">{staffCodeError}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  type="tel"
+                  value={editData.contactPhone}
+                  onChange={(e) => setEditData(prev => ({ ...prev, contactPhone: e.target.value }))}
+                  placeholder="020 1234 5678"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Mobile</Label>
+                <Input
+                  type="tel"
+                  value={editData.contactMobile}
+                  onChange={(e) => setEditData(prev => ({ ...prev, contactMobile: e.target.value }))}
+                  placeholder="07700 900123"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Primary Floor</Label>
@@ -1077,6 +1305,78 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                 </Select>
               </div>
             </div>
+
+            {/* Line Manager Edit */}
+            <div className="border-t pt-3">
+              <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
+                <User className="w-4 h-4 text-muted-foreground" />
+                Line Manager
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={editData.lineManagerName}
+                    onChange={(e) => setEditData(prev => ({ ...prev, lineManagerName: e.target.value }))}
+                    placeholder="Manager name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editData.lineManagerEmail}
+                    onChange={(e) => setEditData(prev => ({ ...prev, lineManagerEmail: e.target.value }))}
+                    placeholder="manager@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    value={editData.lineManagerPhone}
+                    onChange={(e) => setEditData(prev => ({ ...prev, lineManagerPhone: e.target.value }))}
+                    placeholder="020 1234 5679"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Next of Kin Edit */}
+            <div className="border-t pt-3">
+              <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
+                <Heart className="w-4 h-4 text-muted-foreground" />
+                Next of Kin
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={editData.nextOfKinName}
+                    onChange={(e) => setEditData(prev => ({ ...prev, nextOfKinName: e.target.value }))}
+                    placeholder="Next of kin name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Relationship</Label>
+                  <Input
+                    value={editData.nextOfKinRelationship}
+                    onChange={(e) => setEditData(prev => ({ ...prev, nextOfKinRelationship: e.target.value }))}
+                    placeholder="e.g. Spouse, Parent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    value={editData.nextOfKinPhone}
+                    onChange={(e) => setEditData(prev => ({ ...prev, nextOfKinPhone: e.target.value }))}
+                    placeholder="07700 900456"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Work Days</Label>
               <div className="flex flex-wrap gap-2">
@@ -1102,7 +1402,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
               </Button>
               <Button 
                 size="sm" 
-                onClick={() => onSave({ ...editData, staffCode: editData.staffCode.trim() || undefined })}
+                onClick={() => onSave(buildSaveData())}
                 disabled={!!staffCodeError}
               >
                 Save Changes
@@ -1132,6 +1432,25 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
         )}
       </TableCell>
       <TableCell>
+        <div className="text-sm space-y-0.5">
+          {person.contactDetails?.phone && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Phone className="w-3 h-3" />
+              <span>{person.contactDetails.phone}</span>
+            </div>
+          )}
+          {person.contactDetails?.mobile && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Phone className="w-3 h-3" />
+              <span>{person.contactDetails.mobile}</span>
+            </div>
+          )}
+          {!person.contactDetails?.phone && !person.contactDetails?.mobile && (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
         {person.personnelType === 'system' ? (
           <Badge variant="secondary" className="text-xs">System</Badge>
         ) : (
@@ -1151,10 +1470,34 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
         </div>
       </TableCell>
       <TableCell className="hidden xl:table-cell">
-        <div className="flex items-center gap-1.5">
-          <MapPin className="w-4 h-4 text-muted-foreground" />
-          {person.areaName}
-        </div>
+        {person.lineManager?.name ? (
+          <div className="text-sm space-y-0.5">
+            <p className="font-medium">{person.lineManager.name}</p>
+            {person.lineManager.email && (
+              <p className="text-muted-foreground text-xs">{person.lineManager.email}</p>
+            )}
+            {person.lineManager.phone && (
+              <p className="text-muted-foreground text-xs">{person.lineManager.phone}</p>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
+      </TableCell>
+      <TableCell className="hidden xl:table-cell">
+        {person.nextOfKin?.name ? (
+          <div className="text-sm space-y-0.5">
+            <p className="font-medium">{person.nextOfKin.name}</p>
+            {person.nextOfKin.relationship && (
+              <p className="text-muted-foreground text-xs">{person.nextOfKin.relationship}</p>
+            )}
+            {person.nextOfKin.phone && (
+              <p className="text-muted-foreground text-xs">{person.nextOfKin.phone}</p>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
       </TableCell>
       <TableCell className="hidden sm:table-cell">
         <div className="flex flex-wrap gap-1">
@@ -1175,7 +1518,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
             {person.participation.rate}%
           </Badge>
           <span className="text-xs text-muted-foreground">
-            ({person.participation.participated}/{person.participation.total} drills)
+            ({person.participation.participated}/{person.participation.total})
           </span>
         </div>
       </TableCell>
