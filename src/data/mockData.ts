@@ -64,7 +64,7 @@ export const mockIncidents: Incident[] = [
     title: 'Wet floor in cafeteria',
     description: 'Spilled drink causing slippery surface near serving area',
     severity: 'low',
-    status: 'resolved',
+    status: 'closed',
     location: {
       buildingId: 'building-1',
       floorId: 'floor-1',
@@ -72,14 +72,19 @@ export const mockIncidents: Incident[] = [
     },
     reportedBy: 'John Smith',
     reportedAt: new Date('2024-01-15T09:30:00'),
-    resolvedAt: new Date('2024-01-15T10:00:00'),
+    rootCause: 'Spill cleanup process was delayed and warning signage was missing.',
+    statusDates: {
+      openAt: new Date('2024-01-15T09:30:00'),
+      inProgressAt: new Date('2024-01-15T09:40:00'),
+      closedAt: new Date('2024-01-15T10:00:00'),
+    },
   },
   {
     id: 'incident-2',
     title: 'Electrical issue in server room',
     description: 'Sparking observed from power outlet. Area cordoned off.',
     severity: 'high',
-    status: 'investigating',
+    status: 'in_progress',
     location: {
       buildingId: 'building-1',
       floorId: 'floor-3',
@@ -87,6 +92,10 @@ export const mockIncidents: Incident[] = [
     },
     reportedBy: 'Sarah Johnson',
     reportedAt: new Date('2024-01-16T14:20:00'),
+    statusDates: {
+      openAt: new Date('2024-01-16T14:20:00'),
+      inProgressAt: new Date('2024-01-16T15:10:00'),
+    },
   },
   {
     id: 'incident-3',
@@ -101,6 +110,9 @@ export const mockIncidents: Incident[] = [
     },
     reportedBy: 'Mike Chen',
     reportedAt: new Date('2024-01-17T11:45:00'),
+    statusDates: {
+      openAt: new Date('2024-01-17T11:45:00'),
+    },
   },
 ];
 

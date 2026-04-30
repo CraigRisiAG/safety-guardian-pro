@@ -10,11 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { buildings } from '@/data/mockData';
+import { CustomBuilding } from '@/types/admin';
 import { IncidentSeverity } from '@/types/safety';
 import { AlertTriangle, Send } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface IncidentFormProps {
+  buildings: CustomBuilding[];
   onSubmit: (data: {
     title: string;
     description: string;
@@ -26,7 +28,7 @@ interface IncidentFormProps {
   onCancel?: () => void;
 }
 
-export function IncidentForm({ onSubmit, onCancel }: IncidentFormProps) {
+export function IncidentForm({ buildings, onSubmit, onCancel }: IncidentFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<IncidentSeverity>('low');
@@ -39,6 +41,12 @@ export function IncidentForm({ onSubmit, onCancel }: IncidentFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!buildingId || !floorId || !areaId) {
+      toast.error('Please select building, floor, and area');
+      return;
+    }
+
     onSubmit({ title, description, severity, buildingId, floorId, areaId });
   };
 

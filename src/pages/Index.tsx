@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -10,24 +10,40 @@ import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistor
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
 import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
-import { mockIncidents, mockDrills, mockCheckIns } from '@/data/mockData';
+import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { Incident, IncidentSeverity, IncidentStatus } from '@/types/safety';
 import { toast } from 'sonner';
+import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { formatDistanceToNow } from 'date-fns';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const [incidents, setIncidents] = useState(() => loadIncidentsFromStorage());
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill, endDrill } = useDrillStatus();
   const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
+  const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
   
-  const openIncidents = mockIncidents.filter(i => i.status !== 'resolved').length;
+  useEffect(() => {
+    saveIncidentsToStorage(incidents);
+  }, [incidents]);
+
+  const openIncidentsList = incidents.filter((incident) => incident.status === 'open');
+  const openIncidents = openIncidentsList.length;
   const upcomingDrills = mockDrills.filter(d => d.status === 'scheduled').length;
   
   const checkInStats = {
@@ -49,6 +65,60 @@ const Index = () => {
       description: 'Use the Compliance Check form to complete this check.',
       duration: 4000
     });
+  };
+
+  const handleIncidentUpdate = (
+    incidentId: string,
+    updates: {
+      title: string;
+      description: string;
+      severity: IncidentSeverity;
+      status: IncidentStatus;
+      rootCause?: string;
+    },
+  ) => {
+    const now = new Date();
+
+    const buildUpdatedIncident = (incident: Incident): Incident => {
+      const updatedDates = { ...incident.statusDates };
+
+      if (updates.status === 'in_progress' && !updatedDates.inProgressAt) {
+        updatedDates.inProgressAt = now;
+      }
+
+      if (updates.status === 'closed') {
+        if (!updatedDates.inProgressAt) {
+          updatedDates.inProgressAt = now;
+        }
+
+        if (!updatedDates.closedAt) {
+          updatedDates.closedAt = now;
+        }
+      }
+
+      return {
+        ...incident,
+        title: updates.title,
+        description: updates.description,
+        severity: updates.severity,
+        status: updates.status,
+        rootCause: updates.status === 'closed' ? updates.rootCause : incident.rootCause,
+        statusDates: updatedDates,
+      };
+    };
+
+    setIncidents((previous) => previous.map((incident) => (
+      incident.id === incidentId ? buildUpdatedIncident(incident) : incident
+    )));
+    toast.success('Incident updated successfully');
+  };
+
+  const getIncidentLocationName = (incident: Incident) => {
+    const building = settings.buildings.find((b) => b.id === incident.location.buildingId);
+    const floor = building?.floors.find((f) => f.id === incident.location.floorId);
+    const area = floor?.areas.find((a) => a.id === incident.location.areaId);
+
+    return `${area?.name ?? 'Unknown area'}, ${floor?.name ?? 'Unknown floor'}, ${building?.name ?? 'Unknown building'}`;
   };
 
   return (
@@ -78,6 +148,7 @@ const Index = () => {
             icon={<AlertTriangle className="w-5 h-5" />}
             variant={openIncidents > 0 ? 'warning' : 'default'}
             trend={{ value: 12, isPositive: true }}
+            onClick={() => setIsOpenIncidentsDialogOpen(true)}
           />
           <StatCard
             title="Scheduled Drills"
@@ -113,9 +184,42 @@ const Index = () => {
           />
         </div>
 
+        <Dialog open={isOpenIncidentsDialogOpen} onOpenChange={setIsOpenIncidentsDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Open Incidents ({openIncidents})</DialogTitle>
+            </DialogHeader>
+
+            {openIncidentsList.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4">No open incidents.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {openIncidentsList.map((incident) => (
+                  <div key={incident.id} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate">{incident.title}</p>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{incident.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{getIncidentLocationName(incident)}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatDistanceToNow(incident.reportedAt, { addSuffix: true })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <RecentIncidents incidents={mockIncidents} />
+          <RecentIncidents
+            incidents={incidents}
+            buildings={settings.buildings}
+            onUpdateIncident={handleIncidentUpdate}
+          />
           
           {/* Compliance Stats */}
           <div className="space-y-6">

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { IncidentForm } from '@/components/incidents/IncidentForm';
-import { mockIncidents, buildings } from '@/data/mockData';
-import { Incident, IncidentSeverity } from '@/types/safety';
+import { Incident, IncidentSeverity, IncidentStatus } from '@/types/safety';
+import { IncidentEditForm } from '@/components/incidents/IncidentEditForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,10 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Search, AlertTriangle, CheckCircle2, Clock, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
 
 const severityStyles = {
   low: 'bg-info-muted text-info border-info/20',
@@ -30,23 +32,53 @@ const severityStyles = {
 };
 
 const statusStyles = {
-  open: { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-muted' },
-  investigating: { icon: Clock, color: 'text-info', bg: 'bg-info-muted' },
-  resolved: { icon: CheckCircle2, color: 'text-safe', bg: 'bg-safe-muted' },
+  open: {
+    icon: AlertTriangle,
+    color: 'text-emergency',
+    bg: 'bg-emergency-muted',
+    row: 'bg-emergency-muted/35 border-emergency/15',
+    label: 'Open',
+  },
+  in_progress: {
+    icon: Clock,
+    color: 'text-info',
+    bg: 'bg-info-muted',
+    row: 'bg-info-muted/35 border-info/15',
+    label: 'In Progress',
+  },
+  closed: {
+    icon: CheckCircle2,
+    color: 'text-safe',
+    bg: 'bg-safe-muted',
+    row: 'bg-safe-muted/35 border-safe/15',
+    label: 'Closed',
+  },
 };
 
 export default function Incidents() {
-  const [incidents, setIncidents] = useState<Incident[]>(mockIncidents);
+  const { settings } = useAdminSettings();
+  const [incidents, setIncidents] = useState<Incident[]>(() => loadIncidentsFromStorage());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [buildingFilter, setBuildingFilter] = useState<string>('all');
+  const [areaFilter, setAreaFilter] = useState<string>('all');
+
+  useEffect(() => {
+    saveIncidentsToStorage(incidents);
+  }, [incidents]);
 
   const getLocationName = (incident: Incident) => {
-    const building = buildings.find(b => b.id === incident.location.buildingId);
+    const building = settings.buildings.find((b) => b.id === incident.location.buildingId);
     const floor = building?.floors.find(f => f.id === incident.location.floorId);
     const area = floor?.areas.find(a => a.id === incident.location.areaId);
-    return { building: building?.name, floor: floor?.name, area: area?.name };
+    return {
+      building: building?.name ?? 'Unknown building',
+      floor: floor?.name ?? 'Unknown floor',
+      area: area?.name ?? 'Unknown area',
+    };
   };
 
   const filteredIncidents = incidents.filter(incident => {
@@ -54,8 +86,56 @@ export default function Incidents() {
                          incident.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = severityFilter === 'all' || incident.severity === severityFilter;
     const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
-    return matchesSearch && matchesSeverity && matchesStatus;
+    const matchesBuilding = buildingFilter === 'all' || incident.location.buildingId === buildingFilter;
+    const matchesArea = areaFilter === 'all' || incident.location.areaId === areaFilter;
+    return matchesSearch && matchesSeverity && matchesStatus && matchesBuilding && matchesArea;
   });
+
+  const selectedFilterBuilding = buildingFilter === 'all'
+    ? null
+    : settings.buildings.find((building) => building.id === buildingFilter);
+
+  const filterAreas = selectedFilterBuilding
+    ? selectedFilterBuilding.floors.flatMap((floor) => floor.areas)
+    : settings.buildings.flatMap((building) => building.floors.flatMap((floor) => floor.areas));
+
+  const buildUpdatedIncident = (
+    incident: Incident,
+    updates: {
+      title: string;
+      description: string;
+      severity: IncidentSeverity;
+      status: IncidentStatus;
+      rootCause?: string;
+    },
+  ): Incident => {
+    const now = new Date();
+    const updatedDates = { ...incident.statusDates };
+
+    if (updates.status === 'in_progress' && !updatedDates.inProgressAt) {
+      updatedDates.inProgressAt = now;
+    }
+
+    if (updates.status === 'closed') {
+      if (!updatedDates.inProgressAt) {
+        updatedDates.inProgressAt = now;
+      }
+
+      if (!updatedDates.closedAt) {
+        updatedDates.closedAt = now;
+      }
+    }
+
+    return {
+      ...incident,
+      title: updates.title,
+      description: updates.description,
+      severity: updates.severity,
+      status: updates.status,
+      rootCause: updates.status === 'closed' ? updates.rootCause : incident.rootCause,
+      statusDates: updatedDates,
+    };
+  };
 
   const handleSubmit = (data: {
     title: string;
@@ -78,10 +158,32 @@ export default function Incidents() {
       },
       reportedBy: 'Safety Officer',
       reportedAt: new Date(),
+      statusDates: {
+        openAt: new Date(),
+      },
     };
-    setIncidents([newIncident, ...incidents]);
+    setIncidents((previous) => [newIncident, ...previous]);
     setIsDialogOpen(false);
     toast.success('Incident reported successfully');
+  };
+
+  const handleEditSave = (
+    incidentId: string,
+    updates: {
+      title: string;
+      description: string;
+      severity: IncidentSeverity;
+      status: IncidentStatus;
+      rootCause?: string;
+    },
+  ) => {
+    setIncidents((previous) =>
+      previous.map((incident) =>
+        incident.id === incidentId ? buildUpdatedIncident(incident, updates) : incident,
+      ),
+    );
+    setEditingIncident(null);
+    toast.success('Incident updated successfully');
   };
 
   return (
@@ -102,6 +204,7 @@ export default function Incidents() {
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <IncidentForm 
+                buildings={settings.buildings}
                 onSubmit={handleSubmit} 
                 onCancel={() => setIsDialogOpen(false)} 
               />
@@ -140,12 +243,56 @@ export default function Incidents() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="investigating">Investigating</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={buildingFilter}
+              onValueChange={(value) => {
+                setBuildingFilter(value);
+                setAreaFilter('all');
+              }}
+            >
+              <SelectTrigger className="flex-1 sm:w-48">
+                <SelectValue placeholder="Building" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Buildings</SelectItem>
+                {settings.buildings.map((building) => (
+                  <SelectItem key={building.id} value={building.id}>
+                    {building.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={areaFilter} onValueChange={setAreaFilter}>
+              <SelectTrigger className="flex-1 sm:w-48">
+                <SelectValue placeholder="Area" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Areas</SelectItem>
+                {filterAreas.map((area) => (
+                  <SelectItem key={area.id} value={area.id}>
+                    {area.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
+
+        <Dialog open={Boolean(editingIncident)} onOpenChange={(open) => !open && setEditingIncident(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            {editingIncident && (
+              <IncidentEditForm
+                incident={editingIncident}
+                onSave={(updates) => handleEditSave(editingIncident.id, updates)}
+                onCancel={() => setEditingIncident(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Incidents List */}
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -159,7 +306,13 @@ export default function Incidents() {
                 const location = getLocationName(incident);
                 const StatusIcon = statusStyles[incident.status].icon;
                 return (
-                  <div key={incident.id} className="px-4 sm:px-6 py-4 hover:bg-muted/50 transition-colors">
+                  <div
+                    key={incident.id}
+                    className={cn(
+                      'px-4 sm:px-6 py-4 transition-colors border-l-4 hover:brightness-[0.98]',
+                      statusStyles[incident.status].row,
+                    )}
+                  >
                     <div className="flex items-start gap-3 sm:gap-4">
                       <div className={cn(
                         'p-2 rounded-lg shrink-0',
@@ -174,20 +327,50 @@ export default function Incidents() {
                             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-1">
                               {incident.description}
                             </p>
+                            {incident.rootCause && (
+                              <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-2">
+                                Root cause: {incident.rootCause}
+                              </p>
+                            )}
                           </div>
-                          <span className={cn(
-                            'inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full border shrink-0 self-start',
-                            severityStyles[incident.severity]
-                          )}>
-                            {incident.severity}
-                          </span>
+                          <div className="flex items-start gap-2 shrink-0 self-start">
+                            <span className={cn(
+                              'inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full border',
+                              severityStyles[incident.severity]
+                            )}>
+                              {incident.severity}
+                            </span>
+                            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full border bg-background/60 text-foreground">
+                              {statusStyles[incident.status].label}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2"
+                              onClick={() => setEditingIncident(incident)}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
-                          <span className="truncate">{location.area}, {location.floor}</span>
+                          <span className="truncate">{location.area}, {location.floor}, {location.building}</span>
                           <span className="hidden sm:inline">•</span>
                           <span className="hidden sm:inline">Reported by {incident.reportedBy}</span>
                           <span className="hidden sm:inline">•</span>
                           <span>{formatDistanceToNow(incident.reportedAt, { addSuffix: true })}</span>
+                          {incident.statusDates.inProgressAt && (
+                            <>
+                              <span className="hidden sm:inline">•</span>
+                              <span>In Progress: {formatDistanceToNow(incident.statusDates.inProgressAt, { addSuffix: true })}</span>
+                            </>
+                          )}
+                          {incident.statusDates.closedAt && (
+                            <>
+                              <span className="hidden sm:inline">•</span>
+                              <span>Closed: {formatDistanceToNow(incident.statusDates.closedAt, { addSuffix: true })}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

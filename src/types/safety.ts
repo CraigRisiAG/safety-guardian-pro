@@ -21,7 +21,7 @@ export interface Incident {
   title: string;
   description: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  status: 'open' | 'investigating' | 'resolved';
+  status: 'open' | 'in_progress' | 'closed';
   location: {
     buildingId: string;
     floorId: string;
@@ -29,7 +29,12 @@ export interface Incident {
   };
   reportedBy: string;
   reportedAt: Date;
-  resolvedAt?: Date;
+  rootCause?: string;
+  statusDates: {
+    openAt: Date;
+    inProgressAt?: Date;
+    closedAt?: Date;
+  };
 }
 
 export interface Drill {
