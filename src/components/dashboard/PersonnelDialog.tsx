@@ -1174,6 +1174,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
     userName: person.userName,
     staffCode: person.staffCode || '',
     primaryFloorId: person.primaryFloorId || '',
+    primaryAreaId: person.primaryAreaId || '',
     workDays: person.workDays || [],
     buildingAccess: person.buildingAccess || [],
     contactPhone: person.contactDetails?.phone || '',
@@ -1192,6 +1193,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       name: floor.name,
       buildingId: building.id,
       buildingName: building.name,
+      areas: floor.areas,
     }))
   );
 
@@ -1237,6 +1239,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       userName: editData.userName,
       staffCode: editData.staffCode.trim() || undefined,
       primaryFloorId: editData.primaryFloorId || undefined,
+      primaryAreaId: editData.primaryAreaId || undefined,
       workDays: editData.workDays,
       buildingAccess: editData.buildingAccess,
       contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
