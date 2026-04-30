@@ -461,7 +461,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         if (floor) {
           buildingName = building.name;
           floorName = floor.name;
-          if (floor.areas.length > 0) {
+          if (person.primaryAreaId) {
+            const area = floor.areas.find(a => a.id === person.primaryAreaId);
+            if (area) areaName = area.name;
+          } else if (floor.areas.length > 0) {
             areaName = floor.areas[0].name;
           }
           break;
