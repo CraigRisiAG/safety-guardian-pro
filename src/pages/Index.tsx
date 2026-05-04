@@ -40,8 +40,7 @@ const Index = () => {
   const drillsStorageSnapshotRef = useRef<string | null>(getDrillsStorageSnapshot());
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const { activeDrill, endDrill } = useDrillStatus();
-  const { drillRecords } = useDrillStatus();
+  const { activeDrill, endDrill, drillRecords } = useDrillStatus();
   const fallbackDrill = activeDrill || drills.find((d) => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
