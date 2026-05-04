@@ -128,6 +128,8 @@ export interface ComplianceCheck {
   description: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annually';
   buildingIds: string[];
+  floorIds?: string[];
+  areaIds?: string[];
   lastCompleted?: Date;
   nextDue: Date;
   assignedTo?: string; // Primary assignee user ID
@@ -135,6 +137,7 @@ export interface ComplianceCheck {
   status: 'pending' | 'completed' | 'overdue' | 'not_applicable';
   category: string;
   isRecurring: boolean;
+  recurrencePattern?: 'none' | 'monthly_same_date';
   customFrequencyDays?: number; // For custom frequency intervals
   startDate?: Date; // When the recurring schedule starts
   endDate?: Date; // Optional end date for the recurring schedule

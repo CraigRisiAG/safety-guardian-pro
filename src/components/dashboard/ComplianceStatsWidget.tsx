@@ -3,12 +3,28 @@ import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle } from 'lucide-rea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { PendingChecksDialog } from './PendingChecksDialog';
 import { startOfWeek, endOfWeek, isWithinInterval, parseISO, isBefore } from 'date-fns';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
-import { ComplianceCheck, UserPermission } from '@/types/admin';
+import {
+  ALL_SAFETY_ROLES,
+  ALL_WORK_DAYS,
+  ComplianceCheck,
+  SAFETY_ROLE_LABELS,
+  UserPermission,
+  WORK_DAY_LABELS,
+  WorkDay,
+} from '@/types/admin';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
@@ -21,6 +37,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
   const { user } = useAuth();
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
   const [pendingDialogFilter, setPendingDialogFilter] = useState<'this_week' | 'overdue' | 'all'>('all');
+  const [gapsDialogOpen, setGapsDialogOpen] = useState(false);
 
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
@@ -35,10 +52,23 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
   const stats = useMemo(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     const allRecords: CompletedCheckRecord[] = stored 
-      ? JSON.parse(stored).map((r: any) => ({
-          ...r,
-          completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt)
-        }))
+      ? (() => {
+          const parsed = JSON.parse(stored) as unknown;
+          if (!Array.isArray(parsed)) {
+            return [];
+          }
+
+          return parsed.map((item) => {
+            const record = item as Partial<CompletedCheckRecord> & { completedAt?: string | Date };
+            return {
+              ...record,
+              completedAt:
+                typeof record.completedAt === 'string'
+                  ? parseISO(record.completedAt)
+                  : new Date(record.completedAt ?? new Date()),
+            } as CompletedCheckRecord;
+          });
+        })()
       : [];
 
     const now = new Date();
@@ -92,6 +122,61 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       return isBefore(dueDate, now);
     });
 
+    const areaDefinitions = settings.buildings.flatMap((building) =>
+      building.floors.flatMap((floor) =>
+        floor.areas.map((area) => ({
+          areaId: area.id,
+          areaName: area.name,
+          floorName: floor.name,
+          buildingName: building.name,
+          expectedHeadcount: area.expectedHeadcount,
+        })),
+      ),
+    );
+
+    const roleGapItems = areaDefinitions.flatMap((areaInfo) =>
+      ALL_WORK_DAYS.flatMap((day) => {
+        const usersInAreaForDay = settings.userPermissions.filter(
+          (person) => person.primaryAreaId === areaInfo.areaId && person.workDays.includes(day),
+        );
+
+        const headcount = areaInfo.expectedHeadcount ?? usersInAreaForDay.length;
+        const requiredPerRole = Math.max(1, Math.ceil(Math.max(headcount, 1) / 100));
+
+        return ALL_SAFETY_ROLES.map((role) => {
+          const assignedCount = usersInAreaForDay.filter((person) => person.safetyRoles.includes(role)).length;
+          const gapCount = Math.max(requiredPerRole - assignedCount, 0);
+
+          return {
+            ...areaInfo,
+            day,
+            role,
+            assignedCount,
+            requiredCount: requiredPerRole,
+            gapCount,
+          };
+        }).filter((item) => item.gapCount > 0);
+      }),
+    );
+
+    const requiredOfficialsTotal = areaDefinitions.reduce((total, areaInfo) => {
+      return total + ALL_WORK_DAYS.reduce((dayTotal, day) => {
+        const usersInAreaForDay = settings.userPermissions.filter(
+          (person) => person.primaryAreaId === areaInfo.areaId && person.workDays.includes(day),
+        );
+        const headcount = areaInfo.expectedHeadcount ?? usersInAreaForDay.length;
+        const requiredPerRole = Math.max(1, Math.ceil(Math.max(headcount, 1) / 100));
+        return dayTotal + requiredPerRole * ALL_SAFETY_ROLES.length;
+      }, 0);
+    }, 0);
+
+    const missingOfficialsTotal = roleGapItems.reduce((sum, item) => sum + item.gapCount, 0);
+    const officialCoverageScore = requiredOfficialsTotal > 0
+      ? Math.max(0, Math.round(((requiredOfficialsTotal - missingOfficialsTotal) / requiredOfficialsTotal) * 100))
+      : 100;
+
+    const safetyComplianceScore = Math.round(passRate * 0.7 + officialCoverageScore * 0.3);
+
     return {
       thisWeek: thisWeekRecords.length,
       thisWeekPending: thisWeekPending.length,
@@ -103,8 +188,12 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       byType,
       overdueCount: overdueChecks.length,
       overdueChecks,
+      roleGapItems,
+      missingOfficialsTotal,
+      officialCoverageScore,
+      safetyComplianceScore,
     };
-  }, [settings.complianceChecks, currentUserPermission, isAdmin]);
+  }, [settings.complianceChecks, settings.buildings, settings.userPermissions, currentUserPermission, isAdmin]);
 
   const handleOpenPendingDialog = (filter: 'this_week' | 'overdue' | 'all') => {
     setPendingDialogFilter(filter);
@@ -115,6 +204,56 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     if (onStartCheck) {
       onStartCheck(check, onBehalfOf);
     }
+  };
+
+  const handleExportGapsCsv = () => {
+    if (stats.roleGapItems.length === 0) {
+      return;
+    }
+
+    const escapeCsv = (value: string | number) => {
+      const text = String(value ?? '');
+      if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const headers = [
+      'Building',
+      'Floor',
+      'Area',
+      'Day',
+      'Role',
+      'Required',
+      'Assigned',
+      'Gap',
+    ];
+
+    const rows = stats.roleGapItems.map((gap) => [
+      gap.buildingName,
+      gap.floorName,
+      gap.areaName,
+      WORK_DAY_LABELS[gap.day as WorkDay],
+      SAFETY_ROLE_LABELS[gap.role],
+      gap.requiredCount,
+      gap.assignedCount,
+      gap.gapCount,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((column) => escapeCsv(column)).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'health-official-gaps.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -154,25 +293,41 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
           {/* Pass/Fail Rate */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Pass Rate</span>
-              <span className="font-medium">{stats.passRate}%</span>
+              <span className="text-muted-foreground">Safety Compliance Score</span>
+              <span className="font-medium">{stats.safetyComplianceScore}%</span>
             </div>
-            <Progress value={stats.passRate} className="h-2" />
+            <Progress value={stats.safetyComplianceScore} className="h-2" />
             <div className="flex gap-2 text-xs">
               <Badge variant="outline" className="bg-safe-muted text-safe">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                {stats.passCount} Pass
+                Checks {stats.passRate}%
               </Badge>
-              <Badge variant="outline" className="bg-warning-muted text-warning">
+              <Badge variant="outline" className="bg-info-muted text-info">
                 <AlertTriangle className="w-3 h-3 mr-1" />
-                {stats.partialCount} Partial
-              </Badge>
-              <Badge variant="outline" className="bg-emergency-muted text-emergency">
-                <XCircle className="w-3 h-3 mr-1" />
-                {stats.failCount} Fail
+                Officials {stats.officialCoverageScore}%
               </Badge>
             </div>
           </div>
+
+          {/* Health Officials Gaps */}
+          <button
+            onClick={() => setGapsDialogOpen(true)}
+            className={`w-full text-left rounded-lg p-3 transition-all cursor-pointer border ${
+              stats.missingOfficialsTotal > 0
+                ? 'bg-warning-muted/50 hover:bg-warning-muted/70 border-warning/30'
+                : 'bg-safe-muted/50 hover:bg-safe-muted/70 border-safe/30'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Health Official Gaps</span>
+              <Badge variant="outline" className={stats.missingOfficialsTotal > 0 ? 'bg-emergency-muted text-emergency' : 'bg-safe-muted text-safe'}>
+                {stats.missingOfficialsTotal}
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Every area/day requires each role, plus +1 per 100 people in that area.
+            </div>
+          </button>
 
           {/* By Check Type */}
           <div className="space-y-2">
@@ -217,6 +372,43 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
         initialFilter={pendingDialogFilter}
         onStartCheck={handleStartCheck}
       />
+
+      <Dialog open={gapsDialogOpen} onOpenChange={setGapsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Health Official Gap Overview</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-2">
+            {stats.roleGapItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4">No current official gaps across areas and days.</div>
+            ) : (
+              <div className="space-y-2">
+                {stats.roleGapItems.map((gap, index) => (
+                  <div key={`${gap.areaId}-${gap.day}-${gap.role}-${index}`} className="p-3 rounded-lg border bg-card">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="font-medium">{gap.areaName}</span>
+                      <span className="text-muted-foreground">({gap.floorName}, {gap.buildingName})</span>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {WORK_DAY_LABELS[gap.day as WorkDay]} • {SAFETY_ROLE_LABELS[gap.role]} • Required {gap.requiredCount}, Assigned {gap.assignedCount}, Gap {gap.gapCount}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="secondary"
+              onClick={handleExportGapsCsv}
+              disabled={stats.roleGapItems.length === 0}
+            >
+              Export CSV
+            </Button>
+            <Button variant="outline" onClick={() => setGapsDialogOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -38,6 +38,7 @@ interface CalendarEvent {
   status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue';
   checkType?: string;
   building?: string;
+  locationDetails?: string;
   completedByName?: string; // Who completed the check
   checkData?: ComplianceCheck;
 }
@@ -118,6 +119,29 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     return building?.name || 'Unknown Building';
   };
 
+  const getLocationDetails = (check: ComplianceCheck): string | undefined => {
+    const floorNames = settings.buildings
+      .flatMap((building) => building.floors)
+      .filter((floor) => (check.floorIds || []).includes(floor.id))
+      .map((floor) => floor.name);
+
+    const areaNames = settings.buildings
+      .flatMap((building) => building.floors)
+      .flatMap((floor) => floor.areas)
+      .filter((area) => (check.areaIds || []).includes(area.id))
+      .map((area) => area.name);
+
+    const parts: string[] = [];
+    if (floorNames.length > 0) {
+      parts.push(`Floors: ${floorNames.join(', ')}`);
+    }
+    if (areaNames.length > 0) {
+      parts.push(`Areas: ${areaNames.join(', ')}`);
+    }
+
+    return parts.length > 0 ? parts.join(' • ') : undefined;
+  };
+
   // Create calendar events from scheduled and completed checks
   // Filter based on user role - admins see all, users see only assigned
   const calendarEvents = useMemo((): CalendarEvent[] => {
@@ -135,11 +159,49 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
              check.assignedTo === currentUserPermission.id;
     });
 
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+
     // Add scheduled checks
     visibleChecks.forEach(check => {
+      const isMonthlySameDate = check.isRecurring && check.recurrencePattern === 'monthly_same_date';
+      const locationDetails = getLocationDetails(check);
+
+      if (isMonthlySameDate) {
+        const anchorDate = check.startDate ? new Date(check.startDate) : new Date(check.nextDue);
+        const dayInMonth = anchorDate.getDate();
+        const occurrenceDate = new Date(
+          monthStart.getFullYear(),
+          monthStart.getMonth(),
+          Math.min(dayInMonth, monthEnd.getDate()),
+          anchorDate.getHours(),
+          anchorDate.getMinutes(),
+        );
+
+        const beforeStart = check.startDate && occurrenceDate < new Date(check.startDate);
+        const afterEnd = check.endDate && occurrenceDate > new Date(check.endDate);
+
+        if (!beforeStart && !afterEnd) {
+          const isOverdue = isBefore(occurrenceDate, now) && check.status !== 'completed';
+          events.push({
+            id: `scheduled-${check.id}-${format(occurrenceDate, 'yyyy-MM')}`,
+            title: check.name,
+            date: occurrenceDate,
+            type: 'scheduled',
+            status: isOverdue ? 'overdue' : 'pending',
+            checkType: check.category,
+            building: check.buildingIds.map(id => getBuildingName(id)).join(', '),
+            locationDetails,
+            checkData: check,
+          });
+        }
+
+        return;
+      }
+
       const dueDate = new Date(check.nextDue);
       const isOverdue = isBefore(dueDate, now) && check.status !== 'completed';
-      
+
       events.push({
         id: `scheduled-${check.id}`,
         title: check.name,
@@ -148,6 +210,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
         status: isOverdue ? 'overdue' : 'pending',
         checkType: check.category,
         building: check.buildingIds.map(id => getBuildingName(id)).join(', '),
+        locationDetails,
         checkData: check,
       });
     });
@@ -193,7 +256,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission]);
+  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission, currentMonth]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {
@@ -470,6 +533,11 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                           {event.building && (
                             <div className="text-xs">
                               📍 {event.building}
+                            </div>
+                          )}
+                          {event.locationDetails && (
+                            <div className="text-xs">
+                              {event.locationDetails}
                             </div>
                           )}
                           {event.checkType && (

@@ -82,6 +82,11 @@ export function useAdminSettings() {
             ...c,
             lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : undefined,
             nextDue: new Date(c.nextDue),
+            startDate: c.startDate ? new Date(c.startDate) : undefined,
+            endDate: c.endDate ? new Date(c.endDate) : undefined,
+            floorIds: Array.isArray(c.floorIds) ? c.floorIds : [],
+            areaIds: Array.isArray(c.areaIds) ? c.areaIds : [],
+            recurrencePattern: c.recurrencePattern || (c.isRecurring ? 'monthly_same_date' : 'none'),
           })),
         };
       } catch {

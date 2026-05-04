@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Calendar, Users, Building2, Info } from 'lucide-react';
+import { Plus, Calendar, Users, Building2, Info, Layers, MapPin, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -51,8 +51,11 @@ export function QuickCheckAssignment({
     category: settings.complianceCategories[0]?.id || '',
     dueDate: initialDate || new Date(),
     buildingIds: [] as string[],
+    floorIds: [] as string[],
+    areaIds: [] as string[],
     assignedUsers: [] as string[],
     assignToSelf: !isAdmin, // Non-admins assign to self by default
+    monthlySameDate: false,
   });
 
   // Reset form when dialog opens
@@ -64,8 +67,11 @@ export function QuickCheckAssignment({
         category: settings.complianceCategories[0]?.id || '',
         dueDate: initialDate || new Date(),
         buildingIds: [],
+        floorIds: [],
+        areaIds: [],
         assignedUsers: [],
         assignToSelf: !isAdmin,
+        monthlySameDate: false,
       });
     }
     onOpenChange(newOpen);
@@ -79,11 +85,57 @@ export function QuickCheckAssignment({
   }, [settings.userPermissions, formData.category]);
 
   const toggleBuilding = (buildingId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      buildingIds: prev.buildingIds.includes(buildingId)
+    setFormData(prev => {
+      const nextBuildingIds = prev.buildingIds.includes(buildingId)
         ? prev.buildingIds.filter(id => id !== buildingId)
-        : [...prev.buildingIds, buildingId],
+        : [...prev.buildingIds, buildingId];
+
+      const nextFloors = settings.buildings
+        .filter((building) => nextBuildingIds.includes(building.id))
+        .flatMap((building) => building.floors.map((floor) => floor.id));
+
+      const nextFloorIds = prev.floorIds.filter((id) => nextFloors.includes(id));
+      const nextAreas = settings.buildings
+        .filter((building) => nextBuildingIds.includes(building.id))
+        .flatMap((building) => building.floors)
+        .filter((floor) => nextFloorIds.includes(floor.id))
+        .flatMap((floor) => floor.areas.map((area) => area.id));
+
+      return {
+        ...prev,
+        buildingIds: nextBuildingIds,
+        floorIds: nextFloorIds,
+        areaIds: prev.areaIds.filter((id) => nextAreas.includes(id)),
+      };
+    });
+  };
+
+  const toggleFloor = (floorId: string) => {
+    setFormData((prev) => {
+      const nextFloorIds = prev.floorIds.includes(floorId)
+        ? prev.floorIds.filter((id) => id !== floorId)
+        : [...prev.floorIds, floorId];
+
+      const nextAreas = settings.buildings
+        .filter((building) => prev.buildingIds.includes(building.id))
+        .flatMap((building) => building.floors)
+        .filter((floor) => nextFloorIds.includes(floor.id))
+        .flatMap((floor) => floor.areas.map((area) => area.id));
+
+      return {
+        ...prev,
+        floorIds: nextFloorIds,
+        areaIds: prev.areaIds.filter((id) => nextAreas.includes(id)),
+      };
+    });
+  };
+
+  const toggleArea = (areaId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      areaIds: prev.areaIds.includes(areaId)
+        ? prev.areaIds.filter((id) => id !== areaId)
+        : [...prev.areaIds, areaId],
     }));
   };
 
@@ -118,11 +170,15 @@ export function QuickCheckAssignment({
       description: formData.description.trim(),
       frequency: 'monthly', // Default, can be modified in full admin panel
       buildingIds: formData.buildingIds,
+      floorIds: formData.floorIds,
+      areaIds: formData.areaIds,
       nextDue: formData.dueDate,
       status: 'pending',
       category: formData.category,
       assignedUsers: assignedUserIds,
-      isRecurring: false, // Quick assignments are one-off by default
+      isRecurring: formData.monthlySameDate,
+      recurrencePattern: formData.monthlySameDate ? 'monthly_same_date' : 'none',
+      startDate: formData.monthlySameDate ? formData.dueDate : undefined,
       reminderDaysBefore: 1,
     });
 
@@ -134,6 +190,23 @@ export function QuickCheckAssignment({
   // Check if current user can assign this category to themselves
   const canAssignToSelf = currentUserPermission && 
     userCanPerformCheckCategory(currentUserPermission.safetyRoles, formData.category);
+
+  const selectedBuildings = useMemo(
+    () => settings.buildings.filter((building) => formData.buildingIds.includes(building.id)),
+    [settings.buildings, formData.buildingIds],
+  );
+
+  const availableFloors = useMemo(
+    () => selectedBuildings.flatMap((building) => building.floors),
+    [selectedBuildings],
+  );
+
+  const availableAreas = useMemo(
+    () => availableFloors
+      .filter((floor) => formData.floorIds.includes(floor.id))
+      .flatMap((floor) => floor.areas),
+    [availableFloors, formData.floorIds],
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -250,6 +323,75 @@ export function QuickCheckAssignment({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Floors */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              Floors (Optional)
+            </Label>
+            <div className="border rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+              {availableFloors.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Select one or more buildings first.
+                </p>
+              ) : (
+                availableFloors.map((floor) => (
+                  <div key={floor.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={formData.floorIds.includes(floor.id)}
+                      onCheckedChange={() => toggleFloor(floor.id)}
+                    />
+                    <label className="text-sm cursor-pointer">{floor.name}</label>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Areas */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Areas (Optional)
+            </Label>
+            <div className="border rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+              {availableAreas.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Select one or more floors to target specific areas.
+                </p>
+              ) : (
+                availableAreas.map((area) => (
+                  <div key={area.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={formData.areaIds.includes(area.id)}
+                      onCheckedChange={() => toggleArea(area.id)}
+                    />
+                    <label className="text-sm cursor-pointer">{area.name}</label>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Recurrence */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Repeat className="w-4 h-4" />
+              Recurrence
+            </Label>
+            <div className="border rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={formData.monthlySameDate}
+                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, monthlySameDate: !!checked }))}
+                />
+                <label className="text-sm cursor-pointer">
+                  Repeat monthly on the same date ({format(formData.dueDate, 'do')})
+                </label>
+              </div>
             </div>
           </div>
 
