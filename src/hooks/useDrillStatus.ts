@@ -5,48 +5,104 @@ import { buildings } from '@/data/mockData';
 const ACTIVE_DRILL_KEY = 'active_drill';
 const DRILL_RECORDS_KEY = 'drill_records';
 
-export function useDrillStatus() {
-  const [activeDrill, setActiveDrill] = useState<Drill | null>(() => {
-    const stored = localStorage.getItem(ACTIVE_DRILL_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        ...parsed,
-        startedAt: parsed.startedAt ? new Date(parsed.startedAt) : undefined,
-        completedAt: parsed.completedAt ? new Date(parsed.completedAt) : undefined,
-        scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : undefined,
-      };
-    }
-    return null;
-  });
+const parseDateSafe = (value: unknown): Date | undefined => {
+  if (!value || typeof value !== 'string') {
+    return undefined;
+  }
 
-  const [drillRecords, setDrillRecords] = useState<DrillRecord[]>(() => {
-    const stored = localStorage.getItem(DRILL_RECORDS_KEY);
-    if (stored) {
-      return JSON.parse(stored).map((r: any) => ({
-        ...r,
-        startedAt: new Date(r.startedAt),
-        completedAt: new Date(r.completedAt),
-      }));
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const readStorage = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeStorage = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // no-op
+  }
+};
+
+const removeStorage = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // no-op
+  }
+};
+
+const parseActiveDrill = (stored: string | null): Drill | null => {
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<Drill>;
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.type || !parsed.location?.buildingId) {
+      return null;
     }
+
+    return {
+      id: parsed.id,
+      type: parsed.type,
+      status: parsed.status === 'active' || parsed.status === 'scheduled' || parsed.status === 'completed' || parsed.status === 'cancelled'
+        ? parsed.status
+        : 'active',
+      location: {
+        buildingId: parsed.location.buildingId,
+        floorIds: Array.isArray(parsed.location.floorIds) ? parsed.location.floorIds : [],
+        areaIds: Array.isArray(parsed.location.areaIds) ? parsed.location.areaIds : [],
+      },
+      startedAt: parseDateSafe(typeof parsed.startedAt === 'string' ? parsed.startedAt : undefined),
+      completedAt: parseDateSafe(typeof parsed.completedAt === 'string' ? parsed.completedAt : undefined),
+      scheduledFor: parseDateSafe(typeof parsed.scheduledFor === 'string' ? parsed.scheduledFor : undefined),
+      initiatedBy: typeof parsed.initiatedBy === 'string' ? parsed.initiatedBy : 'Unknown',
+    };
+  } catch {
+    return null;
+  }
+};
+
+const parseDrillRecords = (stored: string | null): DrillRecord[] => {
+  if (!stored) {
     return [];
-  });
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((record: any) => ({
+        ...record,
+        startedAt: parseDateSafe(record?.startedAt) ?? new Date(),
+        completedAt: parseDateSafe(record?.completedAt) ?? new Date(),
+      }))
+      .filter((record) => typeof record.id === 'string' && typeof record.drillId === 'string');
+  } catch {
+    return [];
+  }
+};
+
+export function useDrillStatus() {
+  const [activeDrill, setActiveDrill] = useState<Drill | null>(() => parseActiveDrill(readStorage(ACTIVE_DRILL_KEY)));
+
+  const [drillRecords, setDrillRecords] = useState<DrillRecord[]>(() => parseDrillRecords(readStorage(DRILL_RECORDS_KEY)));
 
   // Listen for storage changes from other components
   useEffect(() => {
     const handleStorage = () => {
-      const stored = localStorage.getItem(ACTIVE_DRILL_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setActiveDrill({
-          ...parsed,
-          startedAt: parsed.startedAt ? new Date(parsed.startedAt) : undefined,
-          completedAt: parsed.completedAt ? new Date(parsed.completedAt) : undefined,
-          scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : undefined,
-        });
-      } else {
-        setActiveDrill(null);
-      }
+      setActiveDrill(parseActiveDrill(readStorage(ACTIVE_DRILL_KEY)));
+      setDrillRecords(parseDrillRecords(readStorage(DRILL_RECORDS_KEY)));
     };
 
     window.addEventListener('storage', handleStorage);
@@ -61,7 +117,7 @@ export function useDrillStatus() {
   const startDrill = useCallback((drill: Drill) => {
     const activeDrillData = { ...drill, status: 'active' as const, startedAt: new Date() };
     setActiveDrill(activeDrillData);
-    localStorage.setItem(ACTIVE_DRILL_KEY, JSON.stringify(activeDrillData));
+    writeStorage(ACTIVE_DRILL_KEY, JSON.stringify(activeDrillData));
   }, []);
 
   const endDrill = useCallback((checkInStats?: { safe: number; needsAssistance: number; pending: number }, floorCheckIns?: Map<string, { safe: number; needsAssistance: number; pending: number }>) => {
@@ -106,10 +162,10 @@ export function useDrillStatus() {
 
     const updatedRecords = [record, ...drillRecords];
     setDrillRecords(updatedRecords);
-    localStorage.setItem(DRILL_RECORDS_KEY, JSON.stringify(updatedRecords));
+    writeStorage(DRILL_RECORDS_KEY, JSON.stringify(updatedRecords));
 
     setActiveDrill(null);
-    localStorage.removeItem(ACTIVE_DRILL_KEY);
+    removeStorage(ACTIVE_DRILL_KEY);
 
     return record;
   }, [activeDrill, drillRecords]);

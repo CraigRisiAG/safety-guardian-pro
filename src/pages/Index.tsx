@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentIncidents } from '@/components/dashboard/RecentIncidents';
+import { StartDrillForm } from '@/components/drills/StartDrillForm';
 import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
 import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm';
 import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWidget';
@@ -10,41 +11,76 @@ import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistor
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
 import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
-import { mockDrills, mockCheckIns } from '@/data/mockData';
+import { mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
-import { Incident, IncidentSeverity, IncidentStatus } from '@/types/safety';
+import { Drill, Incident, IncidentSeverity, IncidentStatus, DrillType } from '@/types/safety';
 import { toast } from 'sonner';
 import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
+import { getDrillsStorageSnapshot, loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const [incidents, setIncidents] = useState(() => loadIncidentsFromStorage());
+  const [drills, setDrills] = useState(() => loadDrillsFromStorage());
+  const drillsStorageSnapshotRef = useRef<string | null>(getDrillsStorageSnapshot());
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill, endDrill } = useDrillStatus();
-  const fallbackDrill = activeDrill || mockDrills.find(d => d.status === 'active') || null;
+  const fallbackDrill = activeDrill || drills.find((d) => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
+  const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
+  const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
   
   useEffect(() => {
     saveIncidentsToStorage(incidents);
   }, [incidents]);
 
+  useEffect(() => {
+    saveDrillsToStorage(drills);
+    drillsStorageSnapshotRef.current = getDrillsStorageSnapshot();
+  }, [drills]);
+
+  useEffect(() => {
+    const syncDrillsFromStorage = () => {
+      const snapshot = getDrillsStorageSnapshot();
+      if (snapshot !== drillsStorageSnapshotRef.current) {
+        drillsStorageSnapshotRef.current = snapshot;
+        setDrills(loadDrillsFromStorage());
+      }
+    };
+
+    window.addEventListener('storage', syncDrillsFromStorage);
+    const intervalId = setInterval(syncDrillsFromStorage, 2000);
+
+    return () => {
+      window.removeEventListener('storage', syncDrillsFromStorage);
+      clearInterval(intervalId);
+    };
+  }, []);
+
   const openIncidentsList = incidents.filter((incident) => incident.status === 'open');
   const openIncidents = openIncidentsList.length;
-  const upcomingDrills = mockDrills.filter(d => d.status === 'scheduled').length;
+  const scheduledDrills = drills
+    .filter((drill) => drill.status === 'scheduled')
+    .sort((a, b) => {
+      const left = a.scheduledFor ? a.scheduledFor.getTime() : Number.MAX_SAFE_INTEGER;
+      const right = b.scheduledFor ? b.scheduledFor.getTime() : Number.MAX_SAFE_INTEGER;
+      return left - right;
+    });
+  const upcomingDrills = scheduledDrills.length;
   
   const checkInStats = {
     safe: mockCheckIns.filter(c => c.status === 'safe').length,
@@ -65,6 +101,49 @@ const Index = () => {
       description: 'Use the Compliance Check form to complete this check.',
       duration: 4000
     });
+  };
+
+  const drillTypeLabels: Record<DrillType, string> = {
+    fire: 'Fire Drill',
+    earthquake: 'Earthquake Drill',
+    lockdown: 'Lockdown Drill',
+    evacuation: 'Evacuation Drill',
+    medical: 'Medical Emergency',
+  };
+
+  const getDrillLocation = (drill: Drill) => {
+    const building = settings.buildings.find((item) => item.id === drill.location.buildingId);
+    const floors = building?.floors.filter((floor) => drill.location.floorIds.includes(floor.id)) ?? [];
+    return {
+      building: building?.name ?? 'Unknown Building',
+      floors: floors.map((floor) => floor.name).join(', ') || 'All floors',
+    };
+  };
+
+  const handleCreateScheduledDrill = (data: {
+    type: DrillType;
+    buildingId: string;
+    floorIds: string[];
+  }) => {
+    const scheduledDate = new Date();
+    scheduledDate.setHours(scheduledDate.getHours() + 1);
+
+    const newDrill: Drill = {
+      id: `drill-${Date.now()}`,
+      type: data.type,
+      status: 'scheduled',
+      location: {
+        buildingId: data.buildingId,
+        floorIds: data.floorIds,
+        areaIds: [],
+      },
+      scheduledFor: scheduledDate,
+      initiatedBy: 'Safety Officer',
+    };
+
+    setDrills((previous) => [newDrill, ...previous]);
+    setIsCreateDrillDialogOpen(false);
+    toast.success('Scheduled drill created');
   };
 
   const handleIncidentUpdate = (
@@ -155,6 +234,7 @@ const Index = () => {
             value={upcomingDrills}
             icon={<Siren className="w-5 h-5" />}
             variant="info"
+            onClick={() => setIsScheduledDrillsDialogOpen(true)}
           />
           <StatCard
             title="Safety Compliance"
@@ -210,6 +290,55 @@ const Index = () => {
                 ))}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isScheduledDrillsDialogOpen} onOpenChange={setIsScheduledDrillsDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Scheduled Drills ({upcomingDrills})</DialogTitle>
+            </DialogHeader>
+
+            {scheduledDrills.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4">No scheduled drills.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {scheduledDrills.map((drill) => {
+                  const location = getDrillLocation(drill);
+                  return (
+                    <div key={drill.id} className="py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{drillTypeLabels[drill.type]}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{location.building} • {location.floors}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {drill.scheduledFor ? format(drill.scheduledFor, 'PPp') : 'Not scheduled'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="pt-2">
+              <Dialog open={isCreateDrillDialogOpen} onOpenChange={setIsCreateDrillDialogOpen}>
+                <Button className="gap-2" onClick={() => setIsCreateDrillDialogOpen(true)}>
+                  <Siren className="w-4 h-4" />
+                  Create Another Drill
+                </Button>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Create Scheduled Drill</DialogTitle>
+                  </DialogHeader>
+                  <StartDrillForm
+                    onSubmit={handleCreateScheduledDrill}
+                    onCancel={() => setIsCreateDrillDialogOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
           </DialogContent>
         </Dialog>
 

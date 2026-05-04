@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
 import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
-import { mockDrills, buildings } from '@/data/mockData';
+import { buildings } from '@/data/mockData';
 import { Drill, DrillType, DrillRecord } from '@/types/safety';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +17,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { Badge } from '@/components/ui/badge';
+import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
 
 const drillTypeLabels: Record<DrillType, string> = {
   fire: 'Fire Drill',
@@ -42,11 +43,15 @@ const statusConfig = {
 };
 
 export default function Drills() {
-  const [drills, setDrills] = useState<Drill[]>(mockDrills);
+  const [drills, setDrills] = useState<Drill[]>(() => loadDrillsFromStorage());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
+
+  useEffect(() => {
+    saveDrillsToStorage(drills);
+  }, [drills]);
 
   const handleStartDrill = (data: {
     type: DrillType;
@@ -65,7 +70,7 @@ export default function Drills() {
       startedAt: new Date(),
       initiatedBy: 'Safety Officer',
     };
-    setDrills([newDrill, ...drills]);
+    setDrills((previous) => [newDrill, ...previous]);
     startDrill(newDrill);
     setIsDialogOpen(false);
     toast.success(`${drillTypeLabels[data.type]} started!`);
