@@ -41,6 +41,7 @@ const Index = () => {
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill, endDrill } = useDrillStatus();
+  const { drillRecords } = useDrillStatus();
   const fallbackDrill = activeDrill || drills.find((d) => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
@@ -91,6 +92,60 @@ const Index = () => {
 
   const complianceScoreVariant: 'safe' | 'warning' | 'emergency' =
     complianceBreakdown.score >= 85 ? 'safe' : complianceBreakdown.score >= 60 ? 'warning' : 'emergency';
+
+  // Fire drill participation per floor (latest fire drill per floor)
+  const fireDrillParticipation = (() => {
+    const fireRecords = drillRecords
+      .filter(r => r.type === 'fire')
+      .slice()
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+
+    type Row = {
+      buildingId: string;
+      buildingName: string;
+      floorId: string;
+      floorName: string;
+      accounted: number;
+      assigned: number;
+      percent: number;
+      drillDate: Date;
+    };
+
+    const seen = new Set<string>();
+    const rows: Row[] = [];
+
+    fireRecords.forEach(record => {
+      record.floorStats.forEach(fs => {
+        const key = `${record.buildingId}:${fs.floorId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        const assigned = settings.userPermissions.filter(
+          p => p.primaryFloorId === fs.floorId || (p.buildingAccess?.includes(record.buildingId) && !p.primaryFloorId)
+        ).length;
+        const accounted = fs.safe + fs.needsAssistance;
+        const denom = Math.max(assigned, accounted);
+        const percent = denom > 0 ? Math.round((accounted / denom) * 100) : 0;
+
+        rows.push({
+          buildingId: record.buildingId,
+          buildingName: record.buildingName,
+          floorId: fs.floorId,
+          floorName: fs.floorName,
+          accounted,
+          assigned,
+          percent,
+          drillDate: new Date(record.completedAt),
+        });
+      });
+    });
+
+    const overallAccounted = rows.reduce((s, r) => s + r.accounted, 0);
+    const overallAssigned = rows.reduce((s, r) => s + Math.max(r.assigned, r.accounted), 0);
+    const overallPercent = overallAssigned > 0 ? Math.round((overallAccounted / overallAssigned) * 100) : 0;
+
+    return { rows, overallPercent, hasData: rows.length > 0 };
+  })();
   
   useEffect(() => {
     saveIncidentsToStorage(incidents);
