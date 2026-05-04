@@ -378,13 +378,11 @@ const Index = () => {
                 </Button>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
-                    <DialogTitle>Schedule a Drill</DialogTitle>
+                    <DialogTitle>Create Scheduled Drill</DialogTitle>
                   </DialogHeader>
                   <StartDrillForm
-                    onDrillStarted={() => {
-                      setIsCreateDrillDialogOpen(false);
-                      setDrills(loadDrillsFromStorage());
-                    }}
+                    onSubmit={handleCreateScheduledDrill}
+                    onCancel={() => setIsCreateDrillDialogOpen(false)}
                   />
                 </DialogContent>
               </Dialog>
@@ -450,55 +448,6 @@ const Index = () => {
                   <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
                 )}
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={false} onOpenChange={() => {}}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle></DialogTitle>
-            </DialogHeader>
-
-            {scheduledDrills.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-4">No scheduled drills.</div>
-            ) : (
-              <div className="divide-y divide-border">
-                {scheduledDrills.map((drill) => {
-                  const location = getDrillLocation(drill);
-                  return (
-                    <div key={drill.id} className="py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{drillTypeLabels[drill.type]}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{location.building} • {location.floors}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {drill.scheduledFor ? format(drill.scheduledFor, 'PPp') : 'Not scheduled'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="pt-2">
-              <Dialog open={isCreateDrillDialogOpen} onOpenChange={setIsCreateDrillDialogOpen}>
-                <Button className="gap-2" onClick={() => setIsCreateDrillDialogOpen(true)}>
-                  <Siren className="w-4 h-4" />
-                  Create Another Drill
-                </Button>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Create Scheduled Drill</DialogTitle>
-                  </DialogHeader>
-                  <StartDrillForm
-                    onSubmit={handleCreateScheduledDrill}
-                    onCancel={() => setIsCreateDrillDialogOpen(false)}
-                  />
-                </DialogContent>
-              </Dialog>
             </div>
           </DialogContent>
         </Dialog>
