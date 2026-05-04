@@ -57,6 +57,11 @@ export interface SafetyCheckIn {
   id: string;
   drillId: string;
   personName: string;
+  staffCode?: string;
+  personnelId?: string;
+  isSelfCheckIn?: boolean;
+  checkedInByUserId?: string;
+  checkedInByName?: string;
   status: 'safe' | 'needs-assistance' | 'pending';
   location: {
     buildingId: string;

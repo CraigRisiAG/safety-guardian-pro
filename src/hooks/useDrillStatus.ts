@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Drill, DrillRecord } from '@/types/safety';
 import { buildings } from '@/data/mockData';
+import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 
 const ACTIVE_DRILL_KEY = 'active_drill';
 const DRILL_RECORDS_KEY = 'drill_records';
+const ADMIN_SETTINGS_KEY = 'safeguard_admin_settings';
 
 const parseDateSafe = (value: unknown): Date | undefined => {
   if (!value || typeof value !== 'string') {
@@ -57,6 +59,7 @@ const parseActiveDrill = (stored: string | null): Drill | null => {
         : 'active',
       location: {
         buildingId: parsed.location.buildingId,
+        buildingIds: Array.isArray(parsed.location.buildingIds) ? parsed.location.buildingIds : undefined,
         floorIds: Array.isArray(parsed.location.floorIds) ? parsed.location.floorIds : [],
         areaIds: Array.isArray(parsed.location.areaIds) ? parsed.location.areaIds : [],
       },
@@ -90,6 +93,40 @@ const parseDrillRecords = (stored: string | null): DrillRecord[] => {
       .filter((record) => typeof record.id === 'string' && typeof record.drillId === 'string');
   } catch {
     return [];
+  }
+};
+
+const resolveBuildings = () => {
+  try {
+    const stored = localStorage.getItem(ADMIN_SETTINGS_KEY);
+    if (!stored) {
+      return buildings;
+    }
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed?.buildings)) {
+      return buildings;
+    }
+
+    return parsed.buildings.map((building: any) => ({
+      id: building.id,
+      name: building.name,
+      floors: Array.isArray(building.floors)
+        ? building.floors.map((floor: any) => ({
+            id: floor.id,
+            name: floor.name,
+            areas: Array.isArray(floor.areas)
+              ? floor.areas.map((area: any) => ({
+                  id: area.id,
+                  name: area.name,
+                  floorId: floor.id,
+                }))
+              : [],
+          }))
+        : [],
+    }));
+  } catch {
+    return buildings;
   }
 };
 
@@ -128,14 +165,39 @@ export function useDrillStatus() {
     const durationMs = completedAt.getTime() - new Date(startedAt).getTime();
     const durationMinutes = Math.round(durationMs / 60000 * 10) / 10;
 
-    const building = buildings.find(b => b.id === activeDrill.location.buildingId);
+    const checkIns = loadCheckInsForDrill(activeDrill.id);
+    const allBuildings = resolveBuildings();
+    const building = allBuildings.find(b => b.id === activeDrill.location.buildingId);
     const floors = building?.floors.filter(f => activeDrill.location.floorIds.includes(f.id)) || [];
 
-    const stats = checkInStats || { safe: 0, needsAssistance: 0, pending: 0 };
+    const persistedStats = {
+      safe: checkIns.filter((checkIn) => checkIn.status === 'safe').length,
+      needsAssistance: checkIns.filter((checkIn) => checkIn.status === 'needs-assistance').length,
+      pending: checkIns.filter((checkIn) => checkIn.status === 'pending').length,
+    };
+
+    const stats = checkInStats || persistedStats;
     const total = stats.safe + stats.needsAssistance + stats.pending;
 
     const floorStats = floors.map(f => {
-      const fStats = floorCheckIns?.get(f.id) || { safe: 0, needsAssistance: 0, pending: 0 };
+      const persistedFloorStats = checkIns.reduce(
+        (acc, checkIn) => {
+          if (checkIn.location.floorId !== f.id) {
+            return acc;
+          }
+
+          if (checkIn.status === 'safe') {
+            return { ...acc, safe: acc.safe + 1 };
+          }
+          if (checkIn.status === 'needs-assistance') {
+            return { ...acc, needsAssistance: acc.needsAssistance + 1 };
+          }
+          return { ...acc, pending: acc.pending + 1 };
+        },
+        { safe: 0, needsAssistance: 0, pending: 0 },
+      );
+
+      const fStats = floorCheckIns?.get(f.id) || persistedFloorStats;
       return {
         floorId: f.id,
         floorName: f.name,

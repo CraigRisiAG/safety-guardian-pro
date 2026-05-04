@@ -123,10 +123,7 @@ export default function Drills() {
   };
 
   const handleEndDrill = (drillId: string) => {
-    // Simulate some check-in stats
-    const record = endDrill(
-      { safe: Math.floor(Math.random() * 20) + 10, needsAssistance: Math.floor(Math.random() * 3), pending: Math.floor(Math.random() * 5) }
-    );
+    endDrill();
     setDrills(drills.map(d => 
       d.id === drillId 
         ? { ...d, status: 'completed', completedAt: new Date() } 

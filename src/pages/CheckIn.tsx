@@ -1,13 +1,30 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
 import { FloorCheckInProgress } from '@/components/checkin/FloorCheckInProgress';
-import { mockDrills, mockCheckIns, buildings } from '@/data/mockData';
-import { SafetyCheckIn, Drill } from '@/types/safety';
-import { ShieldCheck, AlertCircle, Clock, Users, MapPin, Percent } from 'lucide-react';
+import { SafetyCheckIn } from '@/types/safety';
+import { ShieldCheck, AlertCircle, Clock, Users, MapPin, Percent, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
+import { useDrillStatus } from '@/hooks/useDrillStatus';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  addCheckInsToStorage,
+  getCheckInsStorageSnapshot,
+  loadCheckInsForDrill,
+} from '@/lib/checkInsStorage';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 const drillTypeLabels = {
   fire: 'Fire Drill',
@@ -17,81 +34,245 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-// Mock expected headcount per floor (in production, this comes from admin settings)
-const MOCK_FLOOR_HEADCOUNTS = [
-  { floorId: 'floor-1', expectedHeadcount: 8 },
-  { floorId: 'floor-2', expectedHeadcount: 12 },
-  { floorId: 'floor-3', expectedHeadcount: 10 },
-  { floorId: 'floor-4', expectedHeadcount: 6 },
-  { floorId: 'floor-5', expectedHeadcount: 4 },
-];
-
 export default function CheckIn() {
-  // For demo, simulate an active drill
-  const [activeDrill] = useState<Drill>({
-    id: 'drill-active',
-    type: 'fire',
-    status: 'active',
-    location: {
-      buildingId: 'building-1',
-      floorIds: ['floor-1', 'floor-2', 'floor-3'],
-      areaIds: [],
-    },
-    startedAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-    initiatedBy: 'Safety Officer',
-  });
-  
-  const [checkIns, setCheckIns] = useState<SafetyCheckIn[]>(mockCheckIns);
-  const [hasCheckedIn, setHasCheckedIn] = useState(false);
+  const { activeDrill } = useDrillStatus();
+  const { settings } = useAdminSettings();
+  const { user } = useAuth();
 
-  const building = buildings.find(b => b.id === activeDrill.location.buildingId);
+  const [checkIns, setCheckIns] = useState<SafetyCheckIn[]>([]);
+  const [storageSnapshot, setStorageSnapshot] = useState<string | null>(getCheckInsStorageSnapshot());
+  const [isColleagueFormVisible, setIsColleagueFormVisible] = useState(false);
+  const [colleagueSearch, setColleagueSearch] = useState('');
+  const [selectedColleagueId, setSelectedColleagueId] = useState<string>('');
+  const [colleagueStatus, setColleagueStatus] = useState<'safe' | 'needs-assistance'>('safe');
+  const [colleagueFloorId, setColleagueFloorId] = useState('');
+  const [colleagueAreaId, setColleagueAreaId] = useState('');
+  const [colleagueNotes, setColleagueNotes] = useState('');
+
+  useEffect(() => {
+    if (!activeDrill) {
+      setCheckIns([]);
+      return;
+    }
+    setCheckIns(loadCheckInsForDrill(activeDrill.id));
+  }, [activeDrill]);
+
+  useEffect(() => {
+    const syncCheckIns = () => {
+      const snapshot = getCheckInsStorageSnapshot();
+      if (snapshot !== storageSnapshot) {
+        setStorageSnapshot(snapshot);
+        if (activeDrill) {
+          setCheckIns(loadCheckInsForDrill(activeDrill.id));
+        }
+      }
+    };
+
+    window.addEventListener('storage', syncCheckIns);
+    const intervalId = setInterval(syncCheckIns, 1500);
+
+    return () => {
+      window.removeEventListener('storage', syncCheckIns);
+      clearInterval(intervalId);
+    };
+  }, [activeDrill, storageSnapshot]);
+
+  const building = useMemo(
+    () => activeDrill ? settings.buildings.find((entry) => entry.id === activeDrill.location.buildingId) ?? null : null,
+    [activeDrill, settings.buildings],
+  );
+
+  const drillFloors = useMemo(
+    () => building?.floors.filter((floor) => activeDrill?.location.floorIds.includes(floor.id)) ?? [],
+    [building, activeDrill],
+  );
+
+  const floorHeadcounts = useMemo(
+    () => drillFloors.map((floor) => ({
+      floorId: floor.id,
+      expectedHeadcount: floor.areas.reduce((sum, area) => sum + (area.expectedHeadcount ?? 0), 0),
+    })),
+    [drillFloors],
+  );
+
+  const stats = useMemo(() => {
+    const relevant = activeDrill ? checkIns.filter((checkIn) => checkIn.drillId === activeDrill.id) : [];
+    const safe = relevant.filter((checkIn) => checkIn.status === 'safe').length;
+    const needsAssistance = relevant.filter((checkIn) => checkIn.status === 'needs-assistance').length;
+    const checkedIn = safe + needsAssistance;
+    const totalExpected = floorHeadcounts.reduce((sum, floor) => sum + floor.expectedHeadcount, 0);
+    const pending = totalExpected > 0 ? Math.max(0, totalExpected - checkedIn) : 0;
+    const percentage = totalExpected > 0 ? Math.round((checkedIn / totalExpected) * 100) : 100;
+
+    return {
+      safe,
+      needsAssistance,
+      checkedIn,
+      totalExpected,
+      pending,
+      percentage,
+    };
+  }, [activeDrill, checkIns, floorHeadcounts]);
+
+  const userSelfCheckIn = useMemo(() => {
+    if (!user || !activeDrill) {
+      return null;
+    }
+
+    return checkIns.find(
+      (entry) =>
+        entry.drillId === activeDrill.id &&
+        entry.isSelfCheckIn &&
+        entry.checkedInByUserId === user.id,
+    ) ?? null;
+  }, [user, activeDrill, checkIns]);
+
+  const hasCheckedIn = !!userSelfCheckIn;
+
+  const eligiblePersonnel = useMemo(() => {
+    if (!activeDrill) {
+      return [];
+    }
+
+    const selectedBuildingIds = activeDrill.location.buildingIds?.length
+      ? activeDrill.location.buildingIds
+      : [activeDrill.location.buildingId];
+
+    return settings.userPermissions.filter((person) =>
+      person.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId)),
+    );
+  }, [activeDrill, settings.userPermissions]);
+
+  const colleagueOptions = useMemo(() => {
+    const query = colleagueSearch.trim().toLowerCase();
+    const checkedInPersonnelIds = new Set(
+      checkIns
+        .filter((entry) => entry.drillId === activeDrill?.id)
+        .map((entry) => entry.personnelId)
+        .filter(Boolean),
+    );
+
+    return eligiblePersonnel
+      .filter((person) => !checkedInPersonnelIds.has(person.id))
+      .filter((person) =>
+        query.length === 0 ||
+        person.userName.toLowerCase().includes(query) ||
+        (person.staffCode?.toLowerCase().includes(query) ?? false),
+      )
+      .slice(0, 10);
+  }, [eligiblePersonnel, checkIns, activeDrill, colleagueSearch]);
+
+  const selectedColleague = useMemo(
+    () => eligiblePersonnel.find((person) => person.id === selectedColleagueId) ?? null,
+    [eligiblePersonnel, selectedColleagueId],
+  );
+
+  const selectedColleagueFloor = drillFloors.find((floor) => floor.id === colleagueFloorId);
+
+  const getLocationName = (checkIn: SafetyCheckIn) => {
+    const locationFloor = building?.floors.find((entry) => entry.id === checkIn.location.floorId);
+    const locationArea = locationFloor?.areas.find((entry) => entry.id === checkIn.location.areaId);
+
+    return {
+      floor: locationFloor?.name,
+      area: locationArea?.name,
+    };
+  };
+
+  const persistEntries = (entries: SafetyCheckIn[]) => {
+    addCheckInsToStorage(entries);
+    setCheckIns((previous) => [...entries, ...previous]);
+    setStorageSnapshot(getCheckInsStorageSnapshot());
+  };
 
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
     floorId: string;
     areaId: string;
     notes?: string;
+    userType?: 'guest' | 'staff';
+    staffCode?: string;
+    personName?: string;
+    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>;
   }) => {
-    const newCheckIn: SafetyCheckIn = {
-      id: `checkin-${Date.now()}`,
+    if (!activeDrill || !user) return;
+
+    const now = Date.now();
+    const baseLocation = {
+      buildingId: activeDrill.location.buildingId,
+      floorId: data.floorId,
+      areaId: data.areaId,
+    };
+
+    const primaryCheckIn: SafetyCheckIn = {
+      id: `checkin-${now}`,
       drillId: activeDrill.id,
-      personName: 'You',
+      personName: user.name,
+      staffCode: data.staffCode,
+      personnelId: user.id,
+      isSelfCheckIn: true,
+      checkedInByUserId: user.id,
+      checkedInByName: user.name,
       status: data.status,
-      location: {
-        buildingId: activeDrill.location.buildingId,
-        floorId: data.floorId,
-        areaId: data.areaId,
-      },
+      location: baseLocation,
       checkedInAt: new Date(),
       notes: data.notes,
     };
-    setCheckIns([newCheckIn, ...checkIns]);
-    setHasCheckedIn(true);
-    toast.success(data.status === 'safe' ? 'Marked as safe!' : 'Assistance request submitted');
+
+    const colleagueEntries: SafetyCheckIn[] = (data.additionalPeople ?? []).map((person, index) => ({
+      id: `checkin-${now}-${index + 1}`,
+      drillId: activeDrill.id,
+      personName: person.name,
+      staffCode: person.staffCode,
+      personnelId: person.personnelId,
+      isSelfCheckIn: false,
+      checkedInByUserId: user.id,
+      checkedInByName: user.name,
+      status: person.status,
+      location: baseLocation,
+      checkedInAt: new Date(),
+    }));
+
+    persistEntries([primaryCheckIn, ...colleagueEntries]);
+
+    const totalPeople = 1 + colleagueEntries.length;
+    toast.success(totalPeople > 1 ? `${totalPeople} people checked in` : 'Check-in saved');
   };
 
-  // Calculate stats with expected headcount
-  const stats = useMemo(() => {
-    const relevantFloorIds = activeDrill.location.floorIds;
-    const totalExpected = MOCK_FLOOR_HEADCOUNTS
-      .filter(h => relevantFloorIds.includes(h.floorId))
-      .reduce((sum, h) => sum + h.expectedHeadcount, 0);
-    
-    const drillCheckIns = checkIns.filter(c => c.drillId === activeDrill.id);
-    const safe = drillCheckIns.filter(c => c.status === 'safe').length;
-    const needsAssistance = drillCheckIns.filter(c => c.status === 'needs-assistance').length;
-    const checkedIn = safe + needsAssistance;
-    const pending = Math.max(0, totalExpected - checkedIn);
-    const percentage = totalExpected > 0 ? Math.round((checkedIn / totalExpected) * 100) : 0;
-    
-    return { safe, needsAssistance, pending, totalExpected, checkedIn, percentage };
-  }, [checkIns, activeDrill]);
+  const handleCheckInColleague = () => {
+    if (!activeDrill || !user || !selectedColleague || !colleagueFloorId || !colleagueAreaId) {
+      toast.error('Select colleague, floor and section');
+      return;
+    }
 
-  const getLocationName = (checkIn: SafetyCheckIn) => {
-    const building = buildings.find(b => b.id === checkIn.location.buildingId);
-    const floor = building?.floors.find(f => f.id === checkIn.location.floorId);
-    const area = floor?.areas.find(a => a.id === checkIn.location.areaId);
-    return { floor: floor?.name, area: area?.name };
+    const entry: SafetyCheckIn = {
+      id: `checkin-${Date.now()}`,
+      drillId: activeDrill.id,
+      personName: selectedColleague.userName,
+      staffCode: selectedColleague.staffCode,
+      personnelId: selectedColleague.id,
+      isSelfCheckIn: false,
+      checkedInByUserId: user.id,
+      checkedInByName: user.name,
+      status: colleagueStatus,
+      location: {
+        buildingId: activeDrill.location.buildingId,
+        floorId: colleagueFloorId,
+        areaId: colleagueAreaId,
+      },
+      checkedInAt: new Date(),
+      notes: colleagueNotes || undefined,
+    };
+
+    persistEntries([entry]);
+    setSelectedColleagueId('');
+    setColleagueSearch('');
+    setColleagueStatus('safe');
+    setColleagueFloorId('');
+    setColleagueAreaId('');
+    setColleagueNotes('');
+    setIsColleagueFormVisible(false);
+    toast.success(`Checked in ${selectedColleague.userName}`);
   };
 
   if (!activeDrill) {
@@ -111,37 +292,141 @@ export default function CheckIn() {
   return (
     <AppLayout>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Check-in Form */}
-        <div className="lg:order-1">
+        <div className="lg:order-1 space-y-4">
           {hasCheckedIn ? (
-            <div className="flex flex-col items-center justify-center py-12 px-6 bg-safe-muted rounded-xl border border-safe/20">
-              <div className="p-4 gradient-safe rounded-full mb-4">
-                <ShieldCheck className="w-12 h-12 text-safe-foreground" />
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center py-8 px-6 bg-safe-muted rounded-xl border border-safe/20">
+                <div className="p-4 gradient-safe rounded-full mb-4">
+                  <ShieldCheck className="w-12 h-12 text-safe-foreground" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground">You're Checked In!</h2>
+                <p className="text-muted-foreground mt-2 text-center">
+                  Your status is saved. You can now check in colleagues below.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => setIsColleagueFormVisible((previous) => !previous)}
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  {isColleagueFormVisible ? 'Hide Colleague Form' : 'Check In Colleague'}
+                </Button>
               </div>
-              <h2 className="text-2xl font-bold text-foreground">You're Checked In!</h2>
-              <p className="text-muted-foreground mt-2 text-center">
-                Your status has been recorded. Stay in your current location until the all-clear is given.
-              </p>
+
+              {isColleagueFormVisible && (
+                <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-foreground">Colleague Check-In</h3>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="colleague-search">Search Staff</Label>
+                    <Input
+                      id="colleague-search"
+                      value={colleagueSearch}
+                      onChange={(event) => {
+                        setColleagueSearch(event.target.value);
+                        setSelectedColleagueId('');
+                      }}
+                      placeholder="Search by name or staff code"
+                    />
+                    <div className="max-h-40 overflow-y-auto border rounded-md">
+                      {colleagueOptions.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">No matching staff found</p>
+                      ) : (
+                        colleagueOptions.map((person) => (
+                          <button
+                            key={person.id}
+                            type="button"
+                            className={cn(
+                              'w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-muted/60',
+                              selectedColleagueId === person.id && 'bg-primary/10'
+                            )}
+                            onClick={() => {
+                              setSelectedColleagueId(person.id);
+                              setColleagueSearch(person.userName);
+                            }}
+                          >
+                            <span className="font-medium">{person.userName}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{person.staffCode || 'No staff code'}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    {selectedColleague && (
+                      <p className="text-xs text-muted-foreground">
+                        Staff code: <span className="font-medium">{selectedColleague.staffCode || 'Not configured'}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={colleagueFloorId} onValueChange={(value) => { setColleagueFloorId(value); setColleagueAreaId(''); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Floor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {drillFloors.map((floor) => (
+                          <SelectItem key={floor.id} value={floor.id}>{floor.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={colleagueAreaId} onValueChange={setColleagueAreaId} disabled={!colleagueFloorId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(selectedColleagueFloor?.areas ?? []).map((area) => (
+                          <SelectItem key={area.id} value={area.id}>{area.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Select value={colleagueStatus} onValueChange={(value: 'safe' | 'needs-assistance') => setColleagueStatus(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="safe">Safe</SelectItem>
+                      <SelectItem value="needs-assistance">Needs Assistance</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    value={colleagueNotes}
+                    onChange={(event) => setColleagueNotes(event.target.value)}
+                    placeholder="Optional notes"
+                  />
+
+                  <Button onClick={handleCheckInColleague} className="w-full">
+                    Save Colleague Check-In
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
-            <SafetyCheckInCard drill={activeDrill} onCheckIn={handleCheckIn} />
+            <SafetyCheckInCard
+              drill={activeDrill}
+              buildings={settings.buildings}
+              personnel={eligiblePersonnel}
+              onCheckIn={handleCheckIn}
+              isLoggedIn
+            />
           )}
         </div>
 
-        {/* Status Dashboard */}
         <div className="space-y-6 lg:order-2">
-          {/* Overall Percentage */}
           <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-3xl font-bold text-primary">
               <Percent className="w-7 h-7" />
               {stats.percentage}%
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {stats.checkedIn} of {stats.totalExpected} accounted for
+              {stats.checkedIn} of {stats.totalExpected || stats.checkedIn} accounted for
             </p>
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="bg-safe-muted border border-safe/20 rounded-xl p-3 sm:p-4 text-center">
               <div className="flex items-center justify-center gap-1 sm:gap-2 text-xl sm:text-2xl font-bold text-safe">
@@ -166,17 +451,27 @@ export default function CheckIn() {
             </div>
           </div>
 
-          {/* Floor-by-floor progress */}
           {building && (
             <FloorCheckInProgress
-              building={building}
+              building={{
+                id: building.id,
+                name: building.name,
+                floors: building.floors.map((floor) => ({
+                  id: floor.id,
+                  name: floor.name,
+                  areas: floor.areas.map((area) => ({
+                    id: area.id,
+                    name: area.name,
+                    floorId: floor.id,
+                  })),
+                })),
+              }}
               drillFloorIds={activeDrill.location.floorIds}
-              checkIns={checkIns.filter(c => c.drillId === activeDrill.id)}
-              floorHeadcounts={MOCK_FLOOR_HEADCOUNTS}
+              checkIns={checkIns.filter((entry) => entry.drillId === activeDrill.id)}
+              floorHeadcounts={floorHeadcounts}
             />
           )}
 
-          {/* Recent Check-ins */}
           <div className="bg-card border border-border rounded-xl shadow-sm">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Recent Check-ins</h3>
@@ -185,30 +480,55 @@ export default function CheckIn() {
                 {checkIns.length} checked in
               </span>
             </div>
+            <div className="px-6 py-2 border-b border-border bg-muted/30">
+              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <span className="col-span-4">Person</span>
+                <span className="col-span-3">Location</span>
+                <span className="col-span-3">Checked In By</span>
+                <span className="col-span-2 text-right">Checked In</span>
+              </div>
+            </div>
             <div className="divide-y divide-border max-h-80 overflow-y-auto">
               {checkIns.map((checkIn) => {
                 const location = getLocationName(checkIn);
                 return (
-                  <div key={checkIn.id} className="px-6 py-3 flex items-center gap-3">
-                    <div className={cn(
-                      'w-8 h-8 rounded-full flex items-center justify-center',
-                      checkIn.status === 'safe' ? 'bg-safe-muted' : 'bg-warning-muted'
-                    )}>
-                      {checkIn.status === 'safe' 
-                        ? <ShieldCheck className="w-4 h-4 text-safe" />
-                        : <AlertCircle className="w-4 h-4 text-warning" />
-                      }
+                  <div key={checkIn.id} className="px-6 py-3 grid grid-cols-12 gap-3 items-center">
+                    <div className="col-span-4 min-w-0 flex items-center gap-2">
+                      <div className={cn(
+                        'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
+                        checkIn.status === 'safe' ? 'bg-safe-muted' : 'bg-warning-muted'
+                      )}>
+                        {checkIn.status === 'safe'
+                          ? <ShieldCheck className="w-4 h-4 text-safe" />
+                          : <AlertCircle className="w-4 h-4 text-warning" />
+                        }
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate">{checkIn.personName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{checkIn.staffCode || 'No staff code'}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate">{checkIn.personName}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {location.area}, {location.floor}
+
+                    <div className="col-span-3 min-w-0">
+                      <p className="text-sm text-foreground truncate flex items-center gap-1">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        {location.area || 'Unknown area'}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{location.floor || 'Unknown floor'}</p>
+                    </div>
+
+                    <div className="col-span-3 min-w-0">
+                      <p className="text-sm text-foreground truncate">
+                        {checkIn.checkedInByName || checkIn.personName}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {checkIn.isSelfCheckIn ? 'Self check-in' : 'Colleague check-in'}
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {checkIn.checkedInAt && formatDistanceToNow(checkIn.checkedInAt, { addSuffix: true })}
-                    </span>
+
+                    <div className="col-span-2 text-right text-xs text-muted-foreground">
+                      {checkIn.checkedInAt ? formatDistanceToNow(checkIn.checkedInAt, { addSuffix: true }) : '-'}
+                    </div>
                   </div>
                 );
               })}

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 
 // Simulated drill state - in production this would come from a backend
 const DRILL_DURATION_MS = 120000; // 2 minutes for demo
@@ -15,6 +16,7 @@ const DRILL_DURATION_MS = 120000; // 2 minutes for demo
 export default function SafetyCheckIn() {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const { settings } = useAdminSettings();
   const [drillStartTime] = useState(() => Date.now() - 5 * 60 * 1000);
 
   const handleLogout = () => {
@@ -111,7 +113,7 @@ export default function SafetyCheckIn() {
     userType?: 'guest' | 'staff';
     staffCode?: string;
     personName?: string;
-    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
+    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>;
   }) => {
     if (!activeDrill) return;
 
@@ -121,6 +123,7 @@ export default function SafetyCheckIn() {
       id: `checkin-${Date.now()}`,
       drillId: activeDrill.id,
       personName: displayName,
+      staffCode: data.staffCode,
       status: data.status,
       location: {
         buildingId: activeDrill.location.buildingId,
@@ -323,7 +326,13 @@ export default function SafetyCheckIn() {
             <p className="text-xs text-muted-foreground mt-1">You can check in multiple people</p>
           </div>
         )}
-        <SafetyCheckInCard drill={activeDrill} onCheckIn={handleCheckIn} isLoggedIn={isAuthenticated} />
+        <SafetyCheckInCard
+          drill={activeDrill}
+          buildings={settings.buildings}
+          personnel={settings.userPermissions}
+          onCheckIn={handleCheckIn}
+          isLoggedIn={isAuthenticated}
+        />
       </div>
     </div>
   );

@@ -11,7 +11,6 @@ import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistor
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
 import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
-import { mockCheckIns } from '@/data/mockData';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
@@ -32,6 +31,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { parseISO, isBefore } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
+import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
@@ -184,11 +184,40 @@ const Index = () => {
     });
   const upcomingDrills = scheduledDrills.length;
   
-  const checkInStats = {
-    safe: mockCheckIns.filter(c => c.status === 'safe').length,
-    needsAssistance: mockCheckIns.filter(c => c.status === 'needs-assistance').length,
-    pending: mockCheckIns.filter(c => c.status === 'pending').length,
-  };
+  const checkInStats = (() => {
+    if (!fallbackDrill) {
+      return {
+        safe: 0,
+        needsAssistance: 0,
+        pending: 0,
+      };
+    }
+
+    const checkIns = loadCheckInsForDrill(fallbackDrill.id);
+    const safe = checkIns.filter((entry) => entry.status === 'safe').length;
+    const needsAssistance = checkIns.filter((entry) => entry.status === 'needs-assistance').length;
+    const explicitPending = checkIns.filter((entry) => entry.status === 'pending').length;
+
+    const selectedBuildingIds = fallbackDrill.location.buildingIds?.length
+      ? fallbackDrill.location.buildingIds
+      : [fallbackDrill.location.buildingId];
+    const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
+    const expectedFromAreas = selectedBuildings
+      .flatMap((building) => building.floors)
+      .filter((floor) => fallbackDrill.location.floorIds.includes(floor.id))
+      .flatMap((floor) => floor.areas)
+      .reduce((sum, area) => sum + (area.expectedHeadcount ?? 0), 0);
+
+    const derivedPending = expectedFromAreas > 0
+      ? Math.max(0, expectedFromAreas - safe - needsAssistance)
+      : explicitPending;
+
+    return {
+      safe,
+      needsAssistance,
+      pending: derivedPending,
+    };
+  })();
 
   // Handle starting a scheduled check
   const handleStartScheduledCheck = (check: ComplianceCheck, onBehalfOf?: UserPermission) => {

@@ -12,15 +12,25 @@ import {
 } from '@/components/ui/select';
 import { buildings } from '@/data/mockData';
 import { Drill } from '@/types/safety';
+import { UserPermission } from '@/types/admin';
 import { ShieldCheck, AlertCircle, MapPin, Siren, User, Users, Plus, Trash2, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { STAFF_CODE_MAX_LENGTH } from '@/types/admin';
 
 interface SafetyCheckInCardProps {
   drill: Drill;
+  buildings?: Array<{
+    id: string;
+    name: string;
+    floors: Array<{
+      id: string;
+      name: string;
+      areas: Array<{ id: string; name: string }>;
+    }>;
+  }>;
+  personnel?: UserPermission[];
   onCheckIn: (data: {
     status: 'safe' | 'needs-assistance';
     floorId: string;
@@ -29,7 +39,7 @@ interface SafetyCheckInCardProps {
     userType?: 'guest' | 'staff';
     staffCode?: string;
     personName?: string;
-    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
+    additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>;
   }) => void;
   isLoggedIn?: boolean;
 }
@@ -42,10 +52,7 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-// Demo staff codes - in production, validate against backend (alphanumeric, max 8 chars)
-const VALID_STAFF_CODES = ['JS001', 'JD002', 'ABC123', 'ADMIN01'];
-
-export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: SafetyCheckInCardProps) {
+export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel = [], onCheckIn, isLoggedIn = false }: SafetyCheckInCardProps) {
   const [status, setStatus] = useState<'safe' | 'needs-assistance' | null>(null);
   const [floorId, setFloorId] = useState('');
   const [areaId, setAreaId] = useState('');
@@ -54,33 +61,71 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
   // Guest/Staff selection (for non-logged-in users)
   const [userType, setUserType] = useState<'guest' | 'staff' | null>(null);
   const [staffCode, setStaffCode] = useState('');
-  const [staffCodeValid, setStaffCodeValid] = useState<boolean | null>(null);
   const [personName, setPersonName] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   
   // Multi-person check-in (for logged-in users)
-  const [additionalPeople, setAdditionalPeople] = useState<Array<{ name: string; status: 'safe' | 'needs-assistance' }>>([]);
-  const [newPersonName, setNewPersonName] = useState('');
+  const [additionalPeople, setAdditionalPeople] = useState<Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>>([]);
+  const [newPersonSearch, setNewPersonSearch] = useState('');
+  const [selectedAdditionalStaffId, setSelectedAdditionalStaffId] = useState<string | null>(null);
 
-  const building = buildings.find(b => b.id === drill.location.buildingId);
+  const availableBuildings = customBuildings ?? buildings;
+  const building = availableBuildings.find(b => b.id === drill.location.buildingId);
   const floors = building?.floors.filter(f => drill.location.floorIds.includes(f.id)) || [];
   const selectedFloor = floors.find(f => f.id === floorId);
 
-  const validateStaffCode = (code: string) => {
-    const isValid = VALID_STAFF_CODES.some(c => c.toLowerCase() === code.toLowerCase());
-    setStaffCodeValid(isValid);
-    if (!isValid && code.length >= 3) {
-      toast.error('Invalid staff code');
-    }
-    return isValid;
-  };
+  const searchablePersonnel = personnel.filter((p) => {
+    const selectedBuildingIds = drill.location.buildingIds?.length ? drill.location.buildingIds : [drill.location.buildingId];
+    return p.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId));
+  });
+
+  const staffSearchMatches = staffSearch.trim()
+    ? searchablePersonnel.filter((p) =>
+        p.userName.toLowerCase().includes(staffSearch.toLowerCase()) ||
+        (p.staffCode?.toLowerCase().includes(staffSearch.toLowerCase()) ?? false),
+      )
+    : searchablePersonnel.slice(0, 8);
+
+  const additionalSearchMatches = newPersonSearch.trim()
+    ? searchablePersonnel.filter((p) =>
+        p.userName.toLowerCase().includes(newPersonSearch.toLowerCase()) ||
+        (p.staffCode?.toLowerCase().includes(newPersonSearch.toLowerCase()) ?? false),
+      )
+    : searchablePersonnel.slice(0, 8);
+
+  const selectedStaff = selectedStaffId
+    ? searchablePersonnel.find((person) => person.id === selectedStaffId) ?? null
+    : null;
 
   const handleAddPerson = () => {
-    if (!newPersonName.trim()) {
-      toast.error('Please enter a name');
+    if (!selectedAdditionalStaffId) {
+      toast.error('Select a staff member to add');
       return;
     }
-    setAdditionalPeople(prev => [...prev, { name: newPersonName.trim(), status: 'safe' }]);
-    setNewPersonName('');
+
+    const person = searchablePersonnel.find((entry) => entry.id === selectedAdditionalStaffId);
+    if (!person) {
+      toast.error('Selected staff member is no longer available');
+      return;
+    }
+
+    if (additionalPeople.some((entry) => entry.personnelId === person.id)) {
+      toast.error('This colleague is already added');
+      return;
+    }
+
+    setAdditionalPeople(prev => [
+      ...prev,
+      {
+        name: person.userName,
+        status: 'safe',
+        staffCode: person.staffCode,
+        personnelId: person.id,
+      },
+    ]);
+    setSelectedAdditionalStaffId(null);
+    setNewPersonSearch('');
   };
 
   const handleRemovePerson = (index: number) => {
@@ -98,8 +143,8 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
         toast.error('Please select Guest or Staff');
         return;
       }
-      if (userType === 'staff' && !staffCodeValid) {
-        toast.error('Please enter a valid staff code');
+      if (userType === 'staff' && !selectedStaff) {
+        toast.error('Please select a staff member');
         return;
       }
       if (!personName.trim()) {
@@ -127,7 +172,7 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
     if (isLoggedIn) {
       return basicValid;
     }
-    return basicValid && userType && personName.trim() && (userType === 'guest' || staffCodeValid);
+    return basicValid && userType && personName.trim() && (userType === 'guest' || !!selectedStaff);
   };
 
   return (
@@ -148,7 +193,13 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => { setUserType('guest'); setStaffCode(''); setStaffCodeValid(null); }}
+              onClick={() => {
+                setUserType('guest');
+                setStaffCode('');
+                setPersonName('');
+                setStaffSearch('');
+                setSelectedStaffId(null);
+              }}
               className={cn(
                 'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
                 userType === 'guest'
@@ -170,7 +221,12 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
             
             <button
               type="button"
-              onClick={() => setUserType('staff')}
+              onClick={() => {
+                setUserType('staff');
+                setPersonName('');
+                setStaffCode('');
+                setSelectedStaffId(null);
+              }}
               className={cn(
                 'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
                 userType === 'staff'
@@ -191,37 +247,53 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
             </button>
           </div>
 
-          {/* Staff code input */}
+          {/* Staff search */}
           {userType === 'staff' && (
             <div className="space-y-2 animate-fade-in">
-              <Label htmlFor="staff-code">Staff Code</Label>
-              <div className="relative">
+              <Label htmlFor="staff-search">Search Staff</Label>
+              <div className="space-y-2">
                 <Input
-                  id="staff-code"
-                  type="text"
-                  inputMode="text"
-                  maxLength={STAFF_CODE_MAX_LENGTH}
-                  value={staffCode}
+                  id="staff-search"
+                  value={staffSearch}
                   onChange={(e) => {
-                    const value = e.target.value.slice(0, STAFF_CODE_MAX_LENGTH);
-                    setStaffCode(value);
-                    if (value.length >= 3) {
-                      validateStaffCode(value);
-                    } else {
-                      setStaffCodeValid(null);
-                    }
+                    setStaffSearch(e.target.value);
+                    setSelectedStaffId(null);
+                    setPersonName('');
+                    setStaffCode('');
                   }}
-                  placeholder="Enter staff code"
-                  className={cn(
-                    staffCodeValid === true && 'border-safe',
-                    staffCodeValid === false && 'border-destructive'
-                  )}
+                  placeholder="Search by name or staff code"
                 />
-                {staffCodeValid === true && (
-                  <ShieldCheck className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-safe" />
+                <div className="max-h-40 overflow-y-auto border rounded-md">
+                  {staffSearchMatches.length === 0 ? (
+                    <p className="text-xs text-muted-foreground px-3 py-2">No staff found</p>
+                  ) : (
+                    staffSearchMatches.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStaffId(person.id);
+                          setPersonName(person.userName);
+                          setStaffCode(person.staffCode ?? '');
+                          setStaffSearch(person.userName);
+                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-muted/60',
+                          selectedStaffId === person.id && 'bg-primary/10'
+                        )}
+                      >
+                        <span className="font-medium">{person.userName}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{person.staffCode || 'No staff code'}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+                {selectedStaff && (
+                  <p className="text-xs text-muted-foreground">
+                    Staff code: <span className="font-medium">{selectedStaff.staffCode || 'Not configured'}</span>
+                  </p>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Demo codes: JS001, JD002, ABC123</p>
             </div>
           )}
 
@@ -233,7 +305,8 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
                 id="person-name"
                 value={personName}
                 onChange={(e) => setPersonName(e.target.value)}
-                placeholder="Enter your name"
+                placeholder={userType === 'staff' ? 'Selected from staff directory' : 'Enter your name'}
+                disabled={userType === 'staff'}
               />
             </div>
           )}
@@ -336,14 +409,41 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
           
           <div className="flex gap-2">
             <Input
-              value={newPersonName}
-              onChange={(e) => setNewPersonName(e.target.value)}
-              placeholder="Person's name"
+              value={newPersonSearch}
+              onChange={(e) => {
+                setNewPersonSearch(e.target.value);
+                setSelectedAdditionalStaffId(null);
+              }}
+              placeholder="Search colleague by name or staff code"
               onKeyDown={(e) => e.key === 'Enter' && handleAddPerson()}
             />
             <Button type="button" variant="outline" onClick={handleAddPerson}>
               <Plus className="w-4 h-4" />
             </Button>
+          </div>
+
+          <div className="max-h-40 overflow-y-auto border rounded-md">
+            {additionalSearchMatches.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-3 py-2">No matching personnel</p>
+            ) : (
+              additionalSearchMatches.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedAdditionalStaffId(person.id);
+                    setNewPersonSearch(person.userName);
+                  }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:bg-muted/60',
+                    selectedAdditionalStaffId === person.id && 'bg-primary/10'
+                  )}
+                >
+                  <span className="font-medium">{person.userName}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{person.staffCode || 'No staff code'}</span>
+                </button>
+              ))
+            )}
           </div>
 
           {additionalPeople.length > 0 && (
@@ -352,6 +452,11 @@ export function SafetyCheckInCard({ drill, onCheckIn, isLoggedIn = false }: Safe
                 <div key={index} className="flex items-center gap-2 justify-between">
                   <span className="text-sm font-medium">{person.name}</span>
                   <div className="flex items-center gap-2">
+                    {person.staffCode && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {person.staffCode}
+                      </Badge>
+                    )}
                     <Select 
                       value={person.status} 
                       onValueChange={(v: 'safe' | 'needs-assistance') => handlePersonStatusChange(index, v)}
