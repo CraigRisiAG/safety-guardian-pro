@@ -51,23 +51,27 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
   
   const stats = useMemo(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    const allRecords: CompletedCheckRecord[] = stored 
+    const allRecords: CompletedCheckRecord[] = stored
       ? (() => {
-          const parsed = JSON.parse(stored) as unknown;
-          if (!Array.isArray(parsed)) {
+          try {
+            const parsed = JSON.parse(stored) as unknown;
+            if (!Array.isArray(parsed)) {
+              return [];
+            }
+
+            return parsed.map((item) => {
+              const record = item as Partial<CompletedCheckRecord> & { completedAt?: string | Date };
+              return {
+                ...record,
+                completedAt:
+                  typeof record.completedAt === 'string'
+                    ? parseISO(record.completedAt)
+                    : new Date(record.completedAt ?? new Date()),
+              } as CompletedCheckRecord;
+            });
+          } catch {
             return [];
           }
-
-          return parsed.map((item) => {
-            const record = item as Partial<CompletedCheckRecord> & { completedAt?: string | Date };
-            return {
-              ...record,
-              completedAt:
-                typeof record.completedAt === 'string'
-                  ? parseISO(record.completedAt)
-                  : new Date(record.completedAt ?? new Date()),
-            } as CompletedCheckRecord;
-          });
         })()
       : [];
 
@@ -85,6 +89,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     const failCount = allRecords.filter(r => r.status === 'fail').length;
     const partialCount = allRecords.filter(r => r.status === 'partial').length;
     const totalChecks = allRecords.length;
+    const passRate = totalChecks > 0 ? Math.round((passCount / totalChecks) * 100) : 0;
 
     // By check type this week
     const byType: Record<CompletedCheckRecord['checkType'], number> = {
@@ -184,7 +189,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       passCount,
       failCount,
       partialCount,
-      passRate: totalChecks > 0 ? Math.round((passCount / totalChecks) * 100) : 0,
+      passRate,
       byType,
       overdueCount: overdueChecks.length,
       overdueChecks,
