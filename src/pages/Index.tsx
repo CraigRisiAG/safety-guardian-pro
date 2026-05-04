@@ -502,6 +502,45 @@ const Index = () => {
                   <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
                 )}
               </div>
+
+              <div className="space-y-2 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-foreground">Fire Drill Participation by Area</h4>
+                  {fireDrillParticipation.hasData && (
+                    <span className="text-sm font-bold text-foreground">{fireDrillParticipation.overallPercent}%</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Percentage of personnel accounted for (safe or needing assistance) on each floor during the most recent fire drill for that floor.
+                </p>
+                {!fireDrillParticipation.hasData ? (
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                    No fire drills have been completed yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {fireDrillParticipation.rows.map(row => (
+                      <div key={`${row.buildingId}-${row.floorId}`} className="bg-muted/40 rounded-lg p-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-foreground truncate">
+                            {row.buildingName} • {row.floorName}
+                          </span>
+                          <span className={`font-semibold ${
+                            row.percent >= 85 ? 'text-safe' : row.percent >= 60 ? 'text-warning' : 'text-emergency'
+                          }`}>
+                            {row.percent}%
+                          </span>
+                        </div>
+                        <Progress value={row.percent} className="h-1.5 mt-2" />
+                        <div className="text-xs text-muted-foreground mt-1 flex justify-between">
+                          <span>{row.accounted} of {Math.max(row.assigned, row.accounted)} personnel</span>
+                          <span>{format(row.drillDate, 'PP')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
