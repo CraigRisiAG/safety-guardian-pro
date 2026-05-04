@@ -41,7 +41,6 @@ const Index = () => {
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
   const { activeDrill, endDrill, drillRecords } = useDrillStatus();
-  const fallbackDrill = activeDrill || drills.find((d) => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
@@ -185,7 +184,7 @@ const Index = () => {
   const upcomingDrills = scheduledDrills.length;
   
   const checkInStats = (() => {
-    if (!fallbackDrill) {
+    if (!activeDrill) {
       return {
         safe: 0,
         needsAssistance: 0,
@@ -193,24 +192,61 @@ const Index = () => {
       };
     }
 
-    const checkIns = loadCheckInsForDrill(fallbackDrill.id);
-    const safe = checkIns.filter((entry) => entry.status === 'safe').length;
-    const needsAssistance = checkIns.filter((entry) => entry.status === 'needs-assistance').length;
-    const explicitPending = checkIns.filter((entry) => entry.status === 'pending').length;
+    const checkIns = loadCheckInsForDrill(activeDrill.id);
+    const selectedBuildingIds = activeDrill.location.buildingIds?.length
+      ? activeDrill.location.buildingIds
+      : [activeDrill.location.buildingId];
 
-    const selectedBuildingIds = fallbackDrill.location.buildingIds?.length
-      ? fallbackDrill.location.buildingIds
-      : [fallbackDrill.location.buildingId];
     const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
-    const expectedFromAreas = selectedBuildings
-      .flatMap((building) => building.floors)
-      .filter((floor) => fallbackDrill.location.floorIds.includes(floor.id))
-      .flatMap((floor) => floor.areas)
-      .reduce((sum, area) => sum + (area.expectedHeadcount ?? 0), 0);
+    const selectedFloorIds = activeDrill.location.floorIds;
+    const selectedAreaIds = activeDrill.location.areaIds;
 
-    const derivedPending = expectedFromAreas > 0
-      ? Math.max(0, expectedFromAreas - safe - needsAssistance)
-      : explicitPending;
+    const floorToBuildingMap = new Map<string, string>();
+    selectedBuildings.forEach((building) => {
+      building.floors.forEach((floor) => {
+        floorToBuildingMap.set(floor.id, building.id);
+      });
+    });
+
+    const targetPersonnel = settings.userPermissions.filter((person) => {
+      if (selectedAreaIds.length > 0 && person.primaryAreaId) {
+        return selectedAreaIds.includes(person.primaryAreaId);
+      }
+
+      if (selectedFloorIds.length > 0 && person.primaryFloorId) {
+        return selectedFloorIds.includes(person.primaryFloorId);
+      }
+
+      if (person.primaryFloorId) {
+        const buildingId = floorToBuildingMap.get(person.primaryFloorId);
+        if (buildingId) {
+          return selectedBuildingIds.includes(buildingId);
+        }
+      }
+
+      return person.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId));
+    });
+
+    const targetPersonnelIds = new Set(targetPersonnel.map((person) => person.id));
+    const targetStaffCodes = new Set(
+      targetPersonnel
+        .map((person) => person.staffCode?.toLowerCase().trim())
+        .filter((code): code is string => !!code),
+    );
+
+    const targetedCheckIns = checkIns.filter((entry) => {
+      if (entry.personnelId && targetPersonnelIds.has(entry.personnelId)) {
+        return true;
+      }
+      if (entry.staffCode) {
+        return targetStaffCodes.has(entry.staffCode.toLowerCase().trim());
+      }
+      return false;
+    });
+
+    const safe = targetedCheckIns.filter((entry) => entry.status === 'safe').length;
+    const needsAssistance = targetedCheckIns.filter((entry) => entry.status === 'needs-assistance').length;
+    const derivedPending = Math.max(0, targetPersonnel.length - safe - needsAssistance);
 
     return {
       safe,
@@ -344,13 +380,18 @@ const Index = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Active Drill Banner */}
-        {fallbackDrill && (
+        {activeDrill && (
           <ActiveDrillBanner 
-            drill={fallbackDrill} 
+            drill={activeDrill} 
             checkInCount={checkInStats}
             onEndDrill={() => {
               const record = endDrill(checkInStats);
               if (record) {
+                setDrills((previous) => previous.map((drill) => (
+                  drill.id === record.drillId
+                    ? { ...drill, status: 'completed', completedAt: new Date() }
+                    : drill
+                )));
                 toast.success('Drill ended successfully', {
                   description: `Duration: ${record.durationMinutes} minutes. ${record.checkInStats.total} personnel accounted for.`,
                 });

@@ -1,109 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SafetyCheckInCard } from '@/components/checkin/SafetyCheckInCard';
 import { buildings } from '@/data/mockData';
 import { SafetyCheckIn as SafetyCheckInType, Drill } from '@/types/safety';
-import { ShieldCheck, Siren, CheckCircle2, Bell, Users, User, KeyRound, LogOut } from 'lucide-react';
+import { ShieldCheck, Siren, Users, User, KeyRound, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
-
-// Simulated drill state - in production this would come from a backend
-const DRILL_DURATION_MS = 120000; // 2 minutes for demo
+import { useDrillStatus } from '@/hooks/useDrillStatus';
 
 export default function SafetyCheckIn() {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
   const { settings } = useAdminSettings();
-  const [drillStartTime] = useState(() => Date.now() - 5 * 60 * 1000);
+  const { activeDrill } = useDrillStatus();
 
   const handleLogout = () => {
     logout();
     toast.success('Logged out successfully');
     navigate('/login');
   };
-  const [drillEndTime, setDrillEndTime] = useState<number | null>(null);
-  const [isAllClear, setIsAllClear] = useState(false);
-  const [showAllClearNotification, setShowAllClearNotification] = useState(false);
-  
-  // For demo, simulate an active drill that will end
-  const [activeDrill, setActiveDrill] = useState<Drill | null>({
-    id: 'drill-active',
-    type: 'fire',
-    status: 'active',
-    location: {
-      buildingId: 'building-1',
-      floorIds: ['floor-1', 'floor-2', 'floor-3'],
-      areaIds: [],
-    },
-    startedAt: new Date(drillStartTime),
-    initiatedBy: 'Safety Officer',
-  });
 
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [userCheckIn, setUserCheckIn] = useState<SafetyCheckInType | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-
-  // Simulate real-time drill status polling
-  useEffect(() => {
-    if (isAllClear) return;
-
-    // Check localStorage for drill end signal (simulates real-time)
-    const checkDrillStatus = () => {
-      const storedEndTime = localStorage.getItem('drill_end_time');
-      if (storedEndTime) {
-        const endTime = parseInt(storedEndTime, 10);
-        if (Date.now() >= endTime) {
-          handleDrillEnd();
-        } else {
-          setTimeRemaining(Math.max(0, endTime - Date.now()));
-        }
-      }
-    };
-
-    // Poll every second for status updates
-    const interval = setInterval(checkDrillStatus, 1000);
-    checkDrillStatus();
-
-    // For demo: auto-end drill after duration
-    const demoTimer = setTimeout(() => {
-      localStorage.setItem('drill_end_time', String(Date.now()));
-    }, DRILL_DURATION_MS);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(demoTimer);
-    };
-  }, [isAllClear]);
-
-  const handleDrillEnd = useCallback(() => {
-    setIsAllClear(true);
-    setDrillEndTime(Date.now());
-    setActiveDrill(prev => prev ? { ...prev, status: 'completed', completedAt: new Date() } : null);
-    setShowAllClearNotification(true);
-    
-    // Show toast notification
-    toast.success('All Clear! The drill has ended.', {
-      duration: 10000,
-      icon: <CheckCircle2 className="w-5 h-5 text-safe" />,
-    });
-
-    // Clear localStorage
-    localStorage.removeItem('drill_end_time');
-  }, []);
-
-  // For demo: Allow manually triggering end drill
-  const triggerEndDrill = () => {
-    localStorage.setItem('drill_end_time', String(Date.now()));
-  };
 
   const [checkInDetails, setCheckInDetails] = useState<{
     userType?: 'guest' | 'staff';
     personName?: string;
     additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
   }>({});
+
+  const currentDrill = activeDrill;
 
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
@@ -115,18 +44,18 @@ export default function SafetyCheckIn() {
     personName?: string;
     additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>;
   }) => {
-    if (!activeDrill) return;
+    if (!currentDrill) return;
 
     const displayName = isAuthenticated && user ? user.name : data.personName || 'Guest';
 
     const newCheckIn: SafetyCheckInType = {
       id: `checkin-${Date.now()}`,
-      drillId: activeDrill.id,
+      drillId: currentDrill.id,
       personName: displayName,
       staffCode: data.staffCode,
       status: data.status,
       location: {
-        buildingId: activeDrill.location.buildingId,
+        buildingId: currentDrill.location.buildingId,
         floorId: data.floorId,
         areaId: data.areaId,
       },
@@ -148,12 +77,13 @@ export default function SafetyCheckIn() {
     toast.success(message);
   };
 
-  const building = activeDrill ? buildings.find(b => b.id === activeDrill.location.buildingId) : null;
+  const availableBuildings = settings.buildings.length > 0 ? settings.buildings : buildings;
+  const building = currentDrill ? availableBuildings.find(b => b.id === currentDrill.location.buildingId) : null;
   const floor = userCheckIn ? building?.floors.find(f => f.id === userCheckIn.location.floorId) : null;
   const area = floor?.areas.find(a => a.id === userCheckIn?.location.areaId);
 
   // No active drill
-  if (!activeDrill) {
+  if (!currentDrill) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
@@ -240,63 +170,13 @@ export default function SafetyCheckIn() {
             )}
           </div>
 
-          {/* All Clear Notification Overlay */}
-          {showAllClearNotification && (
-            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in">
-              <div className="bg-card border border-safe/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-xl">
-                <div className="p-4 gradient-safe rounded-full mb-4 mx-auto w-fit">
-                  <CheckCircle2 className="w-12 h-12 text-safe-foreground" />
-                </div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">All Clear!</h2>
-                <p className="text-muted-foreground mb-6">
-                  The safety drill has ended. Thank you for participating. You may now return to your normal activities.
-                </p>
-                <Button 
-                  onClick={() => setShowAllClearNotification(false)}
-                  className="gradient-safe text-safe-foreground w-full"
-                >
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-          )}
-
           {/* Status indicator */}
-          <div className={`text-center text-sm mt-6 p-3 rounded-lg ${
-            isAllClear 
-              ? 'bg-safe-muted text-safe' 
-              : 'bg-muted text-muted-foreground'
-          }`}>
-            {isAllClear ? (
-              <span className="flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Drill completed - All Clear
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <Siren className="w-4 h-4 animate-pulse" />
-                Drill in progress at {building?.name}
-                {timeRemaining !== null && (
-                  <span className="ml-2 font-mono">
-                    ({Math.ceil(timeRemaining / 1000)}s remaining)
-                  </span>
-                )}
-              </span>
-            )}
+          <div className="text-center text-sm mt-6 p-3 rounded-lg bg-muted text-muted-foreground">
+            <span className="flex items-center justify-center gap-2">
+              <Siren className="w-4 h-4 animate-pulse" />
+              Drill in progress at {building?.name}
+            </span>
           </div>
-
-          {/* Demo: End drill button */}
-          {!isAllClear && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={triggerEndDrill}
-              className="mt-4 w-full text-xs"
-            >
-              <Bell className="w-3 h-3 mr-1" />
-              Demo: Trigger All-Clear
-            </Button>
-          )}
         </div>
       </div>
     );
@@ -327,7 +207,7 @@ export default function SafetyCheckIn() {
           </div>
         )}
         <SafetyCheckInCard
-          drill={activeDrill}
+          drill={currentDrill}
           buildings={settings.buildings}
           personnel={settings.userPermissions}
           onCheckIn={handleCheckIn}

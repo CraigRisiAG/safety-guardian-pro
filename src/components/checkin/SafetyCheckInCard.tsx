@@ -77,6 +77,9 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
 
   const searchablePersonnel = personnel.filter((p) => {
     const selectedBuildingIds = drill.location.buildingIds?.length ? drill.location.buildingIds : [drill.location.buildingId];
+    if (!Array.isArray(p.buildingAccess) || p.buildingAccess.length === 0) {
+      return true;
+    }
     return p.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId));
   });
 

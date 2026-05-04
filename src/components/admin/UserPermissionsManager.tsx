@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS, SafetyRole, SAFETY_ROLE_LABELS, SAFETY_ROLE_COLORS, ALL_SAFETY_ROLES } from '@/types/admin';
 import { BulkUserUpload } from './BulkUserUpload';
 import { toast } from 'sonner';
+import { ensureCredentialForRole } from '@/lib/authAccounts';
 
 interface UserPermissionsManagerProps {
   permissions: UserPermission[];
@@ -38,7 +39,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
   const [formData, setFormData] = useState({
     userName: '',
     email: '',
-    role: 'reporter' as UserRole,
+    role: 'viewer' as UserRole,
     buildingAccess: [] as string[],
     primaryFloorId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WorkDay[],
@@ -67,7 +68,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     setFormData({
       userName: '',
       email: '',
-      role: 'reporter',
+      role: 'viewer',
       buildingAccess: [],
       primaryFloorId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -78,13 +79,16 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     });
   };
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!formData.userName.trim() || !formData.email.trim()) {
       toast.error('Name and email are required');
       return;
     }
+
+    const generatedUserId = `user-${Date.now()}`;
+
     onAdd({
-      userId: `user-${Date.now()}`,
+      userId: generatedUserId,
       userName: formData.userName.trim(),
       email: formData.email.trim(),
       role: formData.role,
@@ -96,13 +100,31 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
     });
+
+    if (formData.role !== 'viewer') {
+      const credential = await ensureCredentialForRole({
+        userId: generatedUserId,
+        email: formData.email.trim(),
+        name: formData.userName.trim(),
+        role: formData.role,
+        forceResetPassword: true,
+      });
+
+      if (credential.temporaryPassword) {
+        toast.info(`Temporary password for ${formData.userName.trim()}: ${credential.temporaryPassword}`);
+      }
+    }
+
     resetForm();
     setIsAddingUser(false);
     toast.success('User added successfully');
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!editingUser) return;
+
+    const previousRole = editingUser.role;
+
     onUpdate(editingUser.id, {
       userName: formData.userName,
       email: formData.email,
@@ -115,9 +137,43 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       canResolveIncidents: formData.canResolveIncidents,
       canManageUsers: formData.canManageUsers,
     });
+
+    if (formData.role !== 'viewer') {
+      const credential = await ensureCredentialForRole({
+        userId: editingUser.userId,
+        email: formData.email.trim(),
+        name: formData.userName.trim(),
+        role: formData.role,
+        forceResetPassword: previousRole === 'viewer',
+      });
+
+      if (credential.temporaryPassword) {
+        toast.info(`Temporary password for ${formData.userName.trim()}: ${credential.temporaryPassword}`);
+      }
+    }
+
     resetForm();
     setEditingUser(null);
     toast.success('User updated successfully');
+  };
+
+  const handleBulkAddUsers = async (users: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    onBulkAdd(users);
+
+    const elevatedUsers = users.filter((user) => user.role !== 'viewer');
+    for (const user of elevatedUsers) {
+      const credential = await ensureCredentialForRole({
+        userId: user.userId,
+        email: user.email,
+        name: user.userName,
+        role: user.role,
+        forceResetPassword: true,
+      });
+
+      if (credential.temporaryPassword) {
+        toast.info(`Temporary password for ${user.userName}: ${credential.temporaryPassword}`);
+      }
+    }
   };
 
   const openEditDialog = (user: UserPermission) => {
@@ -354,7 +410,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <BulkUserUpload buildings={buildings} onBulkAdd={onBulkAdd} />
+          <BulkUserUpload buildings={buildings} onBulkAdd={handleBulkAddUsers} />
           <Dialog open={isAddingUser} onOpenChange={(open) => { setIsAddingUser(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>

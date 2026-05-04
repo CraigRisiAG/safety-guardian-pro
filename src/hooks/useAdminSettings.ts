@@ -13,6 +13,42 @@ import {
 import { buildings } from '@/data/mockData';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
+const SETTINGS_UPDATED_EVENT = 'safeguard_admin_settings_updated';
+
+const parseStoredSettings = (stored: string | null): AdminSettings | null => {
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    return {
+      ...parsed,
+      buildings: parsed.buildings.map((b: any) => ({
+        ...b,
+        createdAt: new Date(b.createdAt),
+        updatedAt: new Date(b.updatedAt),
+      })),
+      userPermissions: parsed.userPermissions.map((p: any) => ({
+        ...p,
+        createdAt: new Date(p.createdAt),
+        updatedAt: new Date(p.updatedAt),
+      })),
+      complianceChecks: parsed.complianceChecks.map((c: any) => ({
+        ...c,
+        lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : undefined,
+        nextDue: new Date(c.nextDue),
+        startDate: c.startDate ? new Date(c.startDate) : undefined,
+        endDate: c.endDate ? new Date(c.endDate) : undefined,
+        floorIds: Array.isArray(c.floorIds) ? c.floorIds : [],
+        areaIds: Array.isArray(c.areaIds) ? c.areaIds : [],
+        recurrencePattern: c.recurrencePattern || (c.isRecurring ? 'monthly_same_date' : 'none'),
+      })),
+    };
+  } catch {
+    return null;
+  }
+};
 
 const buildUniqueId = (prefix: string) => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -68,39 +104,8 @@ const getDefaultSettings = (): AdminSettings => ({
 
 export function useAdminSettings() {
   const [settings, setSettings] = useState<AdminSettings>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Convert date strings back to Date objects
-        return {
-          ...parsed,
-          buildings: parsed.buildings.map((b: any) => ({
-            ...b,
-            createdAt: new Date(b.createdAt),
-            updatedAt: new Date(b.updatedAt),
-          })),
-          userPermissions: parsed.userPermissions.map((p: any) => ({
-            ...p,
-            createdAt: new Date(p.createdAt),
-            updatedAt: new Date(p.updatedAt),
-          })),
-          complianceChecks: parsed.complianceChecks.map((c: any) => ({
-            ...c,
-            lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : undefined,
-            nextDue: new Date(c.nextDue),
-            startDate: c.startDate ? new Date(c.startDate) : undefined,
-            endDate: c.endDate ? new Date(c.endDate) : undefined,
-            floorIds: Array.isArray(c.floorIds) ? c.floorIds : [],
-            areaIds: Array.isArray(c.areaIds) ? c.areaIds : [],
-            recurrencePattern: c.recurrencePattern || (c.isRecurring ? 'monthly_same_date' : 'none'),
-          })),
-        };
-      } catch {
-        return getDefaultSettings();
-      }
-    }
-    return getDefaultSettings();
+    const parsed = parseStoredSettings(localStorage.getItem(STORAGE_KEY));
+    return parsed ?? getDefaultSettings();
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -108,6 +113,41 @@ export function useAdminSettings() {
   // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
+  }, [settings]);
+
+  // Keep multiple hook instances in sync (same-tab + cross-tab)
+  useEffect(() => {
+    const syncFromStorage = () => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const parsed = parseStoredSettings(stored);
+      if (!parsed) {
+        return;
+      }
+
+      const current = JSON.stringify(settings);
+      if (stored !== current) {
+        setSettings(parsed);
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY) {
+        syncFromStorage();
+      }
+    };
+
+    const handleLocalUpdate = () => {
+      syncFromStorage();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener(SETTINGS_UPDATED_EVENT, handleLocalUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(SETTINGS_UPDATED_EVENT, handleLocalUpdate);
+    };
   }, [settings]);
 
   // Building operations

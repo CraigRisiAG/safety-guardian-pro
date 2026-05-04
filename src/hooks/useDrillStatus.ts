@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Drill, DrillRecord } from '@/types/safety';
 import { buildings } from '@/data/mockData';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
+import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
 
 const ACTIVE_DRILL_KEY = 'active_drill';
 const DRILL_RECORDS_KEY = 'drill_records';
@@ -96,6 +97,43 @@ const parseDrillRecords = (stored: string | null): DrillRecord[] => {
   }
 };
 
+const pickLikelyActiveDrill = (drills: Drill[]): Drill | null => {
+  const explicitActive = drills.find((drill) => drill.status === 'active');
+  if (explicitActive) {
+    return explicitActive;
+  }
+
+  const inferredActive = drills
+    .filter((drill) => {
+      if (drill.status === 'completed' || drill.status === 'cancelled') {
+        return false;
+      }
+      return !!drill.startedAt && !drill.completedAt;
+    })
+    .sort((left, right) => {
+      const leftTime = left.startedAt ? new Date(left.startedAt).getTime() : 0;
+      const rightTime = right.startedAt ? new Date(right.startedAt).getTime() : 0;
+      return rightTime - leftTime;
+    })[0];
+
+  return inferredActive ?? null;
+};
+
+const resolveActiveDrill = (): Drill | null => {
+  const fromDedicatedStorage = parseActiveDrill(readStorage(ACTIVE_DRILL_KEY));
+  if (fromDedicatedStorage?.status === 'active') {
+    return fromDedicatedStorage;
+  }
+
+  const fromDrillsList = pickLikelyActiveDrill(loadDrillsFromStorage());
+  if (fromDrillsList) {
+    writeStorage(ACTIVE_DRILL_KEY, JSON.stringify({ ...fromDrillsList, status: 'active' }));
+    return fromDrillsList;
+  }
+
+  return null;
+};
+
 const resolveBuildings = () => {
   try {
     const stored = localStorage.getItem(ADMIN_SETTINGS_KEY);
@@ -131,14 +169,18 @@ const resolveBuildings = () => {
 };
 
 export function useDrillStatus() {
-  const [activeDrill, setActiveDrill] = useState<Drill | null>(() => parseActiveDrill(readStorage(ACTIVE_DRILL_KEY)));
+  const [activeDrill, setActiveDrill] = useState<Drill | null>(() => resolveActiveDrill());
 
   const [drillRecords, setDrillRecords] = useState<DrillRecord[]>(() => parseDrillRecords(readStorage(DRILL_RECORDS_KEY)));
 
   // Listen for storage changes from other components
   useEffect(() => {
-    const handleStorage = () => {
-      setActiveDrill(parseActiveDrill(readStorage(ACTIVE_DRILL_KEY)));
+    const handleStorage = (event?: StorageEvent) => {
+      if (event && event.key && event.key !== ACTIVE_DRILL_KEY && event.key !== DRILL_RECORDS_KEY) {
+        return;
+      }
+
+      setActiveDrill(resolveActiveDrill());
       setDrillRecords(parseDrillRecords(readStorage(DRILL_RECORDS_KEY)));
     };
 
@@ -155,20 +197,32 @@ export function useDrillStatus() {
     const activeDrillData = { ...drill, status: 'active' as const, startedAt: new Date() };
     setActiveDrill(activeDrillData);
     writeStorage(ACTIVE_DRILL_KEY, JSON.stringify(activeDrillData));
+    const drills = loadDrillsFromStorage();
+    const existingIndex = drills.findIndex((entry) => entry.id === activeDrillData.id);
+    if (existingIndex >= 0) {
+      const next = drills.map((entry) =>
+        entry.id === activeDrillData.id ? { ...entry, ...activeDrillData } : entry,
+      );
+      saveDrillsToStorage(next);
+      return;
+    }
+
+    saveDrillsToStorage([activeDrillData, ...drills]);
   }, []);
 
   const endDrill = useCallback((checkInStats?: { safe: number; needsAssistance: number; pending: number }, floorCheckIns?: Map<string, { safe: number; needsAssistance: number; pending: number }>) => {
-    if (!activeDrill) return;
+    const drillToEnd = activeDrill ?? resolveActiveDrill();
+    if (!drillToEnd) return;
 
     const completedAt = new Date();
-    const startedAt = activeDrill.startedAt || new Date();
+    const startedAt = drillToEnd.startedAt || new Date();
     const durationMs = completedAt.getTime() - new Date(startedAt).getTime();
     const durationMinutes = Math.round(durationMs / 60000 * 10) / 10;
 
-    const checkIns = loadCheckInsForDrill(activeDrill.id);
+    const checkIns = loadCheckInsForDrill(drillToEnd.id);
     const allBuildings = resolveBuildings();
-    const building = allBuildings.find(b => b.id === activeDrill.location.buildingId);
-    const floors = building?.floors.filter(f => activeDrill.location.floorIds.includes(f.id)) || [];
+    const building = allBuildings.find(b => b.id === drillToEnd.location.buildingId);
+    const floors = building?.floors.filter(f => drillToEnd.location.floorIds.includes(f.id)) || [];
 
     const persistedStats = {
       safe: checkIns.filter((checkIn) => checkIn.status === 'safe').length,
@@ -209,15 +263,15 @@ export function useDrillStatus() {
 
     const record: DrillRecord = {
       id: `record-${Date.now()}`,
-      drillId: activeDrill.id,
-      type: activeDrill.type,
-      buildingId: activeDrill.location.buildingId,
+      drillId: drillToEnd.id,
+      type: drillToEnd.type,
+      buildingId: drillToEnd.location.buildingId,
       buildingName: building?.name || 'Unknown',
       floors: floors.map(f => ({ id: f.id, name: f.name })),
       startedAt: new Date(startedAt),
       completedAt,
       durationMinutes,
-      initiatedBy: activeDrill.initiatedBy,
+      initiatedBy: drillToEnd.initiatedBy,
       checkInStats: { total, ...stats },
       floorStats,
     };
@@ -228,6 +282,14 @@ export function useDrillStatus() {
 
     setActiveDrill(null);
     removeStorage(ACTIVE_DRILL_KEY);
+
+    const drills = loadDrillsFromStorage();
+    const synced = drills.map((entry) =>
+      entry.id === drillToEnd.id
+        ? { ...entry, status: 'completed' as const, completedAt }
+        : entry,
+    );
+    saveDrillsToStorage(synced);
 
     return record;
   }, [activeDrill, drillRecords]);

@@ -28,8 +28,6 @@ interface PersonnelDialogProps {
 type SortField = 'name' | 'staffCode' | 'building' | 'floor' | 'participation' | 'type';
 type SortDirection = 'asc' | 'desc';
 
-const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
-
 interface ParsedUser {
   userName: string;
   email: string;
@@ -160,7 +158,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       userName,
       email: newPersonnel.email.trim() || '',
       staffCode: newPersonnel.staffCode.trim() || undefined,
-      role: 'reporter' as UserRole,
+      role: 'viewer' as UserRole,
       buildingAccess: newPersonnel.buildingId ? [newPersonnel.buildingId] : [],
       primaryFloorId: newPersonnel.primaryFloorId || undefined,
       primaryAreaId: newPersonnel.primaryAreaId || undefined,
@@ -204,14 +202,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
   const getPersonnelType = (person: UserPermission) => {
     if (isSystemUser(person)) return 'system';
     return 'personnel';
-  };
-
-  const parseRole = (value: string): UserRole | null => {
-    const normalized = value?.toLowerCase().trim().replace(/\s+/g, '_');
-    if (VALID_ROLES.includes(normalized as UserRole)) {
-      return normalized as UserRole;
-    }
-    return null;
   };
 
   const parseBuildingAccess = (value: string | string[]): string[] => {
@@ -258,7 +248,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     const userName = (row['Name']?.toString().trim() || '');
     const email = (row['Email']?.toString().trim() || '');
     const staffCode = (row['Staff Code']?.toString().trim() || '');
-    const roleStr = (row['Role']?.toString() || 'reporter');
     const buildingAccessValue = (row['Building']?.toString() || row['Building Access']?.toString() || '');
     const floorValue = (row['Floor']?.toString() || row['Primary Floor']?.toString() || '');
     const workDaysValue = (row['Work Days']?.toString() || '');
@@ -270,11 +259,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     }
     if (staffCode && staffCode.length > STAFF_CODE_MAX_LENGTH) {
       errors.push(`Staff code must be ${STAFF_CODE_MAX_LENGTH} characters or less`);
-    }
-
-    const role = parseRole(roleStr);
-    if (!role) {
-      errors.push(`Invalid role: ${roleStr}`);
     }
 
     const buildingAccess = parseBuildingAccess(buildingAccessValue);
@@ -299,7 +283,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       userName,
       email,
       staffCode: staffCode || undefined,
-      role: role || 'reporter',
+      role: 'viewer',
       buildingAccess,
       primaryFloorId,
       workDays,
@@ -353,7 +337,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Name': 'John Smith',
         'Email': 'john@example.com',
         'Staff Code': 'JS001',
-        'Role': 'reporter',
         'Building': 'Main Office Building',
         'Floor': 'Ground Floor',
         'Work Days': 'Mon, Tue, Wed, Thu, Fri',
@@ -370,7 +353,6 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Name': 'Jane Doe',
         'Email': 'jane@example.com',
         'Staff Code': 'JD002',
-        'Role': 'admin',
         'Building': 'Research Center',
         'Floor': 'First Floor',
         'Work Days': 'Mon, Tue, Wed',
@@ -390,7 +372,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
     
     ws['!cols'] = [
-      { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 25 },
+      { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 25 },
       { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 18 },
       { wch: 20 }, { wch: 25 }, { wch: 18 },
       { wch: 20 }, { wch: 18 }, { wch: 18 },
@@ -912,7 +894,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                       <li><strong>Name</strong> - Full name (required)</li>
                       <li><strong>Email</strong> - Email address (required)</li>
                       <li><strong>Staff Code</strong> - Unique identifier (max 8 chars)</li>
-                      <li><strong>Role</strong> - viewer, reporter, responder, admin, or super_admin</li>
+                      <li><strong>Role</strong> - Optional (defaults to viewer and can be managed in User Admin)</li>
                       <li><strong>Building</strong> - Building name or "All"</li>
                       <li><strong>Floor</strong> - Primary floor name</li>
                       <li><strong>Work Days</strong> - e.g., "Mon, Tue, Wed, Thu, Fri"</li>
@@ -1045,9 +1027,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         </div>
 
         {/* Personnel Table */}
-        <ScrollArea className="flex-1 min-h-0 h-[45vh] rounded-md border border-border/60">
+        <div className="flex-1 min-h-0 h-[45vh] overflow-auto rounded-md border border-border/60">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50"
@@ -1126,7 +1108,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
               )}
             </TableBody>
           </Table>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="pt-4 border-t">
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
