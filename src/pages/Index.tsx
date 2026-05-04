@@ -29,6 +29,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
+import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
+import { parseISO, isBefore } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
@@ -44,6 +47,50 @@ const Index = () => {
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
   const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
+  const [isComplianceScoreDialogOpen, setIsComplianceScoreDialogOpen] = useState(false);
+
+  // Calculate Safety Compliance score from completed check records + scheduled checks
+  const complianceBreakdown = (() => {
+    const stored = localStorage.getItem('safeguard_completed_checks');
+    const records: CompletedCheckRecord[] = stored
+      ? JSON.parse(stored).map((r: any) => ({
+          ...r,
+          completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt),
+        }))
+      : [];
+
+    const passCount = records.filter(r => r.status === 'pass').length;
+    const partialCount = records.filter(r => r.status === 'partial').length;
+    const failCount = records.filter(r => r.status === 'fail').length;
+    const totalCompleted = records.length;
+
+    // Pass = 1.0, Partial = 0.5, Fail = 0
+    const weightedScore = passCount * 1 + partialCount * 0.5;
+
+    const now = new Date();
+    const overdueChecks = settings.complianceChecks.filter(c => {
+      if (c.status === 'completed') return false;
+      return isBefore(new Date(c.nextDue), now);
+    });
+    const overduePenalty = overdueChecks.length * 0.5;
+
+    const denominator = totalCompleted + overdueChecks.length;
+    const score = denominator > 0
+      ? Math.max(0, Math.min(100, Math.round(((weightedScore - overduePenalty / 1) / denominator) * 100)))
+      : 100;
+
+    return {
+      score,
+      passCount,
+      partialCount,
+      failCount,
+      totalCompleted,
+      overdueCount: overdueChecks.length,
+    };
+  })();
+
+  const complianceScoreVariant: 'safe' | 'warning' | 'emergency' =
+    complianceBreakdown.score >= 85 ? 'safe' : complianceBreakdown.score >= 60 ? 'warning' : 'emergency';
   
   useEffect(() => {
     saveIncidentsToStorage(incidents);
@@ -239,10 +286,10 @@ const Index = () => {
           />
           <StatCard
             title="Safety Compliance"
-            value="94%"
+            value={`${complianceBreakdown.score}%`}
             icon={<ShieldCheck className="w-5 h-5" />}
-            variant="safe"
-            trend={{ value: 3, isPositive: true }}
+            variant={complianceScoreVariant}
+            onClick={() => setIsComplianceScoreDialogOpen(true)}
           />
           <PersonnelDialog
             personnel={settings.userPermissions}
@@ -339,6 +386,68 @@ const Index = () => {
                   />
                 </DialogContent>
               </Dialog>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isComplianceScoreDialogOpen} onOpenChange={setIsComplianceScoreDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Safety Compliance Score</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5">
+              <div className="text-center">
+                <div className={`text-5xl font-bold ${
+                  complianceScoreVariant === 'safe' ? 'text-safe' :
+                  complianceScoreVariant === 'warning' ? 'text-warning' : 'text-emergency'
+                }`}>
+                  {complianceBreakdown.score}%
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Overall Safety Compliance</p>
+              </div>
+              <Progress value={complianceBreakdown.score} className="h-2" />
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">How this is calculated</h4>
+                <p className="text-sm text-muted-foreground">
+                  The score reflects the quality of completed safety compliance checks weighted against any overdue scheduled checks.
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
+                  <li><span className="text-safe font-medium">Pass</span> = 1.0 point</li>
+                  <li><span className="text-warning font-medium">Partial</span> = 0.5 points</li>
+                  <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
+                  <li>Each <span className="text-emergency font-medium">overdue</span> scheduled check subtracts 0.5 points and adds to the total.</li>
+                </ul>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Formula: <code className="bg-muted px-1 rounded">((pass + 0.5 × partial) − 0.5 × overdue) ÷ (completed + overdue) × 100</code>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-safe-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-safe">{complianceBreakdown.passCount}</div>
+                  <div className="text-xs text-muted-foreground">Passed</div>
+                </div>
+                <div className="bg-warning-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-warning">{complianceBreakdown.partialCount}</div>
+                  <div className="text-xs text-muted-foreground">Partial</div>
+                </div>
+                <div className="bg-emergency-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-emergency">{complianceBreakdown.failCount}</div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
+                </div>
+                <div className="bg-emergency-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-emergency">{complianceBreakdown.overdueCount}</div>
+                  <div className="text-xs text-muted-foreground">Overdue</div>
+                </div>
+              </div>
+
+              <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                Total completed checks: <span className="font-medium text-foreground">{complianceBreakdown.totalCompleted}</span>
+                {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && (
+                  <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
