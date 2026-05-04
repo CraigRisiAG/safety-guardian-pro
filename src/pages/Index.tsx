@@ -346,6 +346,49 @@ const Index = () => {
             <DialogHeader>
               <DialogTitle>Scheduled Drills ({upcomingDrills})</DialogTitle>
             </DialogHeader>
+
+            {scheduledDrills.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4">No scheduled drills.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {scheduledDrills.map((drill) => {
+                  const location = getDrillLocation(drill);
+                  return (
+                    <div key={drill.id} className="py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{drillTypeLabels[drill.type]}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{location.building} • {location.floors}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {drill.scheduledFor ? format(drill.scheduledFor, 'PPp') : 'Not scheduled'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="pt-2">
+              <Dialog open={isCreateDrillDialogOpen} onOpenChange={setIsCreateDrillDialogOpen}>
+                <Button className="gap-2" onClick={() => setIsCreateDrillDialogOpen(true)}>
+                  <Siren className="w-4 h-4" />
+                  Create Another Drill
+                </Button>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Schedule a Drill</DialogTitle>
+                  </DialogHeader>
+                  <StartDrillForm
+                    onDrillStarted={() => {
+                      setIsCreateDrillDialogOpen(false);
+                      setDrills(loadDrillsFromStorage());
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
           </DialogContent>
         </Dialog>
 
