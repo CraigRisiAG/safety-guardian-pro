@@ -1045,7 +1045,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         </div>
 
         {/* Personnel Table */}
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0 h-[45vh] rounded-md border border-border/60">
           <Table>
             <TableHeader>
               <TableRow>

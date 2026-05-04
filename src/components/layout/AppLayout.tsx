@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserMenu } from '@/components/UserMenu';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -96,6 +98,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, isImpersonating } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,10 +139,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <span className="absolute top-1 right-1 w-2 h-2 bg-emergency rounded-full" />
               </Button>
               <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-border">
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary-foreground">SO</span>
+                <div className="hidden sm:flex flex-col items-end leading-tight">
+                  <span className="text-sm font-medium text-foreground">{user?.name || 'User'}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isImpersonating ? 'Impersonating session' : user?.role === 'admin' ? 'System Admin' : 'System User'}
+                  </span>
                 </div>
-                <span className="text-sm font-medium hidden sm:inline">Safety Officer</span>
+                <UserMenu />
               </div>
             </div>
           </div>

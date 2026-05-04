@@ -148,10 +148,10 @@ const Login: React.FC = () => {
 
           <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
             <p className="text-xs text-slate-300 mb-2">
-              <span className="font-semibold">Demo credentials:</span>
+              <span className="font-semibold">Default system accounts:</span>
             </p>
-            <p className="text-xs text-slate-400">Email: demo@example.com</p>
-            <p className="text-xs text-slate-400">Password: demo123</p>
+            <p className="text-xs text-slate-400">Admin: admin@safeguard.local / Admin@123</p>
+            <p className="text-xs text-slate-400">User: safety.officer@safeguard.local / User@123</p>
           </div>
         </CardContent>
       </Card>
