@@ -214,32 +214,41 @@ const Index = () => {
   };
 
   const getDrillLocation = (drill: Drill) => {
-    const building = settings.buildings.find((item) => item.id === drill.location.buildingId);
-    const floors = building?.floors.filter((floor) => drill.location.floorIds.includes(floor.id)) ?? [];
+    const selectedBuildingIds = drill.location.buildingIds?.length
+      ? drill.location.buildingIds
+      : [drill.location.buildingId];
+    const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
+    const allFloors = selectedBuildings.flatMap((building) => building.floors);
+    const floors = allFloors.filter((floor) => drill.location.floorIds.includes(floor.id));
     return {
-      building: building?.name ?? 'Unknown Building',
+      building: selectedBuildings.map((building) => building.name).join(', ') || 'Unknown Building',
       floors: floors.map((floor) => floor.name).join(', ') || 'All floors',
     };
   };
 
   const handleCreateScheduledDrill = (data: {
     type: DrillType;
-    buildingId: string;
+    buildingIds: string[];
     floorIds: string[];
+    areaIds: string[];
+    scheduledFor?: Date;
   }) => {
-    const scheduledDate = new Date();
-    scheduledDate.setHours(scheduledDate.getHours() + 1);
+    const primaryBuildingId = data.buildingIds[0];
+    if (!primaryBuildingId) {
+      return;
+    }
 
     const newDrill: Drill = {
       id: `drill-${Date.now()}`,
       type: data.type,
       status: 'scheduled',
       location: {
-        buildingId: data.buildingId,
+        buildingId: primaryBuildingId,
+        buildingIds: data.buildingIds,
         floorIds: data.floorIds,
-        areaIds: [],
+        areaIds: data.areaIds,
       },
-      scheduledFor: scheduledDate,
+      scheduledFor: data.scheduledFor ?? undefined,
       initiatedBy: 'Safety Officer',
     };
 
@@ -435,6 +444,8 @@ const Index = () => {
                     <DialogTitle>Create Scheduled Drill</DialogTitle>
                   </DialogHeader>
                   <StartDrillForm
+                    buildings={settings.buildings}
+                    mode="schedule"
                     onSubmit={handleCreateScheduledDrill}
                     onCancel={() => setIsCreateDrillDialogOpen(false)}
                   />

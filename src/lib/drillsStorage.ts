@@ -17,6 +17,7 @@ function parseDrill(raw: RawDrill): Drill {
 
   const safeLocation = {
     buildingId: raw.location?.buildingId ?? 'unknown-building',
+    buildingIds: Array.isArray(raw.location?.buildingIds) ? raw.location.buildingIds : undefined,
     floorIds: Array.isArray(raw.location?.floorIds) ? raw.location.floorIds : [],
     areaIds: Array.isArray(raw.location?.areaIds) ? raw.location.areaIds : [],
   };

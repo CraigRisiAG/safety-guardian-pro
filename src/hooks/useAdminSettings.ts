@@ -14,6 +14,13 @@ import { buildings } from '@/data/mockData';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
 
+const buildUniqueId = (prefix: string) => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+};
+
 const getDefaultSettings = (): AdminSettings => ({
   buildings: buildings.map((b) => ({
     id: b.id,
@@ -107,7 +114,7 @@ export function useAdminSettings() {
   const addBuilding = useCallback((building: Omit<CustomBuilding, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newBuilding: CustomBuilding = {
       ...building,
-      id: `building-${Date.now()}`,
+      id: buildUniqueId('building'),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

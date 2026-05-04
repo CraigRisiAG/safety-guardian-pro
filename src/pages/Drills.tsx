@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
 import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
-import { buildings } from '@/data/mockData';
 import { Drill, DrillType, DrillRecord } from '@/types/safety';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,9 +12,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Siren, Play, Clock, CheckCircle2, XCircle, MapPin, Calendar, Timer, Users, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, isBefore } from 'date-fns';
 import { toast } from 'sonner';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { Badge } from '@/components/ui/badge';
 import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
 
@@ -37,17 +37,25 @@ const drillTypeColors: Record<DrillType, string> = {
 
 const statusConfig = {
   scheduled: { icon: Calendar, color: 'text-info', bg: 'bg-info-muted', label: 'Scheduled' },
+  missed: { icon: XCircle, color: 'text-emergency', bg: 'bg-emergency-muted', label: 'Missed' },
   active: { icon: Play, color: 'text-emergency', bg: 'bg-emergency-muted', label: 'Active' },
   completed: { icon: CheckCircle2, color: 'text-safe', bg: 'bg-safe-muted', label: 'Completed' },
   cancelled: { icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Cancelled' },
 };
 
+const isMissedDrill = (drill: Drill) =>
+  drill.status === 'scheduled' &&
+  !!drill.scheduledFor &&
+  isBefore(drill.scheduledFor, new Date());
+
 export default function Drills() {
   const [drills, setDrills] = useState<Drill[]>(() => loadDrillsFromStorage());
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
+  const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
+  const { settings } = useAdminSettings();
 
   useEffect(() => {
     saveDrillsToStorage(drills);
@@ -55,25 +63,63 @@ export default function Drills() {
 
   const handleStartDrill = (data: {
     type: DrillType;
-    buildingId: string;
+    buildingIds: string[];
     floorIds: string[];
+    areaIds: string[];
   }) => {
+    const primaryBuildingId = data.buildingIds[0];
+    if (!primaryBuildingId) {
+      return;
+    }
+
     const newDrill: Drill = {
       id: `drill-${Date.now()}`,
       type: data.type,
       status: 'active',
       location: {
-        buildingId: data.buildingId,
+        buildingId: primaryBuildingId,
         floorIds: data.floorIds,
-        areaIds: [],
+        areaIds: data.areaIds,
+        buildingIds: data.buildingIds,
       },
       startedAt: new Date(),
       initiatedBy: 'Safety Officer',
     };
     setDrills((previous) => [newDrill, ...previous]);
     startDrill(newDrill);
-    setIsDialogOpen(false);
+    setIsStartDialogOpen(false);
     toast.success(`${drillTypeLabels[data.type]} started!`);
+  };
+
+  const handleScheduleDrill = (data: {
+    type: DrillType;
+    buildingIds: string[];
+    floorIds: string[];
+    areaIds: string[];
+    scheduledFor?: Date;
+  }) => {
+    const primaryBuildingId = data.buildingIds[0];
+    if (!primaryBuildingId || !data.scheduledFor) {
+      return;
+    }
+
+    const newDrill: Drill = {
+      id: `drill-${Date.now()}`,
+      type: data.type,
+      status: 'scheduled',
+      location: {
+        buildingId: primaryBuildingId,
+        floorIds: data.floorIds,
+        areaIds: data.areaIds,
+        buildingIds: data.buildingIds,
+      },
+      scheduledFor: data.scheduledFor,
+      initiatedBy: 'Safety Officer',
+    };
+
+    setDrills((previous) => [newDrill, ...previous]);
+    setIsScheduleDialogOpen(false);
+    toast.success(`${drillTypeLabels[data.type]} scheduled`);
   };
 
   const handleEndDrill = (drillId: string) => {
@@ -92,14 +138,21 @@ export default function Drills() {
   const filteredDrills = drills.filter(drill => {
     if (activeTab === 'all') return true;
     if (activeTab === 'history') return false;
+    if (activeTab === 'missed') return isMissedDrill(drill);
+    if (activeTab === 'scheduled') return drill.status === 'scheduled' && !isMissedDrill(drill);
     return drill.status === activeTab;
   });
 
   const getLocationDisplay = (drill: Drill) => {
-    const building = buildings.find(b => b.id === drill.location.buildingId);
-    const floors = building?.floors.filter(f => drill.location.floorIds.includes(f.id)) || [];
+    const selectedBuildingIds = drill.location.buildingIds?.length
+      ? drill.location.buildingIds
+      : [drill.location.buildingId];
+    const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
+    const buildingNames = selectedBuildings.map((building) => building.name).join(', ');
+    const allFloors = selectedBuildings.flatMap((building) => building.floors);
+    const floors = allFloors.filter((floor) => drill.location.floorIds.includes(floor.id));
     return {
-      building: building?.name || 'Unknown',
+      building: buildingNames || 'Unknown',
       floors: floors.map(f => f.name).join(', ') || 'All floors',
     };
   };
@@ -113,20 +166,40 @@ export default function Drills() {
             <h1 className="text-2xl font-bold text-foreground">Drill Management</h1>
             <p className="text-muted-foreground mt-1">Schedule and manage safety drills</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 gradient-emergency text-emergency-foreground hover:opacity-90">
-                <Siren className="w-4 h-4" />
-                Start Drill
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <StartDrillForm 
-                onSubmit={handleStartDrill} 
-                onCancel={() => setIsDialogOpen(false)} 
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-2">
+            <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Schedule Drill
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <StartDrillForm
+                  buildings={settings.buildings}
+                  mode="schedule"
+                  onSubmit={handleScheduleDrill}
+                  onCancel={() => setIsScheduleDialogOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isStartDialogOpen} onOpenChange={setIsStartDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 gradient-emergency text-emergency-foreground hover:opacity-90">
+                  <Siren className="w-4 h-4" />
+                  Start Drill
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <StartDrillForm
+                  buildings={settings.buildings}
+                  onSubmit={handleStartDrill}
+                  onCancel={() => setIsStartDialogOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -135,6 +208,7 @@ export default function Drills() {
             <TabsTrigger value="all">All Drills</TabsTrigger>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+            <TabsTrigger value="missed">Missed</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="history" className="gap-1">
               <BarChart3 className="w-3 h-3" />
@@ -246,7 +320,7 @@ export default function Drills() {
           </TabsContent>
 
           {/* Other tabs */}
-          {['all', 'active', 'scheduled', 'completed'].map(tab => (
+          {['all', 'active', 'scheduled', 'missed', 'completed'].map(tab => (
             <TabsContent key={tab} value={tab} className="mt-6">
               <div className="grid gap-4">
                 {filteredDrills.length === 0 ? (
@@ -255,7 +329,8 @@ export default function Drills() {
                   </div>
                 ) : (
                   filteredDrills.map((drill) => {
-                    const status = statusConfig[drill.status];
+                    const statusKey = isMissedDrill(drill) ? 'missed' : drill.status;
+                    const status = statusConfig[statusKey as keyof typeof statusConfig];
                     const StatusIcon = status.icon;
                     const location = getLocationDisplay(drill);
                     

@@ -11,6 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { CustomBuilding, CustomFloor, CustomArea } from '@/types/admin';
 import { toast } from 'sonner';
 
+const buildUniqueId = (prefix: string) => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+};
+
 interface BuildingsManagerProps {
   buildings: CustomBuilding[];
   onAdd: (building: Omit<CustomBuilding, 'id' | 'createdAt' | 'updatedAt'>) => CustomBuilding;
@@ -78,7 +85,7 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
     if (!building) return;
 
     const newFloor: CustomFloor = {
-      id: `floor-${Date.now()}`,
+      id: buildUniqueId('floor'),
       buildingId,
       name: newFloorName.trim(),
       level: building.floors.length,
@@ -112,7 +119,7 @@ export function BuildingsManager({ buildings, onAdd, onUpdate, onDelete }: Build
     if (!building) return;
 
     const newArea: CustomArea = {
-      id: `area-${Date.now()}`,
+      id: buildUniqueId('area'),
       floorId,
       name: newAreaName.trim(),
       expectedHeadcount: newAreaHeadcount ? parseInt(newAreaHeadcount) : undefined,

@@ -43,6 +43,7 @@ export interface Drill {
   status: 'scheduled' | 'active' | 'completed' | 'cancelled';
   location: {
     buildingId: string;
+    buildingIds?: string[];
     floorIds: string[];
     areaIds: string[];
   };
