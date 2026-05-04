@@ -40,7 +40,7 @@ const Index = () => {
   const drillsStorageSnapshotRef = useRef<string | null>(getDrillsStorageSnapshot());
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const { activeDrill, endDrill } = useDrillStatus();
+  const { activeDrill, endDrill, drillRecords } = useDrillStatus();
   const fallbackDrill = activeDrill || drills.find((d) => d.status === 'active') || null;
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
@@ -91,6 +91,60 @@ const Index = () => {
 
   const complianceScoreVariant: 'safe' | 'warning' | 'emergency' =
     complianceBreakdown.score >= 85 ? 'safe' : complianceBreakdown.score >= 60 ? 'warning' : 'emergency';
+
+  // Fire drill participation per floor (latest fire drill per floor)
+  const fireDrillParticipation = (() => {
+    const fireRecords = drillRecords
+      .filter(r => r.type === 'fire')
+      .slice()
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+
+    type Row = {
+      buildingId: string;
+      buildingName: string;
+      floorId: string;
+      floorName: string;
+      accounted: number;
+      assigned: number;
+      percent: number;
+      drillDate: Date;
+    };
+
+    const seen = new Set<string>();
+    const rows: Row[] = [];
+
+    fireRecords.forEach(record => {
+      record.floorStats.forEach(fs => {
+        const key = `${record.buildingId}:${fs.floorId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        const assigned = settings.userPermissions.filter(
+          p => p.primaryFloorId === fs.floorId || (p.buildingAccess?.includes(record.buildingId) && !p.primaryFloorId)
+        ).length;
+        const accounted = fs.safe + fs.needsAssistance;
+        const denom = Math.max(assigned, accounted);
+        const percent = denom > 0 ? Math.round((accounted / denom) * 100) : 0;
+
+        rows.push({
+          buildingId: record.buildingId,
+          buildingName: record.buildingName,
+          floorId: fs.floorId,
+          floorName: fs.floorName,
+          accounted,
+          assigned,
+          percent,
+          drillDate: new Date(record.completedAt),
+        });
+      });
+    });
+
+    const overallAccounted = rows.reduce((s, r) => s + r.accounted, 0);
+    const overallAssigned = rows.reduce((s, r) => s + Math.max(r.assigned, r.accounted), 0);
+    const overallPercent = overallAssigned > 0 ? Math.round((overallAccounted / overallAssigned) * 100) : 0;
+
+    return { rows, overallPercent, hasData: rows.length > 0 };
+  })();
   
   useEffect(() => {
     saveIncidentsToStorage(incidents);
@@ -446,6 +500,45 @@ const Index = () => {
                 Total completed checks: <span className="font-medium text-foreground">{complianceBreakdown.totalCompleted}</span>
                 {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && (
                   <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
+                )}
+              </div>
+
+              <div className="space-y-2 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-foreground">Fire Drill Participation by Area</h4>
+                  {fireDrillParticipation.hasData && (
+                    <span className="text-sm font-bold text-foreground">{fireDrillParticipation.overallPercent}%</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Percentage of personnel accounted for (safe or needing assistance) on each floor during the most recent fire drill for that floor.
+                </p>
+                {!fireDrillParticipation.hasData ? (
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                    No fire drills have been completed yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {fireDrillParticipation.rows.map(row => (
+                      <div key={`${row.buildingId}-${row.floorId}`} className="bg-muted/40 rounded-lg p-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-foreground truncate">
+                            {row.buildingName} • {row.floorName}
+                          </span>
+                          <span className={`font-semibold ${
+                            row.percent >= 85 ? 'text-safe' : row.percent >= 60 ? 'text-warning' : 'text-emergency'
+                          }`}>
+                            {row.percent}%
+                          </span>
+                        </div>
+                        <Progress value={row.percent} className="h-1.5 mt-2" />
+                        <div className="text-xs text-muted-foreground mt-1 flex justify-between">
+                          <span>{row.accounted} of {Math.max(row.assigned, row.accounted)} personnel</span>
+                          <span>{format(row.drillDate, 'PP')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
