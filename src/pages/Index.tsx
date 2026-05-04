@@ -16,6 +16,7 @@ import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { Drill, Incident, IncidentSeverity, IncidentStatus, DrillType } from '@/types/safety';
 import { toast } from 'sonner';
