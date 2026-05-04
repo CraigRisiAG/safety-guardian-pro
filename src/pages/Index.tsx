@@ -29,6 +29,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
+import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
+import { parseISO, isBefore } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
@@ -44,6 +47,50 @@ const Index = () => {
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
   const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
+  const [isComplianceScoreDialogOpen, setIsComplianceScoreDialogOpen] = useState(false);
+
+  // Calculate Safety Compliance score from completed check records + scheduled checks
+  const complianceBreakdown = (() => {
+    const stored = localStorage.getItem('safeguard_completed_checks');
+    const records: CompletedCheckRecord[] = stored
+      ? JSON.parse(stored).map((r: any) => ({
+          ...r,
+          completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt),
+        }))
+      : [];
+
+    const passCount = records.filter(r => r.status === 'pass').length;
+    const partialCount = records.filter(r => r.status === 'partial').length;
+    const failCount = records.filter(r => r.status === 'fail').length;
+    const totalCompleted = records.length;
+
+    // Pass = 1.0, Partial = 0.5, Fail = 0
+    const weightedScore = passCount * 1 + partialCount * 0.5;
+
+    const now = new Date();
+    const overdueChecks = settings.complianceChecks.filter(c => {
+      if (c.status === 'completed') return false;
+      return isBefore(new Date(c.nextDue), now);
+    });
+    const overduePenalty = overdueChecks.length * 0.5;
+
+    const denominator = totalCompleted + overdueChecks.length;
+    const score = denominator > 0
+      ? Math.max(0, Math.min(100, Math.round(((weightedScore - overduePenalty / 1) / denominator) * 100)))
+      : 100;
+
+    return {
+      score,
+      passCount,
+      partialCount,
+      failCount,
+      totalCompleted,
+      overdueCount: overdueChecks.length,
+    };
+  })();
+
+  const complianceScoreVariant: 'safe' | 'warning' | 'emergency' =
+    complianceBreakdown.score >= 85 ? 'safe' : complianceBreakdown.score >= 60 ? 'warning' : 'emergency';
   
   useEffect(() => {
     saveIncidentsToStorage(incidents);
@@ -239,10 +286,10 @@ const Index = () => {
           />
           <StatCard
             title="Safety Compliance"
-            value="94%"
+            value={`${complianceBreakdown.score}%`}
             icon={<ShieldCheck className="w-5 h-5" />}
-            variant="safe"
-            trend={{ value: 3, isPositive: true }}
+            variant={complianceScoreVariant}
+            onClick={() => setIsComplianceScoreDialogOpen(true)}
           />
           <PersonnelDialog
             personnel={settings.userPermissions}
