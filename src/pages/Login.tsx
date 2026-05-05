@@ -12,7 +12,7 @@ import { useDrillStatus } from "@/hooks/useDrillStatus";
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
-  const { activeDrill } = useDrillStatus();
+  const { activeDrill, isCheckInEnabled } = useDrillStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -121,7 +121,7 @@ const Login: React.FC = () => {
             </p>
           </form>
 
-          {activeDrill ? (
+          {isCheckInEnabled && activeDrill ? (
             <div className="mt-6 p-4 bg-amber-900/50 rounded-lg border border-amber-700">
               <Link
                 to="/safety-checkin"
@@ -141,7 +141,7 @@ const Login: React.FC = () => {
                 Safety Check-In
               </div>
               <p className="text-xs text-slate-500 mt-1 text-center">
-                No active drill in progress
+                Available only during an active drill
               </p>
             </div>
           )}
