@@ -32,7 +32,7 @@ export default function SafetyCheckIn() {
     additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance' }>;
   }>({});
 
-  const currentDrill = activeDrill;
+  const currentDrill = activeDrill && activeDrill.status === 'active' ? activeDrill : null;
 
   const handleCheckIn = (data: {
     status: 'safe' | 'needs-assistance';
