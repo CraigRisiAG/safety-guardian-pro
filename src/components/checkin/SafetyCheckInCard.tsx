@@ -62,6 +62,8 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
   const [userType, setUserType] = useState<'guest' | 'staff' | null>(null);
   const [staffCode, setStaffCode] = useState('');
   const [personName, setPersonName] = useState('');
+  const [guestFirstName, setGuestFirstName] = useState('');
+  const [guestSurname, setGuestSurname] = useState('');
   const [staffSearch, setStaffSearch] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   
@@ -150,13 +152,23 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
         toast.error('Please select a staff member');
         return;
       }
-      if (!personName.trim()) {
+      if (userType === 'guest') {
+        if (!guestFirstName.trim() || !guestSurname.trim()) {
+          toast.error('Please enter your first name and surname');
+          return;
+        }
+      } else if (!personName.trim()) {
         toast.error('Please enter your name');
         return;
       }
     }
 
     if (status && floorId && areaId) {
+      const resolvedName = isLoggedIn
+        ? undefined
+        : userType === 'guest'
+          ? `${guestFirstName.trim()} ${guestSurname.trim()}`.trim()
+          : personName;
       onCheckIn({ 
         status, 
         floorId, 
@@ -164,7 +176,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
         notes: notes || undefined,
         userType: isLoggedIn ? undefined : userType!,
         staffCode: userType === 'staff' ? staffCode : undefined,
-        personName: isLoggedIn ? undefined : personName,
+        personName: resolvedName,
         additionalPeople: additionalPeople.length > 0 ? additionalPeople : undefined,
       });
     }
@@ -175,7 +187,11 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
     if (isLoggedIn) {
       return basicValid;
     }
-    return basicValid && userType && personName.trim() && (userType === 'guest' || !!selectedStaff);
+    if (!userType) return false;
+    if (userType === 'guest') {
+      return basicValid && guestFirstName.trim() && guestSurname.trim();
+    }
+    return basicValid && personName.trim() && !!selectedStaff;
   };
 
   return (
@@ -229,6 +245,8 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                 setPersonName('');
                 setStaffCode('');
                 setSelectedStaffId(null);
+                setGuestFirstName('');
+                setGuestSurname('');
               }}
               className={cn(
                 'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
@@ -301,16 +319,41 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
           )}
 
           {/* Name input */}
-          {userType && (
+          {userType === 'staff' && (
             <div className="space-y-2 animate-fade-in">
               <Label htmlFor="person-name">Your Name</Label>
               <Input
                 id="person-name"
                 value={personName}
                 onChange={(e) => setPersonName(e.target.value)}
-                placeholder={userType === 'staff' ? 'Selected from staff directory' : 'Enter your name'}
-                disabled={userType === 'staff'}
+                placeholder="Selected from staff directory"
+                disabled
               />
+            </div>
+          )}
+
+          {userType === 'guest' && (
+            <div className="grid grid-cols-2 gap-3 animate-fade-in">
+              <div className="space-y-2">
+                <Label htmlFor="guest-first-name">First Name</Label>
+                <Input
+                  id="guest-first-name"
+                  value={guestFirstName}
+                  onChange={(e) => setGuestFirstName(e.target.value)}
+                  placeholder="First name"
+                  maxLength={50}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="guest-surname">Surname</Label>
+                <Input
+                  id="guest-surname"
+                  value={guestSurname}
+                  onChange={(e) => setGuestSurname(e.target.value)}
+                  placeholder="Surname"
+                  maxLength={50}
+                />
+              </div>
             </div>
           )}
         </div>
