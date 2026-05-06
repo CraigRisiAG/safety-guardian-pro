@@ -25,11 +25,11 @@ export function getQualifiedRolesForCategory(categoryId: string): SafetyRole[] {
  * Check if a user's safety roles qualify them for a specific check category
  */
 export function userCanPerformCheckCategory(
-  userSafetyRoles: SafetyRole[],
+  userSafetyRoles: SafetyRole[] | undefined,
   categoryId: string
 ): boolean {
   const qualifiedRoles = getQualifiedRolesForCategory(categoryId);
-  return userSafetyRoles.some(role => qualifiedRoles.includes(role));
+  return Array.isArray(userSafetyRoles) && userSafetyRoles.some(role => qualifiedRoles.includes(role));
 }
 
 /**
