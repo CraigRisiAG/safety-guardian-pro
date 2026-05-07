@@ -28,8 +28,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
-import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
-import { parseISO, isBefore } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
