@@ -16,6 +16,7 @@ import { PendingChecksDialog } from './PendingChecksDialog';
 import { startOfWeek, endOfWeek, isWithinInterval, parseISO, isBefore } from 'date-fns';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
+import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
 import {
   ALL_SAFETY_ROLES,
   ALL_WORK_DAYS,
@@ -176,11 +177,11 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     }, 0);
 
     const missingOfficialsTotal = roleGapItems.reduce((sum, item) => sum + item.gapCount, 0);
-    const officialCoverageScore = requiredOfficialsTotal > 0
-      ? Math.max(0, Math.round(((requiredOfficialsTotal - missingOfficialsTotal) / requiredOfficialsTotal) * 100))
-      : 100;
-
-    const safetyComplianceScore = Math.round(passRate * 0.7 + officialCoverageScore * 0.3);
+    // Use the shared compliance score so the dashboard StatCard and this
+    // widget always show the same number.
+    const breakdown = computeSafetyComplianceBreakdown(settings);
+    const officialCoverageScore = breakdown.officialCoverageScore;
+    const safetyComplianceScore = breakdown.score;
 
     return {
       thisWeek: thisWeekRecords.length,
