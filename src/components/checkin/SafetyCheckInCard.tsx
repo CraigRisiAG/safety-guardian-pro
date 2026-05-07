@@ -71,6 +71,9 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
   const [additionalPeople, setAdditionalPeople] = useState<Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>>([]);
   const [newPersonSearch, setNewPersonSearch] = useState('');
   const [selectedAdditionalStaffId, setSelectedAdditionalStaffId] = useState<string | null>(null);
+  const [additionalPersonType, setAdditionalPersonType] = useState<'staff' | 'guest'>('staff');
+  const [additionalGuestFirstName, setAdditionalGuestFirstName] = useState('');
+  const [additionalGuestSurname, setAdditionalGuestSurname] = useState('');
 
   const availableBuildings = customBuildings ?? buildings;
   const building = availableBuildings.find(b => b.id === drill.location.buildingId);
@@ -104,6 +107,23 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
     : null;
 
   const handleAddPerson = () => {
+    if (additionalPersonType === 'guest') {
+      const first = additionalGuestFirstName.trim();
+      const last = additionalGuestSurname.trim();
+      if (!first || !last) {
+        toast.error('Enter the visitor\u2019s first name and surname');
+        return;
+      }
+      const fullName = `${first} ${last}`;
+      setAdditionalPeople(prev => [
+        ...prev,
+        { name: `${fullName} (Visitor)`, status: 'safe' },
+      ]);
+      setAdditionalGuestFirstName('');
+      setAdditionalGuestSurname('');
+      return;
+    }
+
     if (!selectedAdditionalStaffId) {
       toast.error('Select a staff member to add');
       return;
