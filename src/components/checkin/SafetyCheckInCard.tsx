@@ -472,7 +472,57 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
             <Users className="w-4 h-4 text-muted-foreground" />
             <Label className="text-base font-semibold">Check In Additional People</Label>
           </div>
-          
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAdditionalPersonType('staff')}
+              className={cn(
+                'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                additionalPersonType === 'staff'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border hover:border-primary/50'
+              )}
+            >
+              <KeyRound className="w-4 h-4" /> Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdditionalPersonType('guest')}
+              className={cn(
+                'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                additionalPersonType === 'guest'
+                  ? 'border-info bg-info-muted text-info'
+                  : 'border-border hover:border-info/50'
+              )}
+            >
+              <User className="w-4 h-4" /> Visitor
+            </button>
+          </div>
+
+          {additionalPersonType === 'guest' ? (
+            <div className="space-y-2 animate-fade-in">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  value={additionalGuestFirstName}
+                  onChange={(e) => setAdditionalGuestFirstName(e.target.value)}
+                  placeholder="First name"
+                  maxLength={50}
+                />
+                <Input
+                  value={additionalGuestSurname}
+                  onChange={(e) => setAdditionalGuestSurname(e.target.value)}
+                  placeholder="Surname"
+                  maxLength={50}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddPerson()}
+                />
+              </div>
+              <Button type="button" variant="outline" className="w-full" onClick={handleAddPerson}>
+                <Plus className="w-4 h-4 mr-1" /> Add Visitor
+              </Button>
+            </div>
+          ) : (
+          <>
           <div className="flex gap-2">
             <Input
               value={newPersonSearch}
@@ -511,6 +561,8 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
               ))
             )}
           </div>
+          </>
+          )}
 
           {additionalPeople.length > 0 && (
             <Card className="p-3 space-y-2">
