@@ -71,6 +71,9 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
   const [additionalPeople, setAdditionalPeople] = useState<Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>>([]);
   const [newPersonSearch, setNewPersonSearch] = useState('');
   const [selectedAdditionalStaffId, setSelectedAdditionalStaffId] = useState<string | null>(null);
+  const [additionalPersonType, setAdditionalPersonType] = useState<'staff' | 'guest'>('staff');
+  const [additionalGuestFirstName, setAdditionalGuestFirstName] = useState('');
+  const [additionalGuestSurname, setAdditionalGuestSurname] = useState('');
 
   const availableBuildings = customBuildings ?? buildings;
   const building = availableBuildings.find(b => b.id === drill.location.buildingId);
@@ -104,6 +107,23 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
     : null;
 
   const handleAddPerson = () => {
+    if (additionalPersonType === 'guest') {
+      const first = additionalGuestFirstName.trim();
+      const last = additionalGuestSurname.trim();
+      if (!first || !last) {
+        toast.error('Enter the visitor\u2019s first name and surname');
+        return;
+      }
+      const fullName = `${first} ${last}`;
+      setAdditionalPeople(prev => [
+        ...prev,
+        { name: `${fullName} (Visitor)`, status: 'safe' },
+      ]);
+      setAdditionalGuestFirstName('');
+      setAdditionalGuestSurname('');
+      return;
+    }
+
     if (!selectedAdditionalStaffId) {
       toast.error('Select a staff member to add');
       return;
@@ -452,7 +472,57 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
             <Users className="w-4 h-4 text-muted-foreground" />
             <Label className="text-base font-semibold">Check In Additional People</Label>
           </div>
-          
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAdditionalPersonType('staff')}
+              className={cn(
+                'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                additionalPersonType === 'staff'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border hover:border-primary/50'
+              )}
+            >
+              <KeyRound className="w-4 h-4" /> Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdditionalPersonType('guest')}
+              className={cn(
+                'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                additionalPersonType === 'guest'
+                  ? 'border-info bg-info-muted text-info'
+                  : 'border-border hover:border-info/50'
+              )}
+            >
+              <User className="w-4 h-4" /> Visitor
+            </button>
+          </div>
+
+          {additionalPersonType === 'guest' ? (
+            <div className="space-y-2 animate-fade-in">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  value={additionalGuestFirstName}
+                  onChange={(e) => setAdditionalGuestFirstName(e.target.value)}
+                  placeholder="First name"
+                  maxLength={50}
+                />
+                <Input
+                  value={additionalGuestSurname}
+                  onChange={(e) => setAdditionalGuestSurname(e.target.value)}
+                  placeholder="Surname"
+                  maxLength={50}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddPerson()}
+                />
+              </div>
+              <Button type="button" variant="outline" className="w-full" onClick={handleAddPerson}>
+                <Plus className="w-4 h-4 mr-1" /> Add Visitor
+              </Button>
+            </div>
+          ) : (
+          <>
           <div className="flex gap-2">
             <Input
               value={newPersonSearch}
@@ -491,6 +561,8 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
               ))
             )}
           </div>
+          </>
+          )}
 
           {additionalPeople.length > 0 && (
             <Card className="p-3 space-y-2">
