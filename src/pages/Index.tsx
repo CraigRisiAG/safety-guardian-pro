@@ -509,17 +509,33 @@ const Index = () => {
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold text-foreground">How this is calculated</h4>
                 <p className="text-sm text-muted-foreground">
-                  The score reflects the quality of completed safety compliance checks weighted against any overdue scheduled checks.
+                  The score combines the quality of completed compliance checks (70%) with coverage of required health & safety officials across areas and work days (30%). It matches the score shown in the Compliance Overview widget.
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
                   <li><span className="text-safe font-medium">Pass</span> = 1.0 point</li>
                   <li><span className="text-warning font-medium">Partial</span> = 0.5 points</li>
                   <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
                   <li>Each <span className="text-emergency font-medium">overdue</span> scheduled check subtracts 0.5 points and adds to the total.</li>
+                  <li>Officials coverage = (required − missing) ÷ required across all areas, days and safety roles.</li>
                 </ul>
                 <p className="text-xs text-muted-foreground pt-1">
-                  Formula: <code className="bg-muted px-1 rounded">((pass + 0.5 × partial) − 0.5 × overdue) ÷ (completed + overdue) × 100</code>
+                  Formula: <code className="bg-muted px-1 rounded">checks × 0.7 + officials coverage × 0.3</code>
                 </p>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-foreground">{complianceBreakdown.checksScore}%</div>
+                    <div className="text-xs text-muted-foreground">Checks Quality (70%)</div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-foreground">{complianceBreakdown.officialCoverageScore}%</div>
+                    <div className="text-xs text-muted-foreground">
+                      Officials Coverage (30%)
+                      {complianceBreakdown.requiredOfficialsTotal > 0 && (
+                        <> · {complianceBreakdown.missingOfficialsTotal} gaps</>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
