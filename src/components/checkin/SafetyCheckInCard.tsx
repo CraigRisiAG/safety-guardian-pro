@@ -518,7 +518,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                 />
               </div>
               <Button type="button" variant="outline" className="w-full" onClick={handleAddPerson}>
-                <Plus className="w-4 h-4 mr-1" /> Add Visitor
+                <Plus className="w-4 h-4 mr-1" /> Add Guest
               </Button>
             </div>
           ) : (
