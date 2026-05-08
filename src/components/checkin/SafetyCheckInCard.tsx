@@ -470,7 +470,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
-            <Label className="text-base font-semibold">Check In Additional People</Label>
+            <Label className="text-base font-semibold">Check In Another Person</Label>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
