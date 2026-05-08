@@ -136,7 +136,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
     }
 
     if (additionalPeople.some((entry) => entry.personnelId === person.id)) {
-      toast.error('This colleague is already added');
+      toast.error('This person is already added');
       return;
     }
 
@@ -470,7 +470,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
-            <Label className="text-base font-semibold">Check In Additional People</Label>
+            <Label className="text-base font-semibold">Check In Another Person</Label>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -496,7 +496,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                   : 'border-border hover:border-info/50'
               )}
             >
-              <User className="w-4 h-4" /> Visitor
+              <User className="w-4 h-4" /> Guest
             </button>
           </div>
 
@@ -518,7 +518,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                 />
               </div>
               <Button type="button" variant="outline" className="w-full" onClick={handleAddPerson}>
-                <Plus className="w-4 h-4 mr-1" /> Add Visitor
+                <Plus className="w-4 h-4 mr-1" /> Add Guest
               </Button>
             </div>
           ) : (
@@ -530,7 +530,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                 setNewPersonSearch(e.target.value);
                 setSelectedAdditionalStaffId(null);
               }}
-              placeholder="Search colleague by name or staff code"
+              placeholder="Search staff by name or staff code"
               onKeyDown={(e) => e.key === 'Enter' && handleAddPerson()}
             />
             <Button type="button" variant="outline" onClick={handleAddPerson}>
