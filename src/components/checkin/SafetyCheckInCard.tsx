@@ -136,7 +136,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
     }
 
     if (additionalPeople.some((entry) => entry.personnelId === person.id)) {
-      toast.error('This colleague is already added');
+      toast.error('This person is already added');
       return;
     }
 
