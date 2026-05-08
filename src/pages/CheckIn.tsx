@@ -48,6 +48,9 @@ export default function CheckIn() {
   const [colleagueFloorId, setColleagueFloorId] = useState('');
   const [colleagueAreaId, setColleagueAreaId] = useState('');
   const [colleagueNotes, setColleagueNotes] = useState('');
+  const [colleaguePersonType, setColleaguePersonType] = useState<'staff' | 'guest'>('staff');
+  const [colleagueGuestFirstName, setColleagueGuestFirstName] = useState('');
+  const [colleagueGuestSurname, setColleagueGuestSurname] = useState('');
 
   useEffect(() => {
     if (!activeDrill) {
@@ -240,17 +243,39 @@ export default function CheckIn() {
   };
 
   const handleCheckInColleague = () => {
-    if (!activeDrill || !user || !selectedColleague || !colleagueFloorId || !colleagueAreaId) {
-      toast.error('Select colleague, floor and section');
+    if (!activeDrill || !user || !colleagueFloorId || !colleagueAreaId) {
+      toast.error('Select floor and section');
       return;
+    }
+
+    let personName: string;
+    let staffCode: string | undefined;
+    let personnelId: string | undefined;
+
+    if (colleaguePersonType === 'guest') {
+      const first = colleagueGuestFirstName.trim();
+      const last = colleagueGuestSurname.trim();
+      if (!first || !last) {
+        toast.error('Enter the guest\u2019s first name and surname');
+        return;
+      }
+      personName = `${first} ${last} (Guest)`;
+    } else {
+      if (!selectedColleague) {
+        toast.error('Select a staff member');
+        return;
+      }
+      personName = selectedColleague.userName;
+      staffCode = selectedColleague.staffCode;
+      personnelId = selectedColleague.id;
     }
 
     const entry: SafetyCheckIn = {
       id: `checkin-${Date.now()}`,
       drillId: activeDrill.id,
-      personName: selectedColleague.userName,
-      staffCode: selectedColleague.staffCode,
-      personnelId: selectedColleague.id,
+      personName,
+      staffCode,
+      personnelId,
       isSelfCheckIn: false,
       checkedInByUserId: user.id,
       checkedInByName: user.name,
@@ -271,8 +296,10 @@ export default function CheckIn() {
     setColleagueFloorId('');
     setColleagueAreaId('');
     setColleagueNotes('');
+    setColleagueGuestFirstName('');
+    setColleagueGuestSurname('');
     setIsColleagueFormVisible(false);
-    toast.success(`Checked in ${selectedColleague.userName}`);
+    toast.success(`Checked in ${personName}`);
   };
 
   if (!activeDrill) {
@@ -301,7 +328,7 @@ export default function CheckIn() {
                 </div>
                 <h2 className="text-2xl font-bold text-foreground">You're Checked In!</h2>
                 <p className="text-muted-foreground mt-2 text-center">
-                  Your status is saved. You can now check in colleagues below.
+                  Your status is saved. You can now check in another person below.
                 </p>
                 <Button
                   type="button"
@@ -310,14 +337,65 @@ export default function CheckIn() {
                   onClick={() => setIsColleagueFormVisible((previous) => !previous)}
                 >
                   <UserPlus className="w-4 h-4 mr-2" />
-                  {isColleagueFormVisible ? 'Hide Colleague Form' : 'Check In Colleague'}
+                  {isColleagueFormVisible ? 'Hide Form' : 'Check In Another Person'}
                 </Button>
               </div>
 
               {isColleagueFormVisible && (
                 <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-foreground">Colleague Check-In</h3>
+                  <h3 className="font-semibold text-foreground">Check In Another Person</h3>
 
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setColleaguePersonType('staff')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                        colleaguePersonType === 'staff'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      Staff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setColleaguePersonType('guest')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 p-2 rounded-md border-2 text-sm transition-all',
+                        colleaguePersonType === 'guest'
+                          ? 'border-info bg-info-muted text-info'
+                          : 'border-border hover:border-info/50'
+                      )}
+                    >
+                      Guest
+                    </button>
+                  </div>
+
+                  {colleaguePersonType === 'guest' ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="guest-first">First Name</Label>
+                        <Input
+                          id="guest-first"
+                          value={colleagueGuestFirstName}
+                          onChange={(event) => setColleagueGuestFirstName(event.target.value)}
+                          placeholder="First name"
+                          maxLength={50}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="guest-surname">Surname</Label>
+                        <Input
+                          id="guest-surname"
+                          value={colleagueGuestSurname}
+                          onChange={(event) => setColleagueGuestSurname(event.target.value)}
+                          placeholder="Surname"
+                          maxLength={50}
+                        />
+                      </div>
+                    </div>
+                  ) : (
                   <div className="space-y-2">
                     <Label htmlFor="colleague-search">Search Staff</Label>
                     <Input
@@ -358,6 +436,7 @@ export default function CheckIn() {
                       </p>
                     )}
                   </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     <Select value={colleagueFloorId} onValueChange={(value) => { setColleagueFloorId(value); setColleagueAreaId(''); }}>
@@ -400,7 +479,7 @@ export default function CheckIn() {
                   />
 
                   <Button onClick={handleCheckInColleague} className="w-full">
-                    Save Colleague Check-In
+                    Save Check-In
                   </Button>
                 </div>
               )}
