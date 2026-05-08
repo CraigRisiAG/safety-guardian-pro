@@ -48,6 +48,9 @@ export default function CheckIn() {
   const [colleagueFloorId, setColleagueFloorId] = useState('');
   const [colleagueAreaId, setColleagueAreaId] = useState('');
   const [colleagueNotes, setColleagueNotes] = useState('');
+  const [colleaguePersonType, setColleaguePersonType] = useState<'staff' | 'guest'>('staff');
+  const [colleagueGuestFirstName, setColleagueGuestFirstName] = useState('');
+  const [colleagueGuestSurname, setColleagueGuestSurname] = useState('');
 
   useEffect(() => {
     if (!activeDrill) {
