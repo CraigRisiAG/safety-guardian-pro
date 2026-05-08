@@ -243,17 +243,39 @@ export default function CheckIn() {
   };
 
   const handleCheckInColleague = () => {
-    if (!activeDrill || !user || !selectedColleague || !colleagueFloorId || !colleagueAreaId) {
-      toast.error('Select colleague, floor and section');
+    if (!activeDrill || !user || !colleagueFloorId || !colleagueAreaId) {
+      toast.error('Select floor and section');
       return;
+    }
+
+    let personName: string;
+    let staffCode: string | undefined;
+    let personnelId: string | undefined;
+
+    if (colleaguePersonType === 'guest') {
+      const first = colleagueGuestFirstName.trim();
+      const last = colleagueGuestSurname.trim();
+      if (!first || !last) {
+        toast.error('Enter the guest\u2019s first name and surname');
+        return;
+      }
+      personName = `${first} ${last} (Guest)`;
+    } else {
+      if (!selectedColleague) {
+        toast.error('Select a staff member');
+        return;
+      }
+      personName = selectedColleague.userName;
+      staffCode = selectedColleague.staffCode;
+      personnelId = selectedColleague.id;
     }
 
     const entry: SafetyCheckIn = {
       id: `checkin-${Date.now()}`,
       drillId: activeDrill.id,
-      personName: selectedColleague.userName,
-      staffCode: selectedColleague.staffCode,
-      personnelId: selectedColleague.id,
+      personName,
+      staffCode,
+      personnelId,
       isSelfCheckIn: false,
       checkedInByUserId: user.id,
       checkedInByName: user.name,
@@ -274,8 +296,10 @@ export default function CheckIn() {
     setColleagueFloorId('');
     setColleagueAreaId('');
     setColleagueNotes('');
+    setColleagueGuestFirstName('');
+    setColleagueGuestSurname('');
     setIsColleagueFormVisible(false);
-    toast.success(`Checked in ${selectedColleague.userName}`);
+    toast.success(`Checked in ${personName}`);
   };
 
   if (!activeDrill) {
