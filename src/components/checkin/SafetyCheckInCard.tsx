@@ -530,7 +530,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                 setNewPersonSearch(e.target.value);
                 setSelectedAdditionalStaffId(null);
               }}
-              placeholder="Search colleague by name or staff code"
+              placeholder="Search staff by name or staff code"
               onKeyDown={(e) => e.key === 'Enter' && handleAddPerson()}
             />
             <Button type="button" variant="outline" onClick={handleAddPerson}>
