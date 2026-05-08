@@ -496,7 +496,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
                   : 'border-border hover:border-info/50'
               )}
             >
-              <User className="w-4 h-4" /> Visitor
+              <User className="w-4 h-4" /> Guest
             </button>
           </div>
 
