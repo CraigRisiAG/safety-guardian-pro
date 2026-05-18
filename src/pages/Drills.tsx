@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
 import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
@@ -18,6 +18,8 @@ import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { Badge } from '@/components/ui/badge';
 import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 
 const drillTypeLabels: Record<DrillType, string> = {
   fire: 'Fire Drill',
@@ -56,6 +58,40 @@ export default function Drills() {
   const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
   const { settings } = useAdminSettings();
+  const { user } = useAuth();
+
+  const currentPermission = useMemo(
+    () => findCurrentUserPermission(user, settings.userPermissions),
+    [user, settings.userPermissions],
+  );
+  const canStartDrills = canStartDrillsForUser(currentPermission);
+  const isSuperAdmin = isSuperAdminPermission(currentPermission);
+  const scopedAreaIds = useMemo(
+    () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
+    [currentPermission, settings.buildings],
+  );
+
+  const visibleBuildings = useMemo(() => {
+    if (isSuperAdmin) {
+      return settings.buildings;
+    }
+
+    return settings.buildings
+      .map((building) => {
+        const floors = building.floors
+          .map((floor) => ({
+            ...floor,
+            areas: floor.areas.filter((area) => scopedAreaIds.has(area.id)),
+          }))
+          .filter((floor) => floor.areas.length > 0);
+
+        return {
+          ...building,
+          floors,
+        };
+      })
+      .filter((building) => building.floors.length > 0);
+  }, [isSuperAdmin, settings.buildings, scopedAreaIds]);
 
   useEffect(() => {
     saveDrillsToStorage(drills);
@@ -67,6 +103,10 @@ export default function Drills() {
     floorIds: string[];
     areaIds: string[];
   }) => {
+    if (!canStartDrills) {
+      toast.error('You do not have permission to start drills');
+      return;
+    }
     const primaryBuildingId = data.buildingIds[0];
     if (!primaryBuildingId) {
       return;
@@ -98,6 +138,10 @@ export default function Drills() {
     areaIds: string[];
     scheduledFor?: Date;
   }) => {
+    if (!canStartDrills) {
+      toast.error('You do not have permission to schedule drills');
+      return;
+    }
     const primaryBuildingId = data.buildingIds[0];
     if (!primaryBuildingId || !data.scheduledFor) {
       return;
@@ -132,7 +176,22 @@ export default function Drills() {
     toast.success('Drill ended successfully');
   };
 
-  const filteredDrills = drills.filter(drill => {
+  const scopedDrills = drills.filter((drill) => {
+    if (isSuperAdmin) {
+      return true;
+    }
+
+    if (drill.location.areaIds.length > 0) {
+      return drill.location.areaIds.some((areaId) => scopedAreaIds.has(areaId));
+    }
+
+    const selectedBuildingIds = drill.location.buildingIds?.length
+      ? drill.location.buildingIds
+      : [drill.location.buildingId];
+    return visibleBuildings.some((building) => selectedBuildingIds.includes(building.id));
+  });
+
+  const filteredDrills = scopedDrills.filter(drill => {
     if (activeTab === 'all') return true;
     if (activeTab === 'history') return false;
     if (activeTab === 'missed') return isMissedDrill(drill);
@@ -166,14 +225,14 @@ export default function Drills() {
           <div className="flex items-center gap-2">
             <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" disabled={!canStartDrills}>
                   <Calendar className="w-4 h-4" />
                   Schedule Drill
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <StartDrillForm
-                  buildings={settings.buildings}
+                  buildings={visibleBuildings}
                   mode="schedule"
                   onSubmit={handleScheduleDrill}
                   onCancel={() => setIsScheduleDialogOpen(false)}
@@ -183,14 +242,14 @@ export default function Drills() {
 
             <Dialog open={isStartDialogOpen} onOpenChange={setIsStartDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 gradient-emergency text-emergency-foreground hover:opacity-90">
+                <Button className="gap-2 gradient-emergency text-emergency-foreground hover:opacity-90" disabled={!canStartDrills}>
                   <Siren className="w-4 h-4" />
                   Start Drill
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <StartDrillForm
-                  buildings={settings.buildings}
+                  buildings={visibleBuildings}
                   onSubmit={handleStartDrill}
                   onCancel={() => setIsStartDialogOpen(false)}
                 />
@@ -380,7 +439,7 @@ export default function Drills() {
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            {drill.status === 'active' && (
+                            {drill.status === 'active' && canStartDrills && (
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -389,7 +448,7 @@ export default function Drills() {
                                 End Drill
                               </Button>
                             )}
-                            {drill.status === 'scheduled' && (
+                            {drill.status === 'scheduled' && canStartDrills && (
                               <Button 
                                 variant="outline" 
                                 size="sm"

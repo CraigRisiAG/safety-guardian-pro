@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { IncidentForm } from '@/components/incidents/IncidentForm';
 import { Incident, IncidentSeverity, IncidentStatus } from '@/types/safety';
@@ -23,6 +23,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { canResolveIncidentsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 
 const severityStyles = {
   low: 'bg-info-muted text-info border-info/20',
@@ -57,6 +59,7 @@ const statusStyles = {
 
 export default function Incidents() {
   const { settings } = useAdminSettings();
+  const { user } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>(() => loadIncidentsFromStorage());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
@@ -65,6 +68,25 @@ export default function Incidents() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [buildingFilter, setBuildingFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('all');
+
+  const currentPermission = useMemo(
+    () => findCurrentUserPermission(user, settings.userPermissions),
+    [user, settings.userPermissions],
+  );
+  const canResolveIncidents = canResolveIncidentsForUser(currentPermission);
+  const isSuperAdmin = isSuperAdminPermission(currentPermission);
+  const scopedAreaIds = useMemo(
+    () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
+    [currentPermission, settings.buildings],
+  );
+
+  const visibleIncidents = useMemo(() => {
+    if (isSuperAdmin) {
+      return incidents;
+    }
+
+    return incidents.filter((incident) => scopedAreaIds.has(incident.location.areaId));
+  }, [incidents, isSuperAdmin, scopedAreaIds]);
 
   useEffect(() => {
     saveIncidentsToStorage(incidents);
@@ -81,7 +103,7 @@ export default function Incidents() {
     };
   };
 
-  const filteredIncidents = incidents.filter(incident => {
+  const filteredIncidents = visibleIncidents.filter(incident => {
     const matchesSearch = incident.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          incident.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = severityFilter === 'all' || incident.severity === severityFilter;
@@ -91,13 +113,35 @@ export default function Incidents() {
     return matchesSearch && matchesSeverity && matchesStatus && matchesBuilding && matchesArea;
   });
 
+  const scopedBuildings = useMemo(() => {
+    if (isSuperAdmin) {
+      return settings.buildings;
+    }
+
+    return settings.buildings
+      .map((building) => {
+        const floors = building.floors
+          .map((floor) => ({
+            ...floor,
+            areas: floor.areas.filter((area) => scopedAreaIds.has(area.id)),
+          }))
+          .filter((floor) => floor.areas.length > 0);
+
+        return {
+          ...building,
+          floors,
+        };
+      })
+      .filter((building) => building.floors.length > 0);
+  }, [isSuperAdmin, settings.buildings, scopedAreaIds]);
+
   const selectedFilterBuilding = buildingFilter === 'all'
     ? null
-    : settings.buildings.find((building) => building.id === buildingFilter);
+    : scopedBuildings.find((building) => building.id === buildingFilter);
 
   const filterAreas = selectedFilterBuilding
     ? selectedFilterBuilding.floors.flatMap((floor) => floor.areas)
-    : settings.buildings.flatMap((building) => building.floors.flatMap((floor) => floor.areas));
+    : scopedBuildings.flatMap((building) => building.floors.flatMap((floor) => floor.areas));
 
   const buildUpdatedIncident = (
     incident: Incident,
@@ -145,6 +189,10 @@ export default function Incidents() {
     floorId: string;
     areaId: string;
   }) => {
+    if (!canResolveIncidents) {
+      toast.error('You do not have permission to report incidents');
+      return;
+    }
     const newIncident: Incident = {
       id: `incident-${Date.now()}`,
       title: data.title,
@@ -177,6 +225,11 @@ export default function Incidents() {
       rootCause?: string;
     },
   ) => {
+    if (!canResolveIncidents) {
+      toast.error('You do not have permission to resolve incidents');
+      return;
+    }
+
     setIncidents((previous) =>
       previous.map((incident) =>
         incident.id === incidentId ? buildUpdatedIncident(incident, updates) : incident,
@@ -197,14 +250,14 @@ export default function Incidents() {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 w-full sm:w-auto">
+              <Button className="gap-2 w-full sm:w-auto" disabled={!canResolveIncidents}>
                 <Plus className="w-4 h-4" />
                 Report Incident
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <IncidentForm 
-                buildings={settings.buildings}
+                buildings={scopedBuildings}
                 onSubmit={handleSubmit} 
                 onCancel={() => setIsDialogOpen(false)} 
               />
@@ -259,7 +312,7 @@ export default function Incidents() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Buildings</SelectItem>
-                {settings.buildings.map((building) => (
+                {scopedBuildings.map((building) => (
                   <SelectItem key={building.id} value={building.id}>
                     {building.name}
                   </SelectItem>
@@ -343,14 +396,16 @@ export default function Incidents() {
                             <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-medium rounded-full border bg-background/60 text-foreground">
                               {statusStyles[incident.status].label}
                             </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2"
-                              onClick={() => setEditingIncident(incident)}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
+                            {canResolveIncidents && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={() => setEditingIncident(incident)}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">

@@ -14,6 +14,7 @@ import { UserPermission, UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS, CustomBuildin
 import { BulkUserUpload } from './BulkUserUpload';
 import { toast } from 'sonner';
 import { ensureCredentialForRole } from '@/lib/authAccounts';
+import { getRolePermissionDefaults } from '@/lib/personnelAccess';
 
 interface UserPermissionsManagerProps {
   permissions: UserPermission[];
@@ -42,6 +43,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     role: 'viewer' as UserRole,
     buildingAccess: [] as string[],
     primaryFloorId: '',
+    primaryAreaId: '',
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WorkDay[],
     safetyRoles: [] as SafetyRole[],
     canStartDrills: false,
@@ -71,6 +73,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       role: 'viewer',
       buildingAccess: [],
       primaryFloorId: '',
+      primaryAreaId: '',
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       safetyRoles: [],
       canStartDrills: false,
@@ -94,6 +97,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       role: formData.role,
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
+      primaryAreaId: formData.primaryAreaId || undefined,
       workDays: formData.workDays,
       safetyRoles: formData.safetyRoles,
       canStartDrills: formData.canStartDrills,
@@ -131,6 +135,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       role: formData.role,
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
+      primaryAreaId: formData.primaryAreaId || undefined,
       workDays: formData.workDays,
       safetyRoles: formData.safetyRoles,
       canStartDrills: formData.canStartDrills,
@@ -183,6 +188,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       role: user.role,
       buildingAccess: user.buildingAccess,
       primaryFloorId: user.primaryFloorId || '',
+      primaryAreaId: user.primaryAreaId || '',
       workDays: user.workDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       safetyRoles: user.safetyRoles || [],
       canStartDrills: user.canStartDrills,
@@ -198,6 +204,20 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       buildingAccess: prev.buildingAccess.includes(buildingId)
         ? prev.buildingAccess.filter(id => id !== buildingId)
         : [...prev.buildingAccess, buildingId],
+    }));
+  };
+
+  const getAreasForFloor = (floorId: string) => {
+    const floor = buildings.flatMap((building) => building.floors).find((entry) => entry.id === floorId);
+    return floor?.areas ?? [];
+  };
+
+  const handleRoleChange = (role: UserRole) => {
+    const defaults = getRolePermissionDefaults(role);
+    setFormData((prev) => ({
+      ...prev,
+      role,
+      ...defaults,
     }));
   };
 
@@ -253,7 +273,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       </div>
       <div className="space-y-2">
         <Label>Role</Label>
-        <Select value={formData.role} onValueChange={(value: UserRole) => setFormData(prev => ({ ...prev, role: value }))}>
+        <Select value={formData.role} onValueChange={handleRoleChange}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -297,7 +317,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
         </Label>
         <Select 
           value={formData.primaryFloorId || 'none'} 
-          onValueChange={(value) => setFormData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value }))}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, primaryFloorId: value === 'none' ? '' : value, primaryAreaId: '' }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select primary floor" />
@@ -314,6 +334,32 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">The floor where this person typically works</p>
+      </div>
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          <Layers className="w-4 h-4" />
+          Primary Area Assignment
+        </Label>
+        <Select
+          value={formData.primaryAreaId || 'none'}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, primaryAreaId: value === 'none' ? '' : value }))}
+          disabled={!formData.primaryFloorId}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select primary area" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-muted-foreground">No primary area</span>
+            </SelectItem>
+            {getAreasForFloor(formData.primaryFloorId).map((area) => (
+              <SelectItem key={area.id} value={area.id}>
+                {area.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Admins and responders are scoped by this area</p>
       </div>
       <div className="space-y-2">
         <Label className="flex items-center gap-2">

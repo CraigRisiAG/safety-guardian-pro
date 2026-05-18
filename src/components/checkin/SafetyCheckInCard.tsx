@@ -42,6 +42,7 @@ interface SafetyCheckInCardProps {
     additionalPeople?: Array<{ name: string; status: 'safe' | 'needs-assistance'; staffCode?: string; personnelId?: string }>;
   }) => void;
   isLoggedIn?: boolean;
+  canCheckInOthers?: boolean;
 }
 
 const drillTypeLabels = {
@@ -52,7 +53,7 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel = [], onCheckIn, isLoggedIn = false }: SafetyCheckInCardProps) {
+export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel = [], onCheckIn, isLoggedIn = false, canCheckInOthers = true }: SafetyCheckInCardProps) {
   const [status, setStatus] = useState<'safe' | 'needs-assistance' | null>(null);
   const [floorId, setFloorId] = useState('');
   const [areaId, setAreaId] = useState('');
@@ -197,7 +198,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
         userType: isLoggedIn ? undefined : userType!,
         staffCode: userType === 'staff' ? staffCode : undefined,
         personName: resolvedName,
-        additionalPeople: additionalPeople.length > 0 ? additionalPeople : undefined,
+        additionalPeople: canCheckInOthers && additionalPeople.length > 0 ? additionalPeople : undefined,
       });
     }
   };
@@ -466,7 +467,7 @@ export function SafetyCheckInCard({ drill, buildings: customBuildings, personnel
       </div>
 
       {/* Multi-person check-in (for logged-in users) */}
-      {isLoggedIn && (
+      {isLoggedIn && canCheckInOthers && (
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />

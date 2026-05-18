@@ -17,6 +17,8 @@ import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserMenu } from '@/components/UserMenu';
+import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { canManageUsersForUser, findCurrentUserPermission } from '@/lib/personnelAccess';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -34,7 +36,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { isCheckInEnabled } = useDrillStatus();
   const { user } = useAuth();
-  const availableNavigation = navigation.filter((item) => item.href !== '/admin' || user?.role === 'admin');
+  const { settings } = useAdminSettings();
+  const currentPermission = findCurrentUserPermission(user, settings.userPermissions);
+  const canManageUsers = canManageUsersForUser(currentPermission);
+  const availableNavigation = navigation.filter((item) => item.href !== '/admin' || canManageUsers);
   
   return (
     <div className="flex flex-col h-full">

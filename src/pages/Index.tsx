@@ -32,7 +32,7 @@ import { Progress } from '@/components/ui/progress';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
 import { useAuth } from '@/contexts/AuthContext';
-import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
+import { canStartDrillsForUser, filterPersonnelByUserScope, findCurrentUserPermission } from '@/lib/personnelAccess';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
@@ -54,6 +54,11 @@ const Index = () => {
     () => filterPersonnelByUserScope(settings.userPermissions, user),
     [settings.userPermissions, user],
   );
+  const currentPermission = useMemo(
+    () => findCurrentUserPermission(user, settings.userPermissions),
+    [user, settings.userPermissions],
+  );
+  const canEndDrill = canStartDrillsForUser(currentPermission);
 
   // Unified Safety Compliance score (shared with Compliance Overview widget)
   const complianceBreakdown = computeSafetyComplianceBreakdown(settings);
@@ -354,7 +359,13 @@ const Index = () => {
           <ActiveDrillBanner 
             drill={activeDrill} 
             checkInCount={checkInStats}
+            canEndDrill={canEndDrill}
             onEndDrill={() => {
+              if (!canEndDrill) {
+                toast.error('You do not have permission to end drills');
+                return;
+              }
+
               const record = endDrill(checkInStats);
               if (record) {
                 setDrills((previous) => previous.map((drill) => (

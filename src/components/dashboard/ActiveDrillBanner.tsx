@@ -9,6 +9,7 @@ interface ActiveDrillBannerProps {
   drill: Drill;
   checkInCount: { safe: number; needsAssistance: number; pending: number };
   onEndDrill?: () => void;
+  canEndDrill?: boolean;
 }
 
 const drillTypeLabels = {
@@ -19,7 +20,7 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-export function ActiveDrillBanner({ drill, checkInCount, onEndDrill }: ActiveDrillBannerProps) {
+export function ActiveDrillBanner({ drill, checkInCount, onEndDrill, canEndDrill = false }: ActiveDrillBannerProps) {
   const building = buildings.find(b => b.id === drill.location.buildingId);
 
   // Expected count is derived from drill-scope personnel accountability.
@@ -95,12 +96,14 @@ export function ActiveDrillBanner({ drill, checkInCount, onEndDrill }: ActiveDri
             </Badge>
           )}
           
-          <Button 
-            onClick={onEndDrill}
-            className="bg-white text-emergency hover:bg-white/90 font-semibold"
-          >
-            End Drill
-          </Button>
+          {canEndDrill && (
+            <Button 
+              onClick={onEndDrill}
+              className="bg-white text-emergency hover:bg-white/90 font-semibold"
+            >
+              End Drill
+            </Button>
+          )}
         </div>
       </div>
     </div>
