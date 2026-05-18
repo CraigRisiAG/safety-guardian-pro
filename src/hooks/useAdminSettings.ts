@@ -11,9 +11,35 @@ import {
   DEFAULT_SAFETY_CHECK_ITEMS,
 } from '@/types/admin';
 import { buildings } from '@/data/mockData';
+import { getRolePermissionDefaults } from '@/lib/personnelAccess';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
 const SETTINGS_UPDATED_EVENT = 'safeguard_admin_settings_updated';
+const AUTH_ACCOUNTS_STORAGE_KEY = 'auth_accounts';
+
+interface AuthAccountRecord {
+  id: string;
+  email: string;
+  name: string;
+  role?: 'user' | 'admin';
+}
+
+const parseAuthAccounts = (raw: string | null): AuthAccountRecord[] => {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as AuthAccountRecord[];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((entry) => !!entry?.id && !!entry?.email && !!entry?.name);
+  } catch {
+    return [];
+  }
+};
 
 const parseStoredSettings = (stored: string | null): AdminSettings | null => {
   if (!stored) {
@@ -115,6 +141,59 @@ export function useAdminSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
   }, [settings]);
+
+  // Ensure any auth account exists in user permissions (default viewer unless account is admin)
+  useEffect(() => {
+    const authAccounts = parseAuthAccounts(localStorage.getItem(AUTH_ACCOUNTS_STORAGE_KEY));
+    if (authAccounts.length === 0) {
+      return;
+    }
+
+    const normalizedPermissions = settings.userPermissions.map((permission) => ({
+      id: permission.id,
+      userId: permission.userId,
+      email: permission.email.trim().toLowerCase(),
+    }));
+
+    const missingAccounts = authAccounts.filter((account) => {
+      const email = account.email.trim().toLowerCase();
+      return !normalizedPermissions.some(
+        (permission) => permission.userId === account.id || permission.id === account.id || permission.email === email,
+      );
+    });
+
+    if (missingAccounts.length === 0) {
+      return;
+    }
+
+    const now = new Date();
+    const additions: UserPermission[] = missingAccounts.map((account, index) => {
+      const mappedRole = account.role === 'admin' ? 'admin' : 'viewer';
+      const defaults = getRolePermissionDefaults(mappedRole);
+      return {
+        id: `perm-auth-${Date.now()}-${index}`,
+        userId: account.id,
+        userName: account.name,
+        email: account.email.trim().toLowerCase(),
+        role: mappedRole,
+        buildingAccess: [],
+        primaryFloorId: undefined,
+        primaryAreaId: undefined,
+        workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+        safetyRoles: [],
+        canStartDrills: defaults.canStartDrills,
+        canResolveIncidents: defaults.canResolveIncidents,
+        canManageUsers: defaults.canManageUsers,
+        createdAt: now,
+        updatedAt: now,
+      };
+    });
+
+    setSettings((prev) => ({
+      ...prev,
+      userPermissions: [...prev.userPermissions, ...additions],
+    }));
+  }, [settings.userPermissions]);
 
   // Keep multiple hook instances in sync (same-tab + cross-tab)
   useEffect(() => {

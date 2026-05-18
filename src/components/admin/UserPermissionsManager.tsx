@@ -464,7 +464,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                 Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
@@ -640,7 +640,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                             <Edit2 className="w-4 h-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-lg">
+                        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Edit User</DialogTitle>
                           </DialogHeader>
