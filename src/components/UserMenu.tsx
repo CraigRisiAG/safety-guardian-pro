@@ -58,6 +58,11 @@ export const UserMenu: React.FC = () => {
 
   const [impersonateUserId, setImpersonateUserId] = useState("");
 
+  const manageableUsers = useMemo(
+    () => (user ? systemUsers.filter((entry) => entry.id !== user.id) : []),
+    [systemUsers, user],
+  );
+
   if (!user) return null;
 
   const handleLogout = () => {
@@ -74,11 +79,6 @@ export const UserMenu: React.FC = () => {
       .toUpperCase()
       .slice(0, 2);
   };
-
-  const manageableUsers = useMemo(
-    () => systemUsers.filter((entry) => entry.id !== user.id),
-    [systemUsers, user.id],
-  );
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {

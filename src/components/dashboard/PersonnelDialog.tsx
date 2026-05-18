@@ -13,6 +13,8 @@ import { UserPermission, CustomBuilding, WorkDay, WORK_DAY_LABELS, ALL_WORK_DAYS
 import { mockDrills, mockCheckIns } from '@/data/mockData';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { useAuth } from '@/contexts/AuthContext';
+import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
 
 interface PersonnelDialogProps {
   personnel: UserPermission[];
@@ -63,6 +65,7 @@ interface NewPersonnelForm {
 }
 
 export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger, externalOpen, onExternalOpenChange }: PersonnelDialogProps) {
+  const { user } = useAuth();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = onExternalOpenChange || setInternalOpen;
@@ -198,6 +201,11 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
   const isManualPersonnel = (person: UserPermission) => {
     return person.userId.startsWith('manual-') || person.userId.startsWith('user-');
   };
+
+  const scopedPersonnel = useMemo(
+    () => filterPersonnelByUserScope(personnel, user),
+    [personnel, user],
+  );
 
   const getPersonnelType = (person: UserPermission) => {
     if (isSystemUser(person)) return 'system';
@@ -478,7 +486,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
   };
 
   const enhancedPersonnel = useMemo(() => {
-    return personnel.map(person => {
+    return scopedPersonnel.map(person => {
       const location = getLocationInfo(person);
       const participation = getDrillParticipation(person);
       const nameParts = person.userName.split(' ');
@@ -495,7 +503,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         personnelType,
       };
     });
-  }, [personnel, buildings]);
+  }, [scopedPersonnel, buildings]);
 
   const filteredPersonnel = useMemo(() => {
     let result = enhancedPersonnel;
@@ -588,7 +596,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Personnel Directory ({personnel.length} total)
+              Personnel Directory ({scopedPersonnel.length} visible)
             </DialogTitle>
             <div className="flex gap-2">
               <Button

@@ -33,6 +33,8 @@ const navigation = [
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { isCheckInEnabled } = useDrillStatus();
+  const { user } = useAuth();
+  const availableNavigation = navigation.filter((item) => item.href !== '/admin' || user?.role === 'admin');
   
   return (
     <div className="flex flex-col h-full">
@@ -50,7 +52,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         <TooltipProvider>
-          {navigation.map((item) => {
+          {availableNavigation.map((item) => {
             const isActive = location.pathname === item.href;
             const isDisabled = item.requiresDrill && !isCheckInEnabled;
             

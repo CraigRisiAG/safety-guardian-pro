@@ -31,9 +31,12 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
+import { useAuth } from '@/contexts/AuthContext';
+import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const { user } = useAuth();
   const [incidents, setIncidents] = useState(() => loadIncidentsFromStorage());
   const [drills, setDrills] = useState(() => loadDrillsFromStorage());
   const drillsStorageSnapshotRef = useRef<string | null>(getDrillsStorageSnapshot());
@@ -46,6 +49,11 @@ const Index = () => {
   const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
   const [isComplianceScoreDialogOpen, setIsComplianceScoreDialogOpen] = useState(false);
+
+  const visiblePersonnel = useMemo(
+    () => filterPersonnelByUserScope(settings.userPermissions, user),
+    [settings.userPermissions, user],
+  );
 
   // Unified Safety Compliance score (shared with Compliance Overview widget)
   const complianceBreakdown = computeSafetyComplianceBreakdown(settings);
@@ -398,7 +406,7 @@ const Index = () => {
               <div className="h-full">
                 <StatCard
                   title="Total Personnel"
-                  value={settings.userPermissions.length}
+                  value={visiblePersonnel.length}
                   icon={<Users className="w-5 h-5" />}
                   clickable
                 />

@@ -17,7 +17,7 @@ interface AuthContextType {
   canAdministerUsers: boolean;
   systemUsers: User[];
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<User>;
   logout: () => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<void>;
@@ -291,7 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (email: string, password: string, name: string): Promise<void> => {
+  const register = async (email: string, password: string, name: string): Promise<User> => {
     setIsLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -329,6 +329,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(next));
       setSession({ currentUserId: newAccount.id });
       writeStorage(TOKEN_STORAGE_KEY, createToken());
+
+      return toPublicUser(newAccount);
     } finally {
       setIsLoading(false);
     }

@@ -15,6 +15,7 @@ import {
   getCheckInsStorageSnapshot,
   loadCheckInsForDrill,
 } from '@/lib/checkInsStorage';
+import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -137,14 +138,16 @@ export default function CheckIn() {
       return [];
     }
 
+    const scopedPersonnel = filterPersonnelByUserScope(settings.userPermissions, user);
+
     const selectedBuildingIds = activeDrill.location.buildingIds?.length
       ? activeDrill.location.buildingIds
       : [activeDrill.location.buildingId];
 
-    return settings.userPermissions.filter((person) =>
+    return scopedPersonnel.filter((person) =>
       person.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId)),
     );
-  }, [activeDrill, settings.userPermissions]);
+  }, [activeDrill, settings.userPermissions, user]);
 
   const colleagueOptions = useMemo(() => {
     const query = colleagueSearch.trim().toLowerCase();
