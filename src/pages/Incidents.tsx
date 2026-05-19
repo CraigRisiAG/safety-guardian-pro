@@ -17,7 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, AlertTriangle, CheckCircle2, Clock, Pencil } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, Search, AlertTriangle, CheckCircle2, Clock, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -239,6 +249,18 @@ export default function Incidents() {
     toast.success('Incident updated successfully');
   };
 
+  const [deletingIncident, setDeletingIncident] = useState<Incident | null>(null);
+
+  const handleDeleteIncident = (incidentId: string) => {
+    if (!isSuperAdmin) {
+      toast.error('Only System Super Admins can delete incidents');
+      return;
+    }
+    setIncidents((previous) => previous.filter((incident) => incident.id !== incidentId));
+    setDeletingIncident(null);
+    toast.success('Incident deleted');
+  };
+
   return (
     <AppLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -406,6 +428,17 @@ export default function Incidents() {
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
                             )}
+                            {isSuperAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-emergency hover:text-emergency"
+                                onClick={() => setDeletingIncident(incident)}
+                                aria-label="Delete incident"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
@@ -436,6 +469,26 @@ export default function Incidents() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={Boolean(deletingIncident)} onOpenChange={(open) => !open && setDeletingIncident(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete incident?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deletingIncident?.title}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingIncident && handleDeleteIncident(deletingIncident.id)}
+              className="bg-emergency text-emergency-foreground hover:bg-emergency/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
