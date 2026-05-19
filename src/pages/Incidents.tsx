@@ -428,6 +428,17 @@ export default function Incidents() {
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
                             )}
+                            {isSuperAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-emergency hover:text-emergency"
+                                onClick={() => setDeletingIncident(incident)}
+                                aria-label="Delete incident"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
