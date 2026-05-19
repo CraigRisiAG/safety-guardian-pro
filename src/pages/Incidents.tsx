@@ -249,6 +249,18 @@ export default function Incidents() {
     toast.success('Incident updated successfully');
   };
 
+  const [deletingIncident, setDeletingIncident] = useState<Incident | null>(null);
+
+  const handleDeleteIncident = (incidentId: string) => {
+    if (!isSuperAdmin) {
+      toast.error('Only System Super Admins can delete incidents');
+      return;
+    }
+    setIncidents((previous) => previous.filter((incident) => incident.id !== incidentId));
+    setDeletingIncident(null);
+    toast.success('Incident deleted');
+  };
+
   return (
     <AppLayout>
       <div className="space-y-4 sm:space-y-6">
