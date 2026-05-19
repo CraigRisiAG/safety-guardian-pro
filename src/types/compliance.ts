@@ -44,3 +44,19 @@ export const CHECK_TYPE_COLORS: Record<CompletedCheckRecord['checkType'], string
   office: 'hsl(var(--info))',
   first_aid: 'hsl(var(--safe))',
 };
+
+// Custom fields configured per compliance check type
+export type CheckTypeFieldType = 'text' | 'textarea' | 'select' | 'checkbox' | 'date' | 'number';
+
+export interface CheckTypeField {
+  id: string;
+  checkType: CompletedCheckRecord['checkType'];
+  name: string;
+  label: string;
+  type: CheckTypeFieldType;
+  required: boolean;
+  options?: string[];
+  placeholder?: string;
+  order: number;
+  enabled: boolean;
+}
