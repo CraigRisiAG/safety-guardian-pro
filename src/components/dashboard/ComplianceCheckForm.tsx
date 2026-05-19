@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { CHECK_TYPE_LABELS, CompletedCheckRecord, CompletedCheckItem } from '@/types/compliance';
+import { Input } from '@/components/ui/input';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
@@ -54,6 +55,7 @@ export function ComplianceCheckForm({
   const [areaId, setAreaId] = useState('');
   const [notes, setNotes] = useState('');
   const [checkedItems, setCheckedItems] = useState<Record<string, { checked: boolean; notes: string }>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
   // Auto-open and prefill when a scheduled check is selected
   useEffect(() => {
@@ -84,6 +86,14 @@ export function ComplianceCheckForm({
     return settings.safetyCheckItems.filter(item => categories.includes(item.category));
   }, [checkType, settings.safetyCheckItems]);
 
+  // Get custom fields configured for this check type
+  const customFields = useMemo(() => {
+    if (!checkType) return [];
+    return (settings.checkTypeFields || [])
+      .filter((f) => f.checkType === checkType && f.enabled)
+      .sort((a, b) => a.order - b.order);
+  }, [checkType, settings.checkTypeFields]);
+
   const resetForm = () => {
     setCheckType('');
     setBuildingId('');
@@ -91,6 +101,7 @@ export function ComplianceCheckForm({
     setAreaId('');
     setNotes('');
     setCheckedItems({});
+    setCustomFieldValues({});
     onCheckComplete?.();
   };
 
@@ -108,6 +119,7 @@ export function ComplianceCheckForm({
   const handleCheckTypeChange = (value: CompletedCheckRecord['checkType']) => {
     setCheckType(value);
     setCheckedItems({});
+    setCustomFieldValues({});
   };
 
   const toggleItem = (itemId: string) => {
@@ -133,6 +145,18 @@ export function ComplianceCheckForm({
   const handleSubmit = () => {
     if (!checkType || !buildingId || !floorId) {
       toast.error('Please select check type, building, and floor');
+      return;
+    }
+
+    // Validate compulsory custom fields
+    const missingRequired = customFields.filter((f) => {
+      if (!f.required) return false;
+      const v = customFieldValues[f.id];
+      if (f.type === 'checkbox') return !v;
+      return v === undefined || v === null || String(v).trim() === '';
+    });
+    if (missingRequired.length > 0) {
+      toast.error(`Please complete: ${missingRequired.map((f) => f.label).join(', ')}`);
       return;
     }
 
@@ -182,6 +206,12 @@ export function ComplianceCheckForm({
       notes: notes.trim() || undefined,
       status,
     };
+    if (customFields.length > 0) {
+      (record as any).customFieldValues = customFields.reduce((acc, f) => {
+        acc[f.name] = customFieldValues[f.id];
+        return acc;
+      }, {} as Record<string, any>);
+    }
 
     // Save to localStorage
     const existing = localStorage.getItem(STORAGE_KEY);
@@ -395,6 +425,61 @@ export function ComplianceCheckForm({
                 <br />
                 <span className="text-xs">Add items in Admin → Compliance & Safety</span>
               </div>
+            )}
+
+            {/* Custom fields configured for this check type */}
+            {checkType && customFields.length > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" />
+                    Additional Details
+                  </Label>
+                  <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+                    {customFields.map((field) => {
+                      const value = customFieldValues[field.id];
+                      const setValue = (v: any) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: v }));
+                      return (
+                        <div key={field.id} className="space-y-1.5">
+                          <Label className="flex items-center gap-2 text-sm">
+                            {field.label}
+                            {field.required && <Badge variant="destructive" className="text-xs">Required</Badge>}
+                          </Label>
+                          {field.type === 'text' && (
+                            <Input placeholder={field.placeholder} value={value || ''} onChange={(e) => setValue(e.target.value)} />
+                          )}
+                          {field.type === 'number' && (
+                            <Input type="number" placeholder={field.placeholder} value={value ?? ''} onChange={(e) => setValue(e.target.value)} />
+                          )}
+                          {field.type === 'date' && (
+                            <Input type="date" value={value || ''} onChange={(e) => setValue(e.target.value)} />
+                          )}
+                          {field.type === 'textarea' && (
+                            <Textarea placeholder={field.placeholder} value={value || ''} onChange={(e) => setValue(e.target.value)} className="h-20" />
+                          )}
+                          {field.type === 'select' && (
+                            <Select value={value || ''} onValueChange={setValue}>
+                              <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                              <SelectContent>
+                                {(field.options || []).map((opt) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {field.type === 'checkbox' && (
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked={!!value} onCheckedChange={(c) => setValue(!!c)} id={`cf-${field.id}`} />
+                              <label htmlFor={`cf-${field.id}`} className="text-sm cursor-pointer">Yes</label>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
 
             {/* General Notes */}
