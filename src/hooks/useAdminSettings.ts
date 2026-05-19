@@ -10,6 +10,7 @@ import {
   DEFAULT_COMPLIANCE_CATEGORIES,
   DEFAULT_SAFETY_CHECK_ITEMS,
 } from '@/types/admin';
+import { CheckTypeField } from '@/types/compliance';
 import { buildings } from '@/data/mockData';
 import { getRolePermissionDefaults } from '@/lib/personnelAccess';
 
@@ -50,6 +51,7 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
     const parsed = JSON.parse(stored);
     return {
       ...parsed,
+      checkTypeFields: Array.isArray(parsed.checkTypeFields) ? parsed.checkTypeFields : [],
       buildings: parsed.buildings.map((b: any) => ({
         ...b,
         createdAt: new Date(b.createdAt),
@@ -126,6 +128,7 @@ const getDefaultSettings = (): AdminSettings => ({
     { id: 'immediate-action', name: 'immediate_action', label: 'Immediate Action Taken', type: 'textarea', required: false, placeholder: 'Describe any immediate actions...', order: 2, enabled: true },
     { id: 'injury-reported', name: 'injury_reported', label: 'Injury Reported', type: 'checkbox', required: false, order: 3, enabled: true },
   ],
+  checkTypeFields: [],
 });
 
 export function useAdminSettings() {
@@ -392,6 +395,30 @@ export function useAdminSettings() {
     }));
   }, []);
 
+  // Check type field operations
+  const addCheckTypeField = useCallback((field: Omit<CheckTypeField, 'id'>) => {
+    const newField: CheckTypeField = { ...field, id: buildUniqueId('ctfield') };
+    setSettings((prev) => ({
+      ...prev,
+      checkTypeFields: [...(prev.checkTypeFields || []), newField],
+    }));
+    return newField;
+  }, []);
+
+  const updateCheckTypeField = useCallback((id: string, updates: Partial<CheckTypeField>) => {
+    setSettings((prev) => ({
+      ...prev,
+      checkTypeFields: (prev.checkTypeFields || []).map((f) => (f.id === id ? { ...f, ...updates } : f)),
+    }));
+  }, []);
+
+  const deleteCheckTypeField = useCallback((id: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      checkTypeFields: (prev.checkTypeFields || []).filter((f) => f.id !== id),
+    }));
+  }, []);
+
   const resetToDefaults = useCallback(() => {
     setSettings(getDefaultSettings());
   }, []);
@@ -420,6 +447,10 @@ export function useAdminSettings() {
     addCustomIncidentField,
     updateCustomIncidentField,
     deleteCustomIncidentField,
+    // Check type custom fields
+    addCheckTypeField,
+    updateCheckTypeField,
+    deleteCheckTypeField,
     // Reset
     resetToDefaults,
   };

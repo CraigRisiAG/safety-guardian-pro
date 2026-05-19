@@ -181,6 +181,7 @@ export interface AdminSettings {
   safetyCheckItems: SafetyCheckItem[];
   complianceCategories: ComplianceCategory[];
   customIncidentFields: CustomIncidentField[];
+  checkTypeFields?: import('./compliance').CheckTypeField[];
 }
 
 export const DEFAULT_COMPLIANCE_CATEGORIES: ComplianceCategory[] = [

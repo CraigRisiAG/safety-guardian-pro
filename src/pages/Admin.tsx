@@ -9,7 +9,8 @@ import {
   ShieldCheck,
   ArrowLeft,
   ChevronRight,
-  Award
+  Award,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
+import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManager';
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
 import { CertificateManager } from '@/components/admin/CertificateManager';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
@@ -41,6 +43,12 @@ const adminSections = [
     name: 'Compliance & Safety Checks', 
     icon: ClipboardCheck, 
     description: 'Define safety check requirements' 
+  },
+  { 
+    id: 'check-type-fields', 
+    name: 'Check Type Fields', 
+    icon: ClipboardList, 
+    description: 'Custom fields for each check type' 
   },
   { 
     id: 'certificates', 
@@ -152,7 +160,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-5 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-6 h-auto p-1">
             {adminSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -202,6 +210,15 @@ export default function Admin() {
               onAddItem={adminSettings.addSafetyCheckItem}
               onUpdateItem={adminSettings.updateSafetyCheckItem}
               onDeleteItem={adminSettings.deleteSafetyCheckItem}
+            />
+          </TabsContent>
+
+          <TabsContent value="check-type-fields" className="space-y-6">
+            <CheckTypeFieldsManager
+              fields={adminSettings.settings.checkTypeFields || []}
+              onAdd={adminSettings.addCheckTypeField}
+              onUpdate={adminSettings.updateCheckTypeField}
+              onDelete={adminSettings.deleteCheckTypeField}
             />
           </TabsContent>
 
