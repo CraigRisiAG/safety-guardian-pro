@@ -469,6 +469,26 @@ export default function Incidents() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={Boolean(deletingIncident)} onOpenChange={(open) => !open && setDeletingIncident(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete incident?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deletingIncident?.title}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingIncident && handleDeleteIncident(deletingIncident.id)}
+              className="bg-emergency text-emergency-foreground hover:bg-emergency/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
