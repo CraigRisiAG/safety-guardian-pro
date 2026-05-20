@@ -35,6 +35,7 @@ export interface Incident {
     inProgressAt?: Date;
     closedAt?: Date;
   };
+  customFieldValues?: Record<string, string | boolean | number>;
 }
 
 export interface Drill {

@@ -161,6 +161,7 @@ export default function Incidents() {
       severity: IncidentSeverity;
       status: IncidentStatus;
       rootCause?: string;
+      customFieldValues?: Record<string, string | boolean | number>;
     },
   ): Incident => {
     const now = new Date();
@@ -188,6 +189,7 @@ export default function Incidents() {
       status: updates.status,
       rootCause: updates.status === 'closed' ? updates.rootCause : incident.rootCause,
       statusDates: updatedDates,
+      customFieldValues: updates.customFieldValues ?? incident.customFieldValues,
     };
   };
 
@@ -198,6 +200,7 @@ export default function Incidents() {
     buildingId: string;
     floorId: string;
     areaId: string;
+    customFieldValues: Record<string, string | boolean | number>;
   }) => {
     if (!canResolveIncidents) {
       toast.error('You do not have permission to report incidents');
@@ -219,6 +222,7 @@ export default function Incidents() {
       statusDates: {
         openAt: new Date(),
       },
+      customFieldValues: data.customFieldValues,
     };
     setIncidents((previous) => [newIncident, ...previous]);
     setIsDialogOpen(false);
@@ -233,6 +237,7 @@ export default function Incidents() {
       severity: IncidentSeverity;
       status: IncidentStatus;
       rootCause?: string;
+      customFieldValues?: Record<string, string | boolean | number>;
     },
   ) => {
     if (!canResolveIncidents) {
@@ -280,6 +285,7 @@ export default function Incidents() {
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <IncidentForm 
                 buildings={scopedBuildings}
+                customFields={settings.customIncidentFields}
                 onSubmit={handleSubmit} 
                 onCancel={() => setIsDialogOpen(false)} 
               />
@@ -362,6 +368,7 @@ export default function Incidents() {
             {editingIncident && (
               <IncidentEditForm
                 incident={editingIncident}
+                customFields={settings.customIncidentFields}
                 onSave={(updates) => handleEditSave(editingIncident.id, updates)}
                 onCancel={() => setEditingIncident(null)}
               />

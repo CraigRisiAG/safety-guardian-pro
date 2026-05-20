@@ -10,13 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CustomBuilding } from '@/types/admin';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CustomBuilding, CustomIncidentField } from '@/types/admin';
 import { IncidentSeverity } from '@/types/safety';
 import { AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface IncidentFormProps {
   buildings: CustomBuilding[];
+  customFields?: CustomIncidentField[];
   onSubmit: (data: {
     title: string;
     description: string;
@@ -24,20 +26,30 @@ interface IncidentFormProps {
     buildingId: string;
     floorId: string;
     areaId: string;
+    customFieldValues: Record<string, string | boolean | number>;
   }) => void;
   onCancel?: () => void;
 }
 
-export function IncidentForm({ buildings, onSubmit, onCancel }: IncidentFormProps) {
+export function IncidentForm({ buildings, customFields = [], onSubmit, onCancel }: IncidentFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<IncidentSeverity>('low');
   const [buildingId, setBuildingId] = useState('');
   const [floorId, setFloorId] = useState('');
   const [areaId, setAreaId] = useState('');
+  const [customValues, setCustomValues] = useState<Record<string, string | boolean | number>>({});
 
   const selectedBuilding = buildings.find(b => b.id === buildingId);
   const selectedFloor = selectedBuilding?.floors.find(f => f.id === floorId);
+
+  const activeFields = customFields
+    .filter((f) => f.enabled)
+    .sort((a, b) => a.order - b.order);
+
+  const setFieldValue = (name: string, value: string | boolean | number) => {
+    setCustomValues((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +59,20 @@ export function IncidentForm({ buildings, onSubmit, onCancel }: IncidentFormProp
       return;
     }
 
-    onSubmit({ title, description, severity, buildingId, floorId, areaId });
+    for (const field of activeFields) {
+      if (!field.required) continue;
+      const value = customValues[field.name];
+      const empty =
+        value === undefined ||
+        value === '' ||
+        (field.type === 'checkbox' && value !== true);
+      if (empty) {
+        toast.error(`${field.label} is required`);
+        return;
+      }
+    }
+
+    onSubmit({ title, description, severity, buildingId, floorId, areaId, customFieldValues: customValues });
   };
 
   return (
@@ -170,6 +195,78 @@ export function IncidentForm({ buildings, onSubmit, onCancel }: IncidentFormProp
             </Select>
           </div>
         </div>
+
+        {activeFields.length > 0 && (
+          <div className="space-y-4 pt-2 border-t border-border">
+            {activeFields.map((field) => {
+              const value = customValues[field.name];
+              const labelEl = (
+                <Label>
+                  {field.label}
+                  {field.required && <span className="text-emergency ml-1">*</span>}
+                </Label>
+              );
+              if (field.type === 'textarea') {
+                return (
+                  <div key={field.id} className="space-y-2">
+                    {labelEl}
+                    <Textarea
+                      value={(value as string) ?? ''}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setFieldValue(field.name, e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                );
+              }
+              if (field.type === 'select') {
+                return (
+                  <div key={field.id} className="space-y-2">
+                    {labelEl}
+                    <Select value={(value as string) ?? ''} onValueChange={(v) => setFieldValue(field.name, v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(field.options || []).map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              }
+              if (field.type === 'checkbox') {
+                return (
+                  <div key={field.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cf-${field.id}`}
+                      checked={value === true}
+                      onCheckedChange={(checked) => setFieldValue(field.name, checked === true)}
+                    />
+                    <Label htmlFor={`cf-${field.id}`} className="cursor-pointer">
+                      {field.label}
+                      {field.required && <span className="text-emergency ml-1">*</span>}
+                    </Label>
+                  </div>
+                );
+              }
+              return (
+                <div key={field.id} className="space-y-2">
+                  {labelEl}
+                  <Input
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                    value={(value as string | number) ?? ''}
+                    placeholder={field.placeholder}
+                    onChange={(e) =>
+                      setFieldValue(field.name, field.type === 'number' ? Number(e.target.value) : e.target.value)
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 pt-4 border-t border-border">
@@ -180,7 +277,7 @@ export function IncidentForm({ buildings, onSubmit, onCancel }: IncidentFormProp
         )}
         <Button type="submit" className="flex-1 gap-2">
           <Send className="w-4 h-4" />
-          Submit Report
+          Submit Incident
         </Button>
       </div>
     </form>
