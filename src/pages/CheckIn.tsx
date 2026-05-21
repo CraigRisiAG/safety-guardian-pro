@@ -602,6 +602,112 @@ export default function CheckIn() {
             />
           )}
 
+          {canManageDrill && (
+            <div className="bg-card border border-border rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b border-border">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                  Drill Manager View
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Live accountability detail visible only to drill managers.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-4 border-b border-border">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-foreground">{expectedPersonnel.length}</p>
+                  <p className="text-xs text-muted-foreground">Expected Staff</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-warning">{needsAssistanceEntries.length}</p>
+                  <p className="text-xs text-muted-foreground">Need Help</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-emergency">{unaccountedPersonnel.length}</p>
+                  <p className="text-xs text-muted-foreground">Unaccounted</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-info">{guestCheckInCount}</p>
+                  <p className="text-xs text-muted-foreground">Guests</p>
+                </div>
+              </div>
+
+              {averageResponseSeconds !== null && (
+                <div className="px-6 py-3 border-b border-border text-sm text-muted-foreground flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Average response time:
+                  <span className="font-semibold text-foreground">
+                    {averageResponseSeconds < 60
+                      ? `${averageResponseSeconds}s`
+                      : `${Math.floor(averageResponseSeconds / 60)}m ${averageResponseSeconds % 60}s`}
+                  </span>
+                </div>
+              )}
+
+              {needsAssistanceEntries.length > 0 && (
+                <div className="px-6 py-4 border-b border-border">
+                  <h4 className="text-sm font-semibold text-warning flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Needs assistance ({needsAssistanceEntries.length})
+                  </h4>
+                  <ul className="space-y-1 max-h-48 overflow-y-auto">
+                    {needsAssistanceEntries.map((entry) => {
+                      const loc = getLocationName(entry);
+                      return (
+                        <li
+                          key={entry.id}
+                          className="flex items-center justify-between text-sm bg-warning-muted/40 rounded px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">{entry.personName}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {loc.area || 'Unknown area'} · {loc.floor || 'Unknown floor'}
+                            </p>
+                          </div>
+                          {entry.notes && (
+                            <span className="text-xs text-muted-foreground ml-2 truncate max-w-[40%]">
+                              {entry.notes}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              <div className="px-6 py-4">
+                <h4 className="text-sm font-semibold text-emergency flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4" />
+                  Unaccounted personnel ({unaccountedPersonnel.length})
+                </h4>
+                {unaccountedPersonnel.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    All expected personnel are accounted for.
+                  </p>
+                ) : (
+                  <ul className="space-y-1 max-h-60 overflow-y-auto">
+                    {unaccountedPersonnel.map((person) => (
+                      <li
+                        key={person.id}
+                        className="flex items-center justify-between text-sm bg-muted/40 rounded px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{person.userName}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {person.staffCode || 'No staff code'}
+                            {person.email ? ` · ${person.email}` : ''}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-card border border-border rounded-xl shadow-sm">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Recent Check-ins</h3>
