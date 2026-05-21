@@ -149,6 +149,54 @@ export default function CheckIn() {
     );
   }, [activeDrill, settings.userPermissions, user]);
 
+  const currentPermission = useMemo(
+    () => findCurrentUserPermission(user, settings.userPermissions),
+    [user, settings.userPermissions],
+  );
+  const canManageDrill = canStartDrillsForUser(currentPermission);
+
+  const expectedPersonnel = useMemo(() => {
+    if (!activeDrill) return [];
+    const buildingIds = activeDrill.location.buildingIds?.length
+      ? activeDrill.location.buildingIds
+      : [activeDrill.location.buildingId];
+    return settings.userPermissions.filter((person) =>
+      person.buildingAccess.some((buildingId) => buildingIds.includes(buildingId)),
+    );
+  }, [activeDrill, settings.userPermissions]);
+
+  const drillCheckIns = useMemo(
+    () => (activeDrill ? checkIns.filter((c) => c.drillId === activeDrill.id) : []),
+    [activeDrill, checkIns],
+  );
+
+  const needsAssistanceEntries = useMemo(
+    () => drillCheckIns.filter((entry) => entry.status === 'needs-assistance'),
+    [drillCheckIns],
+  );
+
+  const unaccountedPersonnel = useMemo(() => {
+    const checkedInIds = new Set(
+      drillCheckIns.map((entry) => entry.personnelId).filter(Boolean) as string[],
+    );
+    return expectedPersonnel.filter((person) => !checkedInIds.has(person.id));
+  }, [expectedPersonnel, drillCheckIns]);
+
+  const guestCheckInCount = useMemo(
+    () => drillCheckIns.filter((entry) => !entry.personnelId).length,
+    [drillCheckIns],
+  );
+
+  const averageResponseSeconds = useMemo(() => {
+    if (!activeDrill?.startedAt || drillCheckIns.length === 0) return null;
+    const start = new Date(activeDrill.startedAt).getTime();
+    const diffs = drillCheckIns
+      .map((entry) => (entry.checkedInAt ? new Date(entry.checkedInAt).getTime() - start : null))
+      .filter((value): value is number => value !== null && value >= 0);
+    if (diffs.length === 0) return null;
+    return Math.round(diffs.reduce((sum, value) => sum + value, 0) / diffs.length / 1000);
+  }, [activeDrill, drillCheckIns]);
+
   const colleagueOptions = useMemo(() => {
     const query = colleagueSearch.trim().toLowerCase();
     const checkedInPersonnelIds = new Set(
