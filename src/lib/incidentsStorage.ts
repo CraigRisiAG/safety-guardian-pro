@@ -2,6 +2,7 @@ import { mockIncidents } from '@/data/mockData';
 import { Incident } from '@/types/safety';
 
 export const INCIDENTS_STORAGE_KEY = 'safeguard_incidents';
+export const INCIDENTS_UPDATED_EVENT = 'safeguard_incidents_updated';
 
 type RawIncident = Omit<Incident, 'reportedAt' | 'statusDates' | 'status'> & {
   reportedAt: string;
@@ -60,6 +61,7 @@ function isIncidentArray(value: unknown): value is RawIncident[] {
 
 export function saveIncidentsToStorage(incidents: Incident[]) {
   localStorage.setItem(INCIDENTS_STORAGE_KEY, JSON.stringify(incidents));
+  window.dispatchEvent(new CustomEvent(INCIDENTS_UPDATED_EVENT));
 }
 
 export function loadIncidentsFromStorage(): Incident[] {
