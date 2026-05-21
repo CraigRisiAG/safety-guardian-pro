@@ -20,7 +20,7 @@ interface ValidationError {
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { register, isLoading } = useAuth();
-  const { settings, addUserPermission, updateUserPermission } = useAdminSettings();
+  const { settings, upsertUserPermissionByIdentity } = useAdminSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -140,49 +140,27 @@ const Register: React.FC = () => {
             }
           : undefined;
 
-      const existingPermission = settings.userPermissions.find(
-        (permission) =>
-          permission.userId === createdUser.id || permission.email.toLowerCase() === normalizedEmail,
-      );
-
-      if (existingPermission) {
-        updateUserPermission(existingPermission.id, {
-          userName: normalizedName,
-          email: normalizedEmail,
-          staffCode: trimmedStaffCode || undefined,
-          primaryFloorId: primaryFloorId || undefined,
-          primaryAreaId: primaryAreaId || undefined,
-          workDays: workDays.length > 0 ? workDays : existingPermission.workDays,
-          contactDetails,
-          lineManager,
-          nextOfKin,
-          ...(existingPermission.buildingAccess.length === 0 && primaryBuildingId
-            ? { buildingAccess: [primaryBuildingId] }
-            : {}),
-        });
-      } else {
-        addUserPermission({
-          userId: createdUser.id,
-          staffCode: trimmedStaffCode || undefined,
-          userName: normalizedName,
-          email: normalizedEmail,
-          role: "viewer",
-          buildingAccess: primaryBuildingId ? [primaryBuildingId] : [],
-          primaryFloorId: primaryFloorId || undefined,
-          primaryAreaId: primaryAreaId || undefined,
-          workDays:
-            workDays.length > 0
-              ? workDays
-              : ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          safetyRoles: [],
-          contactDetails,
-          lineManager,
-          nextOfKin,
-          canStartDrills: false,
-          canResolveIncidents: false,
-          canManageUsers: false,
-        });
-      }
+      upsertUserPermissionByIdentity({
+        userId: createdUser.id,
+        staffCode: trimmedStaffCode || undefined,
+        userName: normalizedName,
+        email: normalizedEmail,
+        role: "viewer",
+        buildingAccess: primaryBuildingId ? [primaryBuildingId] : [],
+        primaryFloorId: primaryFloorId || undefined,
+        primaryAreaId: primaryAreaId || undefined,
+        workDays:
+          workDays.length > 0
+            ? workDays
+            : ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        safetyRoles: [],
+        contactDetails,
+        lineManager,
+        nextOfKin,
+        canStartDrills: false,
+        canResolveIncidents: false,
+        canManageUsers: false,
+      });
 
       toast.success("Account created with Viewer access", {
         description: "An admin can grant additional permissions if needed.",

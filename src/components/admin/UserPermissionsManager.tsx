@@ -578,16 +578,12 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                       {(permission.workDays || []).length === 0 ? (
                         <span className="text-sm text-muted-foreground">Not set</span>
                       ) : (
-                        ALL_WORK_DAYS.map((day) => (
+                        (permission.workDays || []).map((day) => (
                           <span
                             key={day}
-                            className={`text-xs px-1.5 py-0.5 rounded ${
-                              (permission.workDays || []).includes(day)
-                                ? 'bg-primary/20 text-primary font-medium'
-                                : 'bg-muted text-muted-foreground/40'
-                            }`}
+                            className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-medium"
                           >
-                            {WORK_DAY_LABELS[day][0]}
+                            {WORK_DAY_LABELS[day]}
                           </span>
                         ))
                       )}

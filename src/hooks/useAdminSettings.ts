@@ -3,6 +3,7 @@ import {
   AdminSettings,
   CustomBuilding,
   UserPermission,
+  WorkDay,
   ComplianceCheck,
   SafetyCheckItem,
   ComplianceCategory,
@@ -24,6 +25,24 @@ interface AuthAccountRecord {
   name: string;
   role?: 'user' | 'admin';
 }
+
+const VALID_WORK_DAYS = new Set<WorkDay>([
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+]);
+
+const normalizeWorkDays = (value: unknown): WorkDay[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((day): day is WorkDay => typeof day === 'string' && VALID_WORK_DAYS.has(day as WorkDay));
+};
 
 const parseAuthAccounts = (raw: string | null): AuthAccountRecord[] => {
   if (!raw) {
@@ -59,6 +78,7 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
       })),
       userPermissions: parsed.userPermissions.map((p: any) => ({
         ...p,
+        workDays: normalizeWorkDays(p.workDays),
         createdAt: new Date(p.createdAt),
         updatedAt: new Date(p.updatedAt),
       })),
@@ -301,6 +321,49 @@ export function useAdminSettings() {
     }));
   }, []);
 
+  const upsertUserPermissionByIdentity = useCallback((permission: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const normalizedEmail = permission.email.trim().toLowerCase();
+    const now = new Date();
+    const stored = parseStoredSettings(localStorage.getItem(STORAGE_KEY));
+    const baseSettings = stored ?? settings;
+
+    const existing = baseSettings.userPermissions.find(
+      (entry) =>
+        entry.userId === permission.userId ||
+        entry.email.trim().toLowerCase() === normalizedEmail,
+    );
+
+    const nextPermission: UserPermission = existing
+      ? {
+          ...existing,
+          ...permission,
+          email: normalizedEmail,
+          workDays: normalizeWorkDays(permission.workDays),
+          updatedAt: now,
+        }
+      : {
+          ...permission,
+          email: normalizedEmail,
+          workDays: normalizeWorkDays(permission.workDays),
+          id: `perm-${Date.now()}`,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    const nextSettings: AdminSettings = {
+      ...baseSettings,
+      userPermissions: existing
+        ? baseSettings.userPermissions.map((entry) => (entry.id === existing.id ? nextPermission : entry))
+        : [...baseSettings.userPermissions, nextPermission],
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSettings));
+    window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
+    setSettings(nextSettings);
+
+    return nextPermission;
+  }, [settings]);
+
   const deleteUserPermission = useCallback((id: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -434,6 +497,7 @@ export function useAdminSettings() {
     addUserPermission,
     bulkAddUserPermissions,
     updateUserPermission,
+    upsertUserPermissionByIdentity,
     deleteUserPermission,
     // Compliance checks
     addComplianceCheck,
