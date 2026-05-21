@@ -15,7 +15,7 @@ import {
   getCheckInsStorageSnapshot,
   loadCheckInsForDrill,
 } from '@/lib/checkInsStorage';
-import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
+import { canStartDrillsForUser, filterPersonnelByUserScope, findCurrentUserPermission } from '@/lib/personnelAccess';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
