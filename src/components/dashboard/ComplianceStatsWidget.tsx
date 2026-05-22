@@ -1,16 +1,9 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { CompletedCheckRecord, CHECK_TYPE_LABELS } from '@/types/compliance';
 import { PendingChecksDialog } from './PendingChecksDialog';
 import { startOfWeek, endOfWeek, isWithinInterval, parseISO, isBefore } from 'date-fns';
@@ -34,11 +27,11 @@ interface ComplianceStatsWidgetProps {
 }
 
 export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetProps) {
+  const navigate = useNavigate();
   const { settings } = useAdminSettings();
   const { user } = useAuth();
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
   const [pendingDialogFilter, setPendingDialogFilter] = useState<'this_week' | 'overdue' | 'all'>('all');
-  const [gapsDialogOpen, setGapsDialogOpen] = useState(false);
 
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
@@ -212,56 +205,6 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     }
   };
 
-  const handleExportGapsCsv = () => {
-    if (stats.roleGapItems.length === 0) {
-      return;
-    }
-
-    const escapeCsv = (value: string | number) => {
-      const text = String(value ?? '');
-      if (text.includes(',') || text.includes('"') || text.includes('\n')) {
-        return `"${text.replace(/"/g, '""')}"`;
-      }
-      return text;
-    };
-
-    const headers = [
-      'Building',
-      'Floor',
-      'Area',
-      'Day',
-      'Role',
-      'Required',
-      'Assigned',
-      'Gap',
-    ];
-
-    const rows = stats.roleGapItems.map((gap) => [
-      gap.buildingName,
-      gap.floorName,
-      gap.areaName,
-      WORK_DAY_LABELS[gap.day as WorkDay],
-      SAFETY_ROLE_LABELS[gap.role],
-      gap.requiredCount,
-      gap.assignedCount,
-      gap.gapCount,
-    ]);
-
-    const csv = [headers, ...rows]
-      .map((row) => row.map((column) => escapeCsv(column)).join(','))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'health-official-gaps.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <>
       <Card className="bg-card border-border">
@@ -317,7 +260,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
 
           {/* Health Officials Gaps */}
           <button
-            onClick={() => setGapsDialogOpen(true)}
+            onClick={() => navigate('/health-official-gaps')}
             className={`w-full text-left rounded-lg p-3 transition-all cursor-pointer border ${
               stats.missingOfficialsTotal > 0
                 ? 'bg-warning-muted/50 hover:bg-warning-muted/70 border-warning/30'
@@ -378,43 +321,6 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
         initialFilter={pendingDialogFilter}
         onStartCheck={handleStartCheck}
       />
-
-      <Dialog open={gapsDialogOpen} onOpenChange={setGapsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Health Official Gap Overview</DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="h-[60vh] pr-2">
-            {stats.roleGapItems.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-4">No current official gaps across areas and days.</div>
-            ) : (
-              <div className="space-y-2">
-                {stats.roleGapItems.map((gap, index) => (
-                  <div key={`${gap.areaId}-${gap.day}-${gap.role}-${index}`} className="p-3 rounded-lg border bg-card">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      <span className="font-medium">{gap.areaName}</span>
-                      <span className="text-muted-foreground">({gap.floorName}, {gap.buildingName})</span>
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {WORK_DAY_LABELS[gap.day as WorkDay]} • {SAFETY_ROLE_LABELS[gap.role]} • Required {gap.requiredCount}, Assigned {gap.assignedCount}, Gap {gap.gapCount}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-          <div className="flex justify-end pt-2">
-            <Button
-              variant="secondary"
-              onClick={handleExportGapsCsv}
-              disabled={stats.roleGapItems.length === 0}
-            >
-              Export CSV
-            </Button>
-            <Button variant="outline" onClick={() => setGapsDialogOpen(false)}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

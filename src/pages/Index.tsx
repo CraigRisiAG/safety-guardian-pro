@@ -566,6 +566,13 @@ const Index = () => {
                   <span className="text-xs text-muted-foreground">No active drill</span>
                 </div>
               )}
+              <Link
+                to="/health-official-gaps"
+                className="flex flex-col items-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-xl bg-safe-muted hover:bg-safe-muted/80 transition-all cursor-pointer hover-scale hover:shadow-lg hover:shadow-safe/20"
+              >
+                <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-safe" />
+                <span className="font-medium text-foreground text-sm sm:text-base text-center">Health Officials</span>
+              </Link>
               <ComplianceCheckForm 
                 preselectedCheck={selectedCheck}
                 onBehalfOf={onBehalfOfUser}

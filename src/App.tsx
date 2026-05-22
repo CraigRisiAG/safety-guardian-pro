@@ -17,6 +17,7 @@ import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import SafetyCheckIn from "./pages/SafetyCheckIn";
 import Admin from "./pages/Admin";
+import HealthOfficialsGaps from "./pages/HealthOfficialsGaps";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <CheckIn />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/health-official-gaps"
+        element={
+          <ProtectedRoute>
+            <HealthOfficialsGaps />
           </ProtectedRoute>
         }
       />
