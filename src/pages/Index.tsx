@@ -4,7 +4,6 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentIncidents } from '@/components/dashboard/RecentIncidents';
 import { StartDrillForm } from '@/components/drills/StartDrillForm';
-import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
 import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm';
 import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWidget';
 import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistoryDialog';
@@ -29,10 +28,9 @@ import {
 } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
-import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
 import { useAuth } from '@/contexts/AuthContext';
-import { canStartDrillsForUser, filterPersonnelByUserScope, findCurrentUserPermission } from '@/lib/personnelAccess';
+import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
 
 const Index = () => {
   const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
@@ -42,7 +40,7 @@ const Index = () => {
   const drillsStorageSnapshotRef = useRef<string | null>(getDrillsStorageSnapshot());
   const [personnelOpen, setPersonnelOpen] = useState(false);
   const { personnelInOfficeToday } = useOfficeAttendance();
-  const { activeDrill, endDrill, drillRecords } = useDrillStatus();
+  const { activeDrill, drillRecords } = useDrillStatus();
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
@@ -54,11 +52,6 @@ const Index = () => {
     () => filterPersonnelByUserScope(settings.userPermissions, user),
     [settings.userPermissions, user],
   );
-  const currentPermission = useMemo(
-    () => findCurrentUserPermission(user, settings.userPermissions),
-    [user, settings.userPermissions],
-  );
-  const canEndDrill = canStartDrillsForUser(currentPermission);
 
   // Unified Safety Compliance score (shared with Compliance Overview widget)
   const complianceBreakdown = computeSafetyComplianceBreakdown(settings);
@@ -158,78 +151,6 @@ const Index = () => {
     });
   const upcomingDrills = scheduledDrills.length;
   
-  const checkInStats = (() => {
-    if (!activeDrill) {
-      return {
-        safe: 0,
-        needsAssistance: 0,
-        pending: 0,
-      };
-    }
-
-    const checkIns = loadCheckInsForDrill(activeDrill.id);
-    const selectedBuildingIds = activeDrill.location.buildingIds?.length
-      ? activeDrill.location.buildingIds
-      : [activeDrill.location.buildingId];
-
-    const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
-    const selectedFloorIds = activeDrill.location.floorIds;
-    const selectedAreaIds = activeDrill.location.areaIds;
-
-    const floorToBuildingMap = new Map<string, string>();
-    selectedBuildings.forEach((building) => {
-      building.floors.forEach((floor) => {
-        floorToBuildingMap.set(floor.id, building.id);
-      });
-    });
-
-    const targetPersonnel = settings.userPermissions.filter((person) => {
-      if (selectedAreaIds.length > 0 && person.primaryAreaId) {
-        return selectedAreaIds.includes(person.primaryAreaId);
-      }
-
-      if (selectedFloorIds.length > 0 && person.primaryFloorId) {
-        return selectedFloorIds.includes(person.primaryFloorId);
-      }
-
-      if (person.primaryFloorId) {
-        const buildingId = floorToBuildingMap.get(person.primaryFloorId);
-        if (buildingId) {
-          return selectedBuildingIds.includes(buildingId);
-        }
-      }
-
-      return person.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId));
-    });
-
-    const targetPersonnelIds = new Set(targetPersonnel.map((person) => person.id));
-    const targetStaffCodes = new Set(
-      targetPersonnel
-        .map((person) => person.staffCode?.toLowerCase().trim())
-        .filter((code): code is string => !!code),
-    );
-
-    const targetedCheckIns = checkIns.filter((entry) => {
-      if (entry.personnelId && targetPersonnelIds.has(entry.personnelId)) {
-        return true;
-      }
-      if (entry.staffCode) {
-        return targetStaffCodes.has(entry.staffCode.toLowerCase().trim());
-      }
-      return false;
-    });
-
-    const safe = targetedCheckIns.filter((entry) => entry.status === 'safe').length;
-    const needsAssistance = targetedCheckIns.filter((entry) => entry.status === 'needs-assistance').length;
-    const derivedPending = Math.max(0, targetPersonnel.length - safe - needsAssistance);
-
-    return {
-      safe,
-      needsAssistance,
-      pending: derivedPending,
-    };
-  })();
-
   // Handle starting a scheduled check
   const handleStartScheduledCheck = (check: ComplianceCheck, onBehalfOf?: UserPermission) => {
     setSelectedCheck(check);
@@ -354,33 +275,6 @@ const Index = () => {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Active Drill Banner */}
-        {activeDrill && (
-          <ActiveDrillBanner 
-            drill={activeDrill} 
-            checkInCount={checkInStats}
-            canEndDrill={canEndDrill}
-            onEndDrill={() => {
-              if (!canEndDrill) {
-                toast.error('You do not have permission to end drills');
-                return;
-              }
-
-              const record = endDrill(checkInStats);
-              if (record) {
-                setDrills((previous) => previous.map((drill) => (
-                  drill.id === record.drillId
-                    ? { ...drill, status: 'completed', completedAt: new Date() }
-                    : drill
-                )));
-                toast.success('Drill ended successfully', {
-                  description: `Duration: ${record.durationMinutes} minutes. ${record.checkInStats.total} personnel accounted for.`,
-                });
-              }
-            }}
-          />
-        )}
-
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard

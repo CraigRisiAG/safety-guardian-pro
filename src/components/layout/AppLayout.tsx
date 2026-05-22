@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   AlertTriangle, 
@@ -18,8 +18,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useAuth } from '@/contexts/AuthContext';
 import { UserMenu } from '@/components/UserMenu';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
-import { canManageUsersForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
+import { canManageUsersForUser, canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import { INCIDENTS_UPDATED_EVENT, loadIncidentsFromStorage } from '@/lib/incidentsStorage';
+import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
+import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -113,6 +116,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -120,12 +124,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [seenSignature, setSeenSignature] = useState('');
   const { user, isImpersonating } = useAuth();
   const { settings } = useAdminSettings();
-  const { activeDrill } = useDrillStatus();
+  const { activeDrill, endDrill } = useDrillStatus();
 
   const currentPermission = useMemo(
     () => findCurrentUserPermission(user, settings.userPermissions),
     [settings.userPermissions, user],
   );
+  const canEndDrill = canStartDrillsForUser(currentPermission);
   const isSuperAdmin = isSuperAdminPermission(currentPermission);
   const scopedAreaIds = useMemo(
     () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
@@ -191,6 +196,80 @@ export function AppLayout({ children }: AppLayoutProps) {
 
     return scopedAreaIds.has(areaId);
   };
+
+  const activeDrillCheckInStats = useMemo(() => {
+    if (!activeDrill) {
+      return {
+        safe: 0,
+        needsAssistance: 0,
+        pending: 0,
+      };
+    }
+
+    const checkIns = loadCheckInsForDrill(activeDrill.id);
+    const selectedBuildingIds = activeDrill.location.buildingIds?.length
+      ? activeDrill.location.buildingIds
+      : [activeDrill.location.buildingId];
+
+    const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
+    const selectedFloorIds = activeDrill.location.floorIds;
+    const selectedAreaIds = activeDrill.location.areaIds;
+
+    const floorToBuildingMap = new Map<string, string>();
+    selectedBuildings.forEach((building) => {
+      building.floors.forEach((floor) => {
+        floorToBuildingMap.set(floor.id, building.id);
+      });
+    });
+
+    const targetPersonnel = settings.userPermissions.filter((person) => {
+      if (selectedAreaIds.length > 0 && person.primaryAreaId) {
+        return selectedAreaIds.includes(person.primaryAreaId);
+      }
+
+      if (selectedFloorIds.length > 0 && person.primaryFloorId) {
+        return selectedFloorIds.includes(person.primaryFloorId);
+      }
+
+      if (person.primaryFloorId) {
+        const buildingId = floorToBuildingMap.get(person.primaryFloorId);
+        if (buildingId) {
+          return selectedBuildingIds.includes(buildingId);
+        }
+      }
+
+      return person.buildingAccess.some((buildingId) => selectedBuildingIds.includes(buildingId));
+    });
+
+    const targetPersonnelIds = new Set(targetPersonnel.map((person) => person.id));
+    const targetStaffCodes = new Set(
+      targetPersonnel
+        .map((person) => person.staffCode?.toLowerCase().trim())
+        .filter((code): code is string => !!code),
+    );
+
+    const targetedCheckIns = checkIns.filter((entry) => {
+      if (entry.personnelId && targetPersonnelIds.has(entry.personnelId)) {
+        return true;
+      }
+
+      if (entry.staffCode) {
+        return targetStaffCodes.has(entry.staffCode.toLowerCase().trim());
+      }
+
+      return false;
+    });
+
+    const safe = targetedCheckIns.filter((entry) => entry.status === 'safe').length;
+    const needsAssistance = targetedCheckIns.filter((entry) => entry.status === 'needs-assistance').length;
+    const pending = Math.max(0, targetPersonnel.length - safe - needsAssistance);
+
+    return {
+      safe,
+      needsAssistance,
+      pending,
+    };
+  }, [activeDrill, settings.buildings, settings.userPermissions]);
 
   const isActiveDrillRelevant = useMemo(() => {
     if (!activeDrill || activeDrill.status !== 'active') {
@@ -357,6 +436,30 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           </div>
         </header>
+
+        {activeDrill && (
+          <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+            <ActiveDrillBanner
+              drill={activeDrill}
+              checkInCount={activeDrillCheckInStats}
+              canEndDrill={canEndDrill}
+              onClick={() => navigate('/check-in')}
+              onEndDrill={() => {
+                if (!canEndDrill) {
+                  toast.error('You do not have permission to end drills');
+                  return;
+                }
+
+                const record = endDrill(activeDrillCheckInStats);
+                if (record) {
+                  toast.success('Drill ended successfully', {
+                    description: `Duration: ${record.durationMinutes} minutes. ${record.checkInStats.total} personnel accounted for.`,
+                  });
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Page content */}
         <main className="p-4 sm:p-6">

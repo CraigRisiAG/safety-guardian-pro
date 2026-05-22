@@ -10,6 +10,7 @@ interface ActiveDrillBannerProps {
   checkInCount: { safe: number; needsAssistance: number; pending: number };
   onEndDrill?: () => void;
   canEndDrill?: boolean;
+  onClick?: () => void;
 }
 
 const drillTypeLabels = {
@@ -20,7 +21,7 @@ const drillTypeLabels = {
   medical: 'Medical Emergency Drill',
 };
 
-export function ActiveDrillBanner({ drill, checkInCount, onEndDrill, canEndDrill = false }: ActiveDrillBannerProps) {
+export function ActiveDrillBanner({ drill, checkInCount, onEndDrill, canEndDrill = false, onClick }: ActiveDrillBannerProps) {
   const building = buildings.find(b => b.id === drill.location.buildingId);
 
   // Expected count is derived from drill-scope personnel accountability.
@@ -28,7 +29,22 @@ export function ActiveDrillBanner({ drill, checkInCount, onEndDrill, canEndDrill
   const totalCheckedIn = checkInCount.safe + checkInCount.needsAssistance;
 
   return (
-    <div className="relative overflow-hidden rounded-xl gradient-emergency p-6 text-emergency-foreground animate-fade-in">
+    <div
+      className={`relative overflow-hidden rounded-xl gradient-emergency p-6 text-emergency-foreground animate-fade-in ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       {/* Animated background pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
@@ -98,7 +114,10 @@ export function ActiveDrillBanner({ drill, checkInCount, onEndDrill, canEndDrill
           
           {canEndDrill && (
             <Button 
-              onClick={onEndDrill}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEndDrill?.();
+              }}
               className="bg-white text-emergency hover:bg-white/90 font-semibold"
             >
               End Drill
