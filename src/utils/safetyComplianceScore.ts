@@ -95,9 +95,12 @@ export function computeSafetyComplianceBreakdown(
 
   let requiredOfficialsTotal = 0;
   let missingOfficialsTotal = 0;
+  const requiredDays = settings.healthOfficialsRequiredDays?.length
+    ? settings.healthOfficialsRequiredDays
+    : ALL_WORK_DAYS;
 
   areaDefinitions.forEach((areaInfo) => {
-    ALL_WORK_DAYS.forEach((day) => {
+    requiredDays.forEach((day) => {
       const usersInAreaForDay = settings.userPermissions.filter(
         (person) =>
           person.primaryAreaId === areaInfo.areaId && person.workDays.includes(day),

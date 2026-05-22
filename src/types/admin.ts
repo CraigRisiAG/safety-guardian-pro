@@ -177,6 +177,7 @@ export interface CustomIncidentField {
 export interface AdminSettings {
   buildings: CustomBuilding[];
   userPermissions: UserPermission[];
+  healthOfficialsRequiredDays: WorkDay[];
   complianceChecks: ComplianceCheck[];
   safetyCheckItems: SafetyCheckItem[];
   complianceCategories: ComplianceCategory[];

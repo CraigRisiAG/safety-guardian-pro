@@ -20,6 +20,7 @@ import {
 interface SafetyRoleCoverageReportProps {
   permissions: UserPermission[];
   buildings: CustomBuilding[];
+  requiredDays: WorkDay[];
 }
 
 interface CoverageGap {
@@ -40,7 +41,7 @@ const getSafetyRoleIcon = (role: SafetyRole) => {
   }
 };
 
-export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleCoverageReportProps) {
+export function SafetyRoleCoverageReport({ permissions, buildings, requiredDays }: SafetyRoleCoverageReportProps) {
   const [selectedDay, setSelectedDay] = useState<WorkDay | 'all'>('all');
   const [expandedBuildings, setExpandedBuildings] = useState<string[]>([]);
 
@@ -102,7 +103,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleC
     // Identify gaps
     buildings.forEach(building => {
       building.floors.forEach(floor => {
-        ALL_WORK_DAYS.forEach(day => {
+        requiredDays.forEach(day => {
           const coveredRoles = coverageByBuildingFloorDay[building.id]?.[floor.id]?.[day] || [];
           const missingRoles = ALL_SAFETY_ROLES.filter(role => !coveredRoles.includes(role));
           
@@ -134,7 +135,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleC
 
     // Coverage stats
     const totalSlots = buildings.reduce(
-      (sum, b) => sum + b.floors.length * ALL_WORK_DAYS.length * ALL_SAFETY_ROLES.length, 
+      (sum, b) => sum + b.floors.length * requiredDays.length * ALL_SAFETY_ROLES.length, 
       0
     );
     const gapCount = gaps.reduce((sum, g) => sum + g.missingRoles.length, 0);
@@ -147,7 +148,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleC
       totalGaps: gapCount,
       coverageByBuildingFloorDay,
     };
-  }, [permissions, buildings]);
+  }, [permissions, buildings, requiredDays]);
 
   // Filter gaps by selected day
   const filteredGapsByBuilding = useMemo(() => {
@@ -191,7 +192,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleC
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Days</SelectItem>
-                {ALL_WORK_DAYS.map(day => (
+                {requiredDays.map(day => (
                   <SelectItem key={day} value={day}>{WORK_DAY_LABELS[day]}</SelectItem>
                 ))}
               </SelectContent>
@@ -280,7 +281,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings }: SafetyRoleC
                             <div className="grid gap-2">
                               {/* Group by day */}
                               {selectedDay === 'all' ? (
-                                ALL_WORK_DAYS.map(day => {
+                                requiredDays.map(day => {
                                   const dayGap = floorGaps.find(g => g.day === day);
                                   if (!dayGap) return null;
                                   return (

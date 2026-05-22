@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   AdminSettings,
+  ALL_WORK_DAYS,
   CustomBuilding,
   UserPermission,
   WorkDay,
@@ -44,6 +45,15 @@ const normalizeWorkDays = (value: unknown): WorkDay[] => {
   return value.filter((day): day is WorkDay => typeof day === 'string' && VALID_WORK_DAYS.has(day as WorkDay));
 };
 
+const normalizeRequiredCoverageDays = (value: unknown): WorkDay[] => {
+  const normalized = normalizeWorkDays(value);
+  if (normalized.length === 0) {
+    return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  }
+
+  return ALL_WORK_DAYS.filter((day) => normalized.includes(day));
+};
+
 const parseAuthAccounts = (raw: string | null): AuthAccountRecord[] => {
   if (!raw) {
     return [];
@@ -71,6 +81,7 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
     return {
       ...parsed,
       checkTypeFields: Array.isArray(parsed.checkTypeFields) ? parsed.checkTypeFields : [],
+      healthOfficialsRequiredDays: normalizeRequiredCoverageDays(parsed.healthOfficialsRequiredDays),
       buildings: parsed.buildings.map((b: any) => ({
         ...b,
         createdAt: new Date(b.createdAt),
@@ -140,6 +151,7 @@ const getDefaultSettings = (): AdminSettings => ({
       updatedAt: new Date(),
     },
   ],
+  healthOfficialsRequiredDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   complianceChecks: [],
   safetyCheckItems: DEFAULT_SAFETY_CHECK_ITEMS,
   complianceCategories: DEFAULT_COMPLIANCE_CATEGORIES,
@@ -371,6 +383,14 @@ export function useAdminSettings() {
     }));
   }, []);
 
+  const updateHealthOfficialsRequiredDays = useCallback((days: WorkDay[]) => {
+    const normalized = normalizeRequiredCoverageDays(days);
+    setSettings((prev) => ({
+      ...prev,
+      healthOfficialsRequiredDays: normalized,
+    }));
+  }, []);
+
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
     const newCheck: ComplianceCheck = {
@@ -499,6 +519,7 @@ export function useAdminSettings() {
     updateUserPermission,
     upsertUserPermissionByIdentity,
     deleteUserPermission,
+    updateHealthOfficialsRequiredDays,
     // Compliance checks
     addComplianceCheck,
     updateComplianceCheck,

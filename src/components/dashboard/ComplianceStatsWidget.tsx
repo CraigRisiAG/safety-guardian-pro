@@ -12,12 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
 import {
   ALL_SAFETY_ROLES,
-  ALL_WORK_DAYS,
   ComplianceCheck,
-  SAFETY_ROLE_LABELS,
   UserPermission,
-  WORK_DAY_LABELS,
-  WorkDay,
 } from '@/types/admin';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
@@ -134,7 +130,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     );
 
     const roleGapItems = areaDefinitions.flatMap((areaInfo) =>
-      ALL_WORK_DAYS.flatMap((day) => {
+      (settings.healthOfficialsRequiredDays?.length ? settings.healthOfficialsRequiredDays : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']).flatMap((day) => {
         const usersInAreaForDay = settings.userPermissions.filter(
           (person) => person.primaryAreaId === areaInfo.areaId && person.workDays.includes(day),
         );
@@ -159,7 +155,11 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     );
 
     const requiredOfficialsTotal = areaDefinitions.reduce((total, areaInfo) => {
-      return total + ALL_WORK_DAYS.reduce((dayTotal, day) => {
+      const requiredDays = settings.healthOfficialsRequiredDays?.length
+        ? settings.healthOfficialsRequiredDays
+        : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
+      return total + requiredDays.reduce((dayTotal, day) => {
         const usersInAreaForDay = settings.userPermissions.filter(
           (person) => person.primaryAreaId === areaInfo.areaId && person.workDays.includes(day),
         );
@@ -192,7 +192,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       officialCoverageScore,
       safetyComplianceScore,
     };
-  }, [settings.complianceChecks, settings.buildings, settings.userPermissions, currentUserPermission, isAdmin]);
+  }, [settings.complianceChecks, settings.buildings, settings.healthOfficialsRequiredDays, settings.userPermissions, currentUserPermission, isAdmin]);
 
   const handleOpenPendingDialog = (filter: 'this_week' | 'overdue' | 'all') => {
     setPendingDialogFilter(filter);

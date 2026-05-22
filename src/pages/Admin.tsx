@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
+import { HealthOfficialsCoverageSettings } from '@/components/admin/HealthOfficialsCoverageSettings';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
 import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManager';
@@ -183,6 +184,10 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
+            <HealthOfficialsCoverageSettings
+              requiredDays={adminSettings.settings.healthOfficialsRequiredDays}
+              onChange={adminSettings.updateHealthOfficialsRequiredDays}
+            />
             <UserPermissionsManager 
               permissions={adminSettings.settings.userPermissions}
               buildings={adminSettings.settings.buildings}
@@ -194,6 +199,7 @@ export default function Admin() {
             <SafetyRoleCoverageReport
               permissions={adminSettings.settings.userPermissions}
               buildings={adminSettings.settings.buildings}
+              requiredDays={adminSettings.settings.healthOfficialsRequiredDays}
             />
           </TabsContent>
 
