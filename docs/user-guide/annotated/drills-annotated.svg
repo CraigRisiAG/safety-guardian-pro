@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#2563eb" />
+    </marker>
+    <style>
+      .label { font: 600 20px 'Segoe UI', sans-serif; fill: #111827; }
+      .box { fill: #eff6ff; stroke: #2563eb; stroke-width: 2; rx: 8; }
+      .small { font: 500 15px 'Segoe UI', sans-serif; fill: #1f2937; }
+      .line { stroke: #2563eb; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <image href="../screenshots/04-drills.png" x="0" y="0" width="1440" height="900" />
+
+  <rect class="box" x="955" y="85" width="445" height="120" />
+  <text class="label" x="975" y="120">1) Drill Actions</text>
+  <text class="small" x="975" y="150">Use Schedule Drill or Start Drill</text>
+  <line class="line" x1="980" y1="175" x2="1220" y2="130" />
+
+  <rect class="box" x="955" y="250" width="445" height="125" />
+  <text class="label" x="975" y="285">2) Drill Status Tabs</text>
+  <text class="small" x="975" y="315">Filter by Active, Scheduled, Missed, Completed</text>
+  <line class="line" x1="980" y1="340" x2="820" y2="215" />
+
+  <rect class="box" x="955" y="500" width="445" height="145" />
+  <text class="label" x="975" y="535">3) History and Stats</text>
+  <text class="small" x="975" y="565">Open tab for date presets and CSV/JSON exports</text>
+  <text class="small" x="975" y="590">Use for reporting and post-drill review</text>
+  <line class="line" x1="980" y1="620" x2="820" y2="235" />
+</svg>

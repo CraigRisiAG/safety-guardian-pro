@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#f97316" />
+    </marker>
+    <style>
+      .label { font: 600 20px 'Segoe UI', sans-serif; fill: #111827; }
+      .box { fill: #fffbeb; stroke: #f97316; stroke-width: 2; rx: 8; }
+      .small { font: 500 15px 'Segoe UI', sans-serif; fill: #1f2937; }
+      .line { stroke: #f97316; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <image href="../screenshots/02-dashboard.png" x="0" y="0" width="1440" height="900" />
+
+  <rect class="box" x="1020" y="70" width="360" height="120" />
+  <text class="label" x="1040" y="105">1) User Menu and Alerts</text>
+  <text class="small" x="1040" y="135">Notifications and profile controls</text>
+  <line class="line" x1="1040" y1="170" x2="1260" y2="120" />
+
+  <rect class="box" x="980" y="230" width="420" height="130" />
+  <text class="label" x="1000" y="265">2) KPI Summary Cards</text>
+  <text class="small" x="1000" y="295">Open incidents, drills, compliance, personnel</text>
+  <line class="line" x1="1000" y1="325" x2="860" y2="250" />
+
+  <rect class="box" x="960" y="520" width="440" height="140" />
+  <text class="label" x="980" y="555">3) Quick Actions</text>
+  <text class="small" x="980" y="585">Jump directly to report incident, start drill,</text>
+  <text class="small" x="980" y="610">check-in, and compliance tools</text>
+  <line class="line" x1="980" y1="640" x2="880" y2="650" />
+</svg>

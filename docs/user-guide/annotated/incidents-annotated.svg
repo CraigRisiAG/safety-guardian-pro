@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#ef4444" />
+    </marker>
+    <style>
+      .label { font: 600 20px 'Segoe UI', sans-serif; fill: #111827; }
+      .box { fill: #fef2f2; stroke: #ef4444; stroke-width: 2; rx: 8; }
+      .small { font: 500 15px 'Segoe UI', sans-serif; fill: #1f2937; }
+      .line { stroke: #ef4444; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <image href="../screenshots/03-incidents.png" x="0" y="0" width="1440" height="900" />
+
+  <rect class="box" x="930" y="80" width="470" height="120" />
+  <text class="label" x="950" y="115">1) New Incident Workflow</text>
+  <text class="small" x="950" y="145">Create incidents with severity and location</text>
+  <line class="line" x1="950" y1="170" x2="1240" y2="120" />
+
+  <rect class="box" x="930" y="260" width="470" height="130" />
+  <text class="label" x="950" y="295">2) Period Filters and Trend View</text>
+  <text class="small" x="950" y="325">Switch month/quarter/year and compare counts</text>
+  <line class="line" x1="950" y1="350" x2="860" y2="300" />
+
+  <rect class="box" x="930" y="520" width="470" height="140" />
+  <text class="label" x="950" y="555">3) Exports</text>
+  <text class="small" x="950" y="585">Download CSV or JSON including custom fields</text>
+  <line class="line" x1="950" y1="610" x2="1220" y2="560" />
+</svg>
