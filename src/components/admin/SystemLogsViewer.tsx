@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Activity, Shield, ShieldCheck } from 'lucide-react';
+import { Activity, Download, Shield, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { CustomBuilding, UserPermission } from '@/types/admin';
 import { AUDIT_LOGS_UPDATED_EVENT, AuditLogEntry, canViewAuditLogByScope, loadAuditLogs } from '@/lib/auditLog';
 import { getScopedAreaIds } from '@/lib/personnelAccess';
+import { toast } from 'sonner';
 
 interface SystemLogsViewerProps {
   permission: UserPermission | null;
@@ -103,6 +105,83 @@ export function SystemLogsViewer({ permission, buildings }: SystemLogsViewerProp
 
   const roleIsSuperAdmin = permission?.role === 'super_admin';
 
+  const downloadLogs = () => {
+    if (filteredLogs.length === 0) {
+      toast.error('No logs available to download');
+      return;
+    }
+
+    const escapeCsv = (value: string) => {
+      const safeValue = value.replaceAll('"', '""');
+      return `"${safeValue}"`;
+    };
+
+    const headers = [
+      'Timestamp',
+      'Module',
+      'Action',
+      'Description',
+      'Actor Name',
+      'Actor Email',
+      'Location',
+    ];
+
+    const rows = filteredLogs.map((entry) => {
+      const values = [
+        entry.createdAt.toISOString(),
+        entry.module,
+        entry.action,
+        entry.description,
+        entry.actor.name,
+        entry.actor.email || '',
+        getLocationLabel(entry, buildings),
+      ];
+
+      return values.map((value) => escapeCsv(String(value))).join(',');
+    });
+
+    const csv = [headers.map((header) => escapeCsv(header)).join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+
+    link.href = url;
+    link.download = `system-logs-${timestamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${filteredLogs.length} log entries`);
+  };
+
+  const downloadLogsAsJson = () => {
+    if (filteredLogs.length === 0) {
+      toast.error('No logs available to download');
+      return;
+    }
+
+    const jsonPayload = filteredLogs.map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt.toISOString(),
+    }));
+
+    const blob = new Blob([JSON.stringify(jsonPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+
+    link.href = url;
+    link.download = `system-logs-${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${filteredLogs.length} log entries (JSON)`);
+  };
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -144,6 +223,14 @@ export function SystemLogsViewer({ permission, buildings }: SystemLogsViewerProp
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={downloadLogs} className="sm:w-auto">
+            <Download className="w-4 h-4 mr-2" />
+            Download CSV
+          </Button>
+          <Button variant="outline" onClick={downloadLogsAsJson} className="sm:w-auto">
+            <Download className="w-4 h-4 mr-2" />
+            Download JSON
+          </Button>
         </div>
 
         <div className="rounded-lg border border-border overflow-auto">
