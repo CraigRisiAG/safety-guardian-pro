@@ -4,13 +4,21 @@ import { StartDrillForm } from '@/components/drills/StartDrillForm';
 import { DrillDetailDialog } from '@/components/drills/DrillDetailDialog';
 import { Drill, DrillType, DrillRecord } from '@/types/safety';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Siren, Play, Clock, CheckCircle2, XCircle, MapPin, Calendar, Timer, Users, BarChart3 } from 'lucide-react';
+import { Siren, Play, Clock, CheckCircle2, XCircle, MapPin, Calendar, Timer, Users, BarChart3, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow, isBefore } from 'date-fns';
 import { toast } from 'sonner';
@@ -51,12 +59,59 @@ const isMissedDrill = (drill: Drill) =>
   !!drill.scheduledFor &&
   isBefore(drill.scheduledFor, new Date());
 
+const getSafeBuildingIds = (drill: Drill): string[] => {
+  if (Array.isArray(drill.location.buildingIds) && drill.location.buildingIds.length > 0) {
+    return drill.location.buildingIds;
+  }
+  return drill.location.buildingId ? [drill.location.buildingId] : [];
+};
+
+const getSafeFloorIds = (drill: Drill): string[] => {
+  return Array.isArray(drill.location.floorIds) ? drill.location.floorIds : [];
+};
+
+const getSafeAreaIds = (drill: Drill): string[] => {
+  return Array.isArray(drill.location.areaIds) ? drill.location.areaIds : [];
+};
+
+const normalizeDrillRecord = (record: DrillRecord): DrillRecord => {
+  const startedAt = new Date(record.startedAt);
+  const completedAt = new Date(record.completedAt);
+  const safeStartedAt = Number.isNaN(startedAt.getTime()) ? new Date() : startedAt;
+  const safeCompletedAt = Number.isNaN(completedAt.getTime()) ? safeStartedAt : completedAt;
+
+  const checkInStats = record.checkInStats || { total: 0, safe: 0, needsAssistance: 0, pending: 0 };
+  const floors = Array.isArray(record.floors) ? record.floors : [];
+  const floorStats = Array.isArray(record.floorStats) ? record.floorStats : [];
+
+  return {
+    ...record,
+    type: record.type || 'fire',
+    buildingName: record.buildingName || 'Unknown',
+    initiatedBy: record.initiatedBy || 'Unknown',
+    floors,
+    checkInStats: {
+      total: Number.isFinite(checkInStats.total) ? checkInStats.total : 0,
+      safe: Number.isFinite(checkInStats.safe) ? checkInStats.safe : 0,
+      needsAssistance: Number.isFinite(checkInStats.needsAssistance) ? checkInStats.needsAssistance : 0,
+      pending: Number.isFinite(checkInStats.pending) ? checkInStats.pending : 0,
+    },
+    floorStats,
+    durationMinutes: Number.isFinite(record.durationMinutes) ? record.durationMinutes : 0,
+    startedAt: safeStartedAt,
+    completedAt: safeCompletedAt,
+  };
+};
+
 export default function Drills() {
   const [drills, setDrills] = useState<Drill[]>(() => loadDrillsFromStorage());
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedRecord, setSelectedRecord] = useState<DrillRecord | null>(null);
+  const [historyStartDate, setHistoryStartDate] = useState('');
+  const [historyEndDate, setHistoryEndDate] = useState('');
+  const [historyDatePreset, setHistoryDatePreset] = useState<'all' | 'week' | 'month' | 'year' | 'custom'>('all');
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
   const { settings } = useAdminSettings();
   const { user } = useAuth();
@@ -71,6 +126,38 @@ export default function Drills() {
     () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
     [currentPermission, settings.buildings],
   );
+
+  useEffect(() => {
+    const now = new Date();
+    const toInputDate = (date: Date) => format(date, 'yyyy-MM-dd');
+
+    if (historyDatePreset === 'all') {
+      setHistoryStartDate('');
+      setHistoryEndDate('');
+      return;
+    }
+
+    if (historyDatePreset === 'week') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 6);
+      setHistoryStartDate(toInputDate(start));
+      setHistoryEndDate(toInputDate(now));
+      return;
+    }
+
+    if (historyDatePreset === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setHistoryStartDate(toInputDate(start));
+      setHistoryEndDate(toInputDate(now));
+      return;
+    }
+
+    if (historyDatePreset === 'year') {
+      const start = new Date(now.getFullYear(), 0, 1);
+      setHistoryStartDate(toInputDate(start));
+      setHistoryEndDate(toInputDate(now));
+    }
+  }, [historyDatePreset]);
 
   const visibleBuildings = useMemo(() => {
     if (isSuperAdmin) {
@@ -220,13 +307,12 @@ export default function Drills() {
       return true;
     }
 
-    if (drill.location.areaIds.length > 0) {
-      return drill.location.areaIds.some((areaId) => scopedAreaIds.has(areaId));
+    const areaIds = getSafeAreaIds(drill);
+    if (areaIds.length > 0) {
+      return areaIds.some((areaId) => scopedAreaIds.has(areaId));
     }
 
-    const selectedBuildingIds = drill.location.buildingIds?.length
-      ? drill.location.buildingIds
-      : [drill.location.buildingId];
+    const selectedBuildingIds = getSafeBuildingIds(drill);
     return visibleBuildings.some((building) => selectedBuildingIds.includes(building.id));
   });
 
@@ -239,17 +325,145 @@ export default function Drills() {
   });
 
   const getLocationDisplay = (drill: Drill) => {
-    const selectedBuildingIds = drill.location.buildingIds?.length
-      ? drill.location.buildingIds
-      : [drill.location.buildingId];
+    const selectedBuildingIds = getSafeBuildingIds(drill);
     const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
     const buildingNames = selectedBuildings.map((building) => building.name).join(', ');
     const allFloors = selectedBuildings.flatMap((building) => building.floors);
-    const floors = allFloors.filter((floor) => drill.location.floorIds.includes(floor.id));
+    const floors = allFloors.filter((floor) => getSafeFloorIds(drill).includes(floor.id));
     return {
       building: buildingNames || 'Unknown',
       floors: floors.map(f => f.name).join(', ') || 'All floors',
     };
+  };
+
+  const normalizedHistoryRecords = useMemo(() => {
+    return drillRecords.map((record) => normalizeDrillRecord(record));
+  }, [drillRecords]);
+
+  const filteredHistoryRecords = useMemo(() => {
+    return normalizedHistoryRecords.filter((record) => {
+      const completedAt = new Date(record.completedAt);
+
+      if (historyStartDate) {
+        const start = new Date(`${historyStartDate}T00:00:00`);
+        if (completedAt < start) {
+          return false;
+        }
+      }
+
+      if (historyEndDate) {
+        const end = new Date(`${historyEndDate}T23:59:59.999`);
+        if (completedAt > end) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [normalizedHistoryRecords, historyStartDate, historyEndDate]);
+
+  const downloadDrillHistoryCsv = () => {
+    if (filteredHistoryRecords.length === 0) {
+      toast.error('No drill history records available to download');
+      return;
+    }
+
+    const escapeCsv = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const headers = [
+      'Record ID',
+      'Drill ID',
+      'Type',
+      'Building',
+      'Initiated By',
+      'Started At',
+      'Completed At',
+      'Duration Minutes',
+      'Total Personnel',
+      'Safe',
+      'Needed Assistance',
+      'Unaccounted',
+      'Response Rate (%)',
+      'Safe Rate (%)',
+      'Floors',
+      'Floor Breakdown',
+    ];
+
+    const rows = filteredHistoryRecords.map((record) => {
+      const total = record.checkInStats.total;
+      const responseRate = total > 0 ? Math.round(((total - record.checkInStats.pending) / total) * 100) : 0;
+      const safeRate = total > 0 ? Math.round((record.checkInStats.safe / total) * 100) : 0;
+      const floorNames = record.floors.map((floor) => floor.name).join(', ');
+      const floorBreakdown = (Array.isArray(record.floorStats) ? record.floorStats : [])
+        .map((floor) => `${floor.floorName}: safe=${floor.safe}, help=${floor.needsAssistance}, pending=${floor.pending}`)
+        .join(' | ');
+
+      const values = [
+        record.id,
+        record.drillId,
+        drillTypeLabels[record.type],
+        record.buildingName,
+        record.initiatedBy,
+        new Date(record.startedAt).toISOString(),
+        new Date(record.completedAt).toISOString(),
+        String(record.durationMinutes),
+        String(record.checkInStats.total),
+        String(record.checkInStats.safe),
+        String(record.checkInStats.needsAssistance),
+        String(record.checkInStats.pending),
+        String(responseRate),
+        String(safeRate),
+        floorNames,
+        floorBreakdown,
+      ];
+
+      return values.map((value) => escapeCsv(value)).join(',');
+    });
+
+    const csv = [headers.map((header) => escapeCsv(header)).join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+
+    link.href = url;
+    link.download = `drill-history-${stamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${filteredHistoryRecords.length} drill history records`);
+  };
+
+  const downloadDrillHistoryJson = () => {
+    if (filteredHistoryRecords.length === 0) {
+      toast.error('No drill history records available to download');
+      return;
+    }
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      count: filteredHistoryRecords.length,
+      records: filteredHistoryRecords.map((record) => ({
+        ...record,
+        startedAt: new Date(record.startedAt).toISOString(),
+        completedAt: new Date(record.completedAt).toISOString(),
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+
+    link.href = url;
+    link.download = `drill-history-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${filteredHistoryRecords.length} drill history records (JSON)`);
   };
 
   return (
@@ -314,14 +528,87 @@ export default function Drills() {
           {/* Drill History Tab */}
           <TabsContent value="history" className="mt-6">
             <div className="space-y-4">
-              {drillRecords.length === 0 ? (
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Preset</label>
+                    <Select
+                      value={historyDatePreset}
+                      onValueChange={(value: 'all' | 'week' | 'month' | 'year' | 'custom') => setHistoryDatePreset(value)}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Preset" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Time</SelectItem>
+                        <SelectItem value="week">Last 7 Days</SelectItem>
+                        <SelectItem value="month">This Month</SelectItem>
+                        <SelectItem value="year">This Year</SelectItem>
+                        <SelectItem value="custom">Custom Range</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">From</label>
+                    <Input
+                      type="date"
+                      value={historyStartDate}
+                      onChange={(event) => {
+                        setHistoryDatePreset('custom');
+                        setHistoryStartDate(event.target.value);
+                      }}
+                      className="w-40"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">To</label>
+                    <Input
+                      type="date"
+                      value={historyEndDate}
+                      onChange={(event) => {
+                        setHistoryDatePreset('custom');
+                        setHistoryEndDate(event.target.value);
+                      }}
+                      className="w-40"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setHistoryDatePreset('all');
+                      setHistoryStartDate('');
+                      setHistoryEndDate('');
+                    }}
+                    className="h-9"
+                  >
+                    Clear
+                  </Button>
+                </div>
+
+                <Button variant="outline" size="sm" onClick={downloadDrillHistoryCsv}>
+                  <Download className="w-4 h-4 mr-1" />
+                  Download CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={downloadDrillHistoryJson}>
+                  <Download className="w-4 h-4 mr-1" />
+                  Download JSON
+                </Button>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredHistoryRecords.length} of {normalizedHistoryRecords.length} drill record(s)
+              </div>
+
+              {filteredHistoryRecords.length === 0 ? (
                 <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground">
                   <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium">No drill records yet</p>
-                  <p className="text-sm mt-1">Completed drills will appear here with detailed statistics</p>
+                  <p className="font-medium">No drill records in selected range</p>
+                  <p className="text-sm mt-1">Adjust the date range or clear filters to view all history</p>
                 </div>
               ) : (
-                drillRecords.map((record) => (
+                filteredHistoryRecords.map((record) => (
                   <div key={record.id} className="bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => setSelectedRecord(record)}>
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
@@ -378,7 +665,7 @@ export default function Drills() {
                     </div>
 
                     {/* Floor Breakdown */}
-                    {record.floorStats.length > 0 && (
+                    {Array.isArray(record.floorStats) && record.floorStats.length > 0 && (
                       <div className="border-t border-border pt-3">
                         <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
                           <Users className="w-4 h-4" />
@@ -505,7 +792,7 @@ export default function Drills() {
                                     description: `Started scheduled ${drillTypeLabels[drill.type]}`,
                                     location: {
                                       buildingId: drill.location.buildingId,
-                                      areaIds: drill.location.areaIds,
+                                      areaIds: getSafeAreaIds(drill),
                                     },
                                     metadata: {
                                       type: drill.type,

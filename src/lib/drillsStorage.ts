@@ -9,6 +9,19 @@ type RawDrill = Omit<Drill, 'startedAt' | 'completedAt' | 'scheduledFor'> & {
   scheduledFor?: string;
 };
 
+function parseDateSafe(value?: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
 function parseDrill(raw: RawDrill): Drill {
   const safeStatus: Drill['status'] =
     raw.status === 'active' || raw.status === 'scheduled' || raw.status === 'completed' || raw.status === 'cancelled'
@@ -26,9 +39,9 @@ function parseDrill(raw: RawDrill): Drill {
     ...raw,
     status: safeStatus,
     location: safeLocation,
-    startedAt: raw.startedAt ? new Date(raw.startedAt) : undefined,
-    completedAt: raw.completedAt ? new Date(raw.completedAt) : undefined,
-    scheduledFor: raw.scheduledFor ? new Date(raw.scheduledFor) : undefined,
+    startedAt: parseDateSafe(raw.startedAt),
+    completedAt: parseDateSafe(raw.completedAt),
+    scheduledFor: parseDateSafe(raw.scheduledFor),
   };
 }
 
