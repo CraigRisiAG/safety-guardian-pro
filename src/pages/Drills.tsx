@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
+import { logAuditEvent } from '@/lib/auditLog';
 
 const drillTypeLabels: Record<DrillType, string> = {
   fire: 'Fire Drill',
@@ -126,6 +127,18 @@ export default function Drills() {
       initiatedBy: 'Safety Officer',
     };
     setDrills((previous) => [newDrill, ...previous]);
+    logAuditEvent({
+      module: 'drills',
+      action: 'start_drill',
+      description: `Started ${drillTypeLabels[data.type]}`,
+      location: {
+        buildingId: newDrill.location.buildingId,
+        areaIds: newDrill.location.areaIds,
+      },
+      metadata: {
+        type: data.type,
+      },
+    });
     startDrill(newDrill);
     setIsStartDialogOpen(false);
     toast.success(`${drillTypeLabels[data.type]} started!`);
@@ -162,17 +175,43 @@ export default function Drills() {
     };
 
     setDrills((previous) => [newDrill, ...previous]);
+    logAuditEvent({
+      module: 'drills',
+      action: 'schedule_drill',
+      description: `Scheduled ${drillTypeLabels[data.type]}`,
+      location: {
+        buildingId: newDrill.location.buildingId,
+        areaIds: newDrill.location.areaIds,
+      },
+      metadata: {
+        type: data.type,
+      },
+    });
     setIsScheduleDialogOpen(false);
     toast.success(`${drillTypeLabels[data.type]} scheduled`);
   };
 
   const handleEndDrill = (drillId: string) => {
+    const targetDrill = drills.find((entry) => entry.id === drillId);
     endDrill();
     setDrills(drills.map(d => 
       d.id === drillId 
         ? { ...d, status: 'completed', completedAt: new Date() } 
         : d
     ));
+
+    if (targetDrill) {
+      logAuditEvent({
+        module: 'drills',
+        action: 'end_drill',
+        description: `Ended ${drillTypeLabels[targetDrill.type]}`,
+        location: {
+          buildingId: targetDrill.location.buildingId,
+          areaIds: targetDrill.location.areaIds,
+        },
+      });
+    }
+
     toast.success('Drill ended successfully');
   };
 
@@ -460,6 +499,18 @@ export default function Drills() {
                                   );
                                   setDrills(updated);
                                   const activeDrill = updated.find(d => d.id === drill.id)!;
+                                  logAuditEvent({
+                                    module: 'drills',
+                                    action: 'start_scheduled_drill',
+                                    description: `Started scheduled ${drillTypeLabels[drill.type]}`,
+                                    location: {
+                                      buildingId: drill.location.buildingId,
+                                      areaIds: drill.location.areaIds,
+                                    },
+                                    metadata: {
+                                      type: drill.type,
+                                    },
+                                  });
                                   startDrill(activeDrill);
                                   toast.success(`${drillTypeLabels[drill.type]} started!`);
                                 }}

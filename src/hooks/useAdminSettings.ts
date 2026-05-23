@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AdminSettings,
   ALL_WORK_DAYS,
@@ -15,6 +15,7 @@ import {
 import { CheckTypeField } from '@/types/compliance';
 import { buildings } from '@/data/mockData';
 import { getRolePermissionDefaults } from '@/lib/personnelAccess';
+import { logAuditEvent } from '@/lib/auditLog';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
 const SETTINGS_UPDATED_EVENT = 'safeguard_admin_settings_updated';
@@ -168,8 +169,36 @@ export function useAdminSettings() {
     const parsed = parseStoredSettings(localStorage.getItem(STORAGE_KEY));
     return parsed ?? getDefaultSettings();
   });
+  const settingsRef = useRef(settings);
 
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  const logSettingsAction = useCallback(
+    (event: {
+      action: string;
+      description: string;
+      location?: {
+        buildingId?: string;
+        floorId?: string;
+        areaId?: string;
+        areaIds?: string[];
+      };
+      metadata?: Record<string, string | number | boolean | null>;
+    }) => {
+      logAuditEvent({
+        module: 'admin_settings',
+        action: event.action,
+        description: event.description,
+        location: event.location,
+        metadata: event.metadata,
+      });
+    },
+    [],
+  );
 
   // Persist to localStorage
   useEffect(() => {
@@ -276,24 +305,51 @@ export function useAdminSettings() {
       ...prev,
       buildings: [...prev.buildings, newBuilding],
     }));
+
+    logSettingsAction({
+      action: 'add_building',
+      description: `Added building \"${newBuilding.name}\"`,
+      location: { buildingId: newBuilding.id },
+    });
+
     return newBuilding;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateBuilding = useCallback((id: string, updates: Partial<CustomBuilding>) => {
+    const existing = settingsRef.current.buildings.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       buildings: prev.buildings.map((b) =>
         b.id === id ? { ...b, ...updates, updatedAt: new Date() } : b
       ),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_building',
+        description: `Updated building \"${existing.name}\"`,
+        location: { buildingId: existing.id },
+      });
+    }
+  }, [logSettingsAction]);
 
   const deleteBuilding = useCallback((id: string) => {
+    const existing = settingsRef.current.buildings.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       buildings: prev.buildings.filter((b) => b.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_building',
+        description: `Deleted building \"${existing.name}\"`,
+        location: { buildingId: existing.id },
+      });
+    }
+  }, [logSettingsAction]);
 
   // User permission operations
   const addUserPermission = useCallback((permission: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -307,8 +363,19 @@ export function useAdminSettings() {
       ...prev,
       userPermissions: [...prev.userPermissions, newPermission],
     }));
+
+    logSettingsAction({
+      action: 'add_user_permission',
+      description: `Added user permission for ${newPermission.userName}`,
+      location: {
+        buildingId: newPermission.buildingAccess[0],
+        floorId: newPermission.primaryFloorId,
+        areaId: newPermission.primaryAreaId,
+      },
+    });
+
     return newPermission;
-  }, []);
+  }, [logSettingsAction]);
 
   const bulkAddUserPermissions = useCallback((permissions: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>[]) => {
     const newPermissions: UserPermission[] = permissions.map((permission, index) => ({
@@ -321,17 +388,38 @@ export function useAdminSettings() {
       ...prev,
       userPermissions: [...prev.userPermissions, ...newPermissions],
     }));
+
+    logSettingsAction({
+      action: 'bulk_add_user_permissions',
+      description: `Bulk added ${newPermissions.length} user permission entries`,
+      metadata: { count: newPermissions.length },
+    });
+
     return newPermissions;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateUserPermission = useCallback((id: string, updates: Partial<UserPermission>) => {
+    const existing = settingsRef.current.userPermissions.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       userPermissions: prev.userPermissions.map((p) =>
         p.id === id ? { ...p, ...updates, updatedAt: new Date() } : p
       ),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_user_permission',
+        description: `Updated user permission for ${existing.userName}`,
+        location: {
+          buildingId: updates.buildingAccess?.[0] ?? existing.buildingAccess[0],
+          floorId: updates.primaryFloorId ?? existing.primaryFloorId,
+          areaId: updates.primaryAreaId ?? existing.primaryAreaId,
+        },
+      });
+    }
+  }, [logSettingsAction]);
 
   const upsertUserPermissionByIdentity = useCallback((permission: Omit<UserPermission, 'id' | 'createdAt' | 'updatedAt'>) => {
     const normalizedEmail = permission.email.trim().toLowerCase();
@@ -373,15 +461,39 @@ export function useAdminSettings() {
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
     setSettings(nextSettings);
 
+    logSettingsAction({
+      action: existing ? 'update_user_permission_identity' : 'add_user_permission_identity',
+      description: `${existing ? 'Updated' : 'Added'} permission via identity for ${permission.userName}`,
+      location: {
+        buildingId: permission.buildingAccess[0],
+        floorId: permission.primaryFloorId,
+        areaId: permission.primaryAreaId,
+      },
+    });
+
     return nextPermission;
-  }, [settings]);
+  }, [settings, logSettingsAction]);
 
   const deleteUserPermission = useCallback((id: string) => {
+    const existing = settingsRef.current.userPermissions.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       userPermissions: prev.userPermissions.filter((p) => p.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_user_permission',
+        description: `Deleted user permission for ${existing.userName}`,
+        location: {
+          buildingId: existing.buildingAccess[0],
+          floorId: existing.primaryFloorId,
+          areaId: existing.primaryAreaId,
+        },
+      });
+    }
+  }, [logSettingsAction]);
 
   const updateHealthOfficialsRequiredDays = useCallback((days: WorkDay[]) => {
     const normalized = normalizeRequiredCoverageDays(days);
@@ -389,7 +501,13 @@ export function useAdminSettings() {
       ...prev,
       healthOfficialsRequiredDays: normalized,
     }));
-  }, []);
+
+    logSettingsAction({
+      action: 'update_coverage_days',
+      description: 'Updated required coverage days for Health & Safety officials',
+      metadata: { selectedDays: normalized.join(', ') },
+    });
+  }, [logSettingsAction]);
 
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
@@ -401,24 +519,66 @@ export function useAdminSettings() {
       ...prev,
       complianceChecks: [...prev.complianceChecks, newCheck],
     }));
+
+    logSettingsAction({
+      action: 'add_compliance_check',
+      description: `Added compliance check \"${newCheck.name}\"`,
+      location: {
+        buildingId: newCheck.buildingIds[0],
+        floorId: newCheck.floorIds?.[0],
+        areaId: newCheck.areaIds?.[0],
+        areaIds: newCheck.areaIds,
+      },
+    });
+
     return newCheck;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateComplianceCheck = useCallback((id: string, updates: Partial<ComplianceCheck>) => {
+    const existing = settingsRef.current.complianceChecks.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       complianceChecks: prev.complianceChecks.map((c) =>
         c.id === id ? { ...c, ...updates } : c
       ),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_compliance_check',
+        description: `Updated compliance check \"${existing.name}\"`,
+        location: {
+          buildingId: updates.buildingIds?.[0] ?? existing.buildingIds[0],
+          floorId: updates.floorIds?.[0] ?? existing.floorIds?.[0],
+          areaId: updates.areaIds?.[0] ?? existing.areaIds?.[0],
+          areaIds: updates.areaIds ?? existing.areaIds,
+        },
+      });
+    }
+  }, [logSettingsAction]);
 
   const deleteComplianceCheck = useCallback((id: string) => {
+    const existing = settingsRef.current.complianceChecks.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       complianceChecks: prev.complianceChecks.filter((c) => c.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_compliance_check',
+        description: `Deleted compliance check \"${existing.name}\"`,
+        location: {
+          buildingId: existing.buildingIds[0],
+          floorId: existing.floorIds?.[0],
+          areaId: existing.areaIds?.[0],
+          areaIds: existing.areaIds,
+        },
+      });
+    }
+  }, [logSettingsAction]);
 
   // Safety check item operations
   const addSafetyCheckItem = useCallback((item: Omit<SafetyCheckItem, 'id'>) => {
@@ -430,24 +590,48 @@ export function useAdminSettings() {
       ...prev,
       safetyCheckItems: [...prev.safetyCheckItems, newItem],
     }));
+
+    logSettingsAction({
+      action: 'add_safety_check_item',
+      description: `Added safety check item \"${newItem.name}\"`,
+    });
+
     return newItem;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateSafetyCheckItem = useCallback((id: string, updates: Partial<SafetyCheckItem>) => {
+    const existing = settingsRef.current.safetyCheckItems.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       safetyCheckItems: prev.safetyCheckItems.map((i) =>
         i.id === id ? { ...i, ...updates } : i
       ),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_safety_check_item',
+        description: `Updated safety check item \"${existing.name}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   const deleteSafetyCheckItem = useCallback((id: string) => {
+    const existing = settingsRef.current.safetyCheckItems.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       safetyCheckItems: prev.safetyCheckItems.filter((i) => i.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_safety_check_item',
+        description: `Deleted safety check item \"${existing.name}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   // Custom incident field operations
   const addCustomIncidentField = useCallback((field: Omit<CustomIncidentField, 'id'>) => {
@@ -459,24 +643,48 @@ export function useAdminSettings() {
       ...prev,
       customIncidentFields: [...prev.customIncidentFields, newField],
     }));
+
+    logSettingsAction({
+      action: 'add_incident_field',
+      description: `Added custom incident field \"${newField.label}\"`,
+    });
+
     return newField;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateCustomIncidentField = useCallback((id: string, updates: Partial<CustomIncidentField>) => {
+    const existing = settingsRef.current.customIncidentFields.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       customIncidentFields: prev.customIncidentFields.map((f) =>
         f.id === id ? { ...f, ...updates } : f
       ),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_incident_field',
+        description: `Updated custom incident field \"${existing.label}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   const deleteCustomIncidentField = useCallback((id: string) => {
+    const existing = settingsRef.current.customIncidentFields.find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       customIncidentFields: prev.customIncidentFields.filter((f) => f.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_incident_field',
+        description: `Deleted custom incident field \"${existing.label}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   // Check type field operations
   const addCheckTypeField = useCallback((field: Omit<CheckTypeField, 'id'>) => {
@@ -485,26 +693,55 @@ export function useAdminSettings() {
       ...prev,
       checkTypeFields: [...(prev.checkTypeFields || []), newField],
     }));
+
+    logSettingsAction({
+      action: 'add_check_type_field',
+      description: `Added check type field \"${newField.label}\"`,
+    });
+
     return newField;
-  }, []);
+  }, [logSettingsAction]);
 
   const updateCheckTypeField = useCallback((id: string, updates: Partial<CheckTypeField>) => {
+    const existing = (settingsRef.current.checkTypeFields || []).find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       checkTypeFields: (prev.checkTypeFields || []).map((f) => (f.id === id ? { ...f, ...updates } : f)),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'update_check_type_field',
+        description: `Updated check type field \"${existing.label}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   const deleteCheckTypeField = useCallback((id: string) => {
+    const existing = (settingsRef.current.checkTypeFields || []).find((entry) => entry.id === id);
+
     setSettings((prev) => ({
       ...prev,
       checkTypeFields: (prev.checkTypeFields || []).filter((f) => f.id !== id),
     }));
-  }, []);
+
+    if (existing) {
+      logSettingsAction({
+        action: 'delete_check_type_field',
+        description: `Deleted check type field \"${existing.label}\"`,
+      });
+    }
+  }, [logSettingsAction]);
 
   const resetToDefaults = useCallback(() => {
     setSettings(getDefaultSettings());
-  }, []);
+
+    logSettingsAction({
+      action: 'reset_admin_settings',
+      description: 'Reset all admin settings to defaults',
+    });
+  }, [logSettingsAction]);
 
   return {
     settings,

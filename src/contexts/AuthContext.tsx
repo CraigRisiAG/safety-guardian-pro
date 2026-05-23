@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { logAuditEvent } from "@/lib/auditLog";
 
 export interface User {
   id: string;
@@ -286,6 +287,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setSession({ currentUserId: target.id });
       writeStorage(TOKEN_STORAGE_KEY, createToken());
+
+      logAuditEvent({
+        module: "auth",
+        action: "login",
+        description: `${target.name} signed in`,
+        actor: {
+          id: target.id,
+          name: target.name,
+          email: target.email,
+        },
+      });
     } finally {
       setIsLoading(false);
     }
@@ -329,6 +341,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(next));
       setSession({ currentUserId: newAccount.id });
       writeStorage(TOKEN_STORAGE_KEY, createToken());
+
+      logAuditEvent({
+        module: "auth",
+        action: "register",
+        description: `${newAccount.name} registered a new account`,
+        actor: {
+          id: newAccount.id,
+          name: newAccount.name,
+          email: newAccount.email,
+        },
+      });
 
       return toPublicUser(newAccount);
     } finally {
@@ -379,6 +402,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setAccounts(updated);
     writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+
+    logAuditEvent({
+      module: "auth",
+      action: "change_password",
+      description: `${currentAccount.name} changed their password`,
+      actor: {
+        id: currentAccount.id,
+        name: currentAccount.name,
+        email: currentAccount.email,
+      },
+    });
   };
 
   const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
@@ -389,7 +423,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const adminReferenceId = session.impersonatorUserId ?? session.currentUserId;
     const adminAccount = accounts.find((entry) => entry.id === adminReferenceId);
 
-    if (adminAccount?.role !== "admin") {
+    if (!adminAccount || adminAccount.role !== "admin") {
       throw new Error("Only system admins can reset passwords");
     }
 
@@ -417,6 +451,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setAccounts(updated);
     writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+
+    const targetUser = updated.find((entry) => entry.id === userId);
+    logAuditEvent({
+      module: "auth",
+      action: "reset_password",
+      description: `Password reset for ${targetUser?.name ?? userId}`,
+      actor: {
+        id: adminAccount.id,
+        name: adminAccount.name,
+        email: adminAccount.email,
+      },
+    });
   };
 
   const impersonateUser = (userId: string) => {
@@ -426,7 +472,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const adminReferenceId = session.impersonatorUserId ?? session.currentUserId;
     const adminAccount = accounts.find((entry) => entry.id === adminReferenceId);
-    if (adminAccount?.role !== "admin") {
+    if (!adminAccount || adminAccount.role !== "admin") {
       throw new Error("Only system admins can impersonate users");
     }
 
@@ -443,6 +489,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentUserId: userId,
       impersonatorUserId: adminReferenceId,
     });
+
+    const targetUser = accounts.find((entry) => entry.id === userId);
+    logAuditEvent({
+      module: "auth",
+      action: "start_impersonation",
+      description: `${adminAccount.name} started impersonating ${targetUser?.name ?? userId}`,
+      actor: {
+        id: adminAccount.id,
+        name: adminAccount.name,
+        email: adminAccount.email,
+      },
+    });
   };
 
   const stopImpersonation = () => {
@@ -450,14 +508,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    const adminAccount = accounts.find((entry) => entry.id === session.impersonatorUserId);
+    const impersonatedAccount = accounts.find((entry) => entry.id === session.currentUserId);
+
     setSession({ currentUserId: session.impersonatorUserId });
+
+    if (adminAccount) {
+      logAuditEvent({
+        module: "auth",
+        action: "stop_impersonation",
+        description: `${adminAccount.name} stopped impersonating ${impersonatedAccount?.name ?? session.currentUserId}`,
+        actor: {
+          id: adminAccount.id,
+          name: adminAccount.name,
+          email: adminAccount.email,
+        },
+      });
+    }
   };
 
   const logout = (): void => {
+    const activeUser = user;
+
     setSession(null);
     removeStorage(USER_STORAGE_KEY);
     removeStorage(TOKEN_STORAGE_KEY);
     removeStorage(SESSION_STORAGE_KEY);
+
+    if (activeUser) {
+      logAuditEvent({
+        module: "auth",
+        action: "logout",
+        description: `${activeUser.name} signed out`,
+        actor: {
+          id: activeUser.id,
+          name: activeUser.name,
+          email: activeUser.email,
+        },
+      });
+    }
   };
 
   const value: AuthContextType = {

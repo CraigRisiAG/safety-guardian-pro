@@ -35,6 +35,7 @@ import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { canResolveIncidentsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
+import { logAuditEvent } from '@/lib/auditLog';
 
 const severityStyles = {
   low: 'bg-info-muted text-info border-info/20',
@@ -225,6 +226,19 @@ export default function Incidents() {
       customFieldValues: data.customFieldValues,
     };
     setIncidents((previous) => [newIncident, ...previous]);
+    logAuditEvent({
+      module: 'incidents',
+      action: 'create_incident',
+      description: `Created incident \"${newIncident.title}\"`,
+      location: {
+        buildingId: newIncident.location.buildingId,
+        floorId: newIncident.location.floorId,
+        areaId: newIncident.location.areaId,
+      },
+      metadata: {
+        severity: newIncident.severity,
+      },
+    });
     setIsDialogOpen(false);
     toast.success('Incident reported successfully');
   };
@@ -245,11 +259,30 @@ export default function Incidents() {
       return;
     }
 
-    setIncidents((previous) =>
-      previous.map((incident) =>
+    setIncidents((previous) => {
+      const originalIncident = previous.find((incident) => incident.id === incidentId);
+      const next = previous.map((incident) =>
         incident.id === incidentId ? buildUpdatedIncident(incident, updates) : incident,
-      ),
-    );
+      );
+
+      if (originalIncident) {
+        logAuditEvent({
+          module: 'incidents',
+          action: 'update_incident',
+          description: `Updated incident \"${originalIncident.title}\"`,
+          location: {
+            buildingId: originalIncident.location.buildingId,
+            floorId: originalIncident.location.floorId,
+            areaId: originalIncident.location.areaId,
+          },
+          metadata: {
+            status: updates.status,
+          },
+        });
+      }
+
+      return next;
+    });
     setEditingIncident(null);
     toast.success('Incident updated successfully');
   };
@@ -261,7 +294,22 @@ export default function Incidents() {
       toast.error('Only System Super Admins can delete incidents');
       return;
     }
+    const targetIncident = incidents.find((incident) => incident.id === incidentId);
     setIncidents((previous) => previous.filter((incident) => incident.id !== incidentId));
+
+    if (targetIncident) {
+      logAuditEvent({
+        module: 'incidents',
+        action: 'delete_incident',
+        description: `Deleted incident \"${targetIncident.title}\"`,
+        location: {
+          buildingId: targetIncident.location.buildingId,
+          floorId: targetIncident.location.floorId,
+          areaId: targetIncident.location.areaId,
+        },
+      });
+    }
+
     setDeletingIncident(null);
     toast.success('Incident deleted');
   };

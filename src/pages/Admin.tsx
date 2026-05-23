@@ -10,7 +10,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Award,
-  ClipboardList
+  ClipboardList,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,10 @@ import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager'
 import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManager';
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
 import { CertificateManager } from '@/components/admin/CertificateManager';
+import { SystemLogsViewer } from '@/components/admin/SystemLogsViewer';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { useAuth } from '@/contexts/AuthContext';
+import { findCurrentUserPermission } from '@/lib/personnelAccess';
 
 const adminSections = [
   { 
@@ -63,11 +67,20 @@ const adminSections = [
     icon: FileText, 
     description: 'Customize incident report fields' 
   },
+  {
+    id: 'logs',
+    name: 'System Logs',
+    icon: Activity,
+    description: 'View system audit activity by access scope',
+  },
 ];
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('buildings');
   const adminSettings = useAdminSettings();
+  const { user } = useAuth();
+
+  const currentPermission = findCurrentUserPermission(user, adminSettings.settings.userPermissions);
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,7 +174,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-7 h-auto p-1">
             {adminSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -238,6 +251,13 @@ export default function Admin() {
               onAdd={adminSettings.addCustomIncidentField}
               onUpdate={adminSettings.updateCustomIncidentField}
               onDelete={adminSettings.deleteCustomIncidentField}
+            />
+          </TabsContent>
+
+          <TabsContent value="logs" className="space-y-6">
+            <SystemLogsViewer
+              permission={currentPermission}
+              buildings={adminSettings.settings.buildings}
             />
           </TabsContent>
         </Tabs>

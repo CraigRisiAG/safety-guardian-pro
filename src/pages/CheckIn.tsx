@@ -16,6 +16,7 @@ import {
   loadCheckInsForDrill,
 } from '@/lib/checkInsStorage';
 import { canStartDrillsForUser, filterPersonnelByUserScope, findCurrentUserPermission } from '@/lib/personnelAccess';
+import { logAuditEvent } from '@/lib/auditLog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -289,6 +290,21 @@ export default function CheckIn() {
 
     persistEntries([primaryCheckIn, ...colleagueEntries]);
 
+    logAuditEvent({
+      module: 'checkin',
+      action: 'submit_checkin',
+      description: `Submitted drill check-in for ${1 + colleagueEntries.length} person(s)`,
+      location: {
+        buildingId: baseLocation.buildingId,
+        floorId: baseLocation.floorId,
+        areaId: baseLocation.areaId,
+      },
+      metadata: {
+        status: data.status,
+        additionalPeople: colleagueEntries.length,
+      },
+    });
+
     const totalPeople = 1 + colleagueEntries.length;
     toast.success(totalPeople > 1 ? `${totalPeople} people checked in` : 'Check-in saved');
   };
@@ -341,6 +357,22 @@ export default function CheckIn() {
     };
 
     persistEntries([entry]);
+
+    logAuditEvent({
+      module: 'checkin',
+      action: 'checkin_colleague',
+      description: `Checked in ${personName}`,
+      location: {
+        buildingId: entry.location.buildingId,
+        floorId: entry.location.floorId,
+        areaId: entry.location.areaId,
+      },
+      metadata: {
+        personType: colleaguePersonType,
+        status: colleagueStatus,
+      },
+    });
+
     setSelectedColleagueId('');
     setColleagueSearch('');
     setColleagueStatus('safe');
