@@ -64,6 +64,8 @@ interface NewPersonnelForm {
   nextOfKinPhone: string;
 }
 
+type SpreadsheetRow = Record<string, unknown>;
+
 export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onDelete, trigger, externalOpen, onExternalOpenChange }: PersonnelDialogProps) {
   const { user } = useAuth();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -250,7 +252,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     return value.split(',').map(d => dayMap[d.toLowerCase().trim()]).filter(Boolean) as WorkDay[];
   };
 
-  const validateAndParseUser = (row: any): ParsedUser => {
+  const validateAndParseUser = (row: SpreadsheetRow): ParsedUser => {
     const errors: string[] = [];
     
     const userName = (row['Name']?.toString().trim() || '');
@@ -314,9 +316,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = XLSX.utils.sheet_to_json<SpreadsheetRow>(worksheet);
 
-      const parsed: ParsedUser[] = jsonData.map((row: any) => validateAndParseUser(row));
+      const parsed: ParsedUser[] = jsonData.map((row) => validateAndParseUser(row));
 
       setParsedUsers(parsed);
       
@@ -503,7 +505,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         personnelType,
       };
     });
-  }, [scopedPersonnel, buildings]);
+  }, [scopedPersonnel, buildings, getLocationInfo, getPersonnelType]);
 
   const filteredPersonnel = useMemo(() => {
     let result = enhancedPersonnel;

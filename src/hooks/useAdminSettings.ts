@@ -78,28 +78,34 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
   }
 
   try {
-    const parsed = JSON.parse(stored);
+    const parsed = JSON.parse(stored) as {
+      checkTypeFields?: unknown;
+      healthOfficialsRequiredDays?: unknown;
+      buildings: Array<Record<string, unknown>>;
+      userPermissions: Array<Record<string, unknown>>;
+      complianceChecks: Array<Record<string, unknown>>;
+    };
     return {
       ...parsed,
       checkTypeFields: Array.isArray(parsed.checkTypeFields) ? parsed.checkTypeFields : [],
       healthOfficialsRequiredDays: normalizeRequiredCoverageDays(parsed.healthOfficialsRequiredDays),
-      buildings: parsed.buildings.map((b: any) => ({
+      buildings: parsed.buildings.map((b) => ({
         ...b,
-        createdAt: new Date(b.createdAt),
-        updatedAt: new Date(b.updatedAt),
+        createdAt: new Date(b.createdAt as string | number | Date),
+        updatedAt: new Date(b.updatedAt as string | number | Date),
       })),
-      userPermissions: parsed.userPermissions.map((p: any) => ({
+      userPermissions: parsed.userPermissions.map((p) => ({
         ...p,
         workDays: normalizeWorkDays(p.workDays),
-        createdAt: new Date(p.createdAt),
-        updatedAt: new Date(p.updatedAt),
+        createdAt: new Date(p.createdAt as string | number | Date),
+        updatedAt: new Date(p.updatedAt as string | number | Date),
       })),
-      complianceChecks: parsed.complianceChecks.map((c: any) => ({
+      complianceChecks: parsed.complianceChecks.map((c) => ({
         ...c,
-        lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : undefined,
-        nextDue: new Date(c.nextDue),
-        startDate: c.startDate ? new Date(c.startDate) : undefined,
-        endDate: c.endDate ? new Date(c.endDate) : undefined,
+        lastCompleted: c.lastCompleted ? new Date(c.lastCompleted as string | number | Date) : undefined,
+        nextDue: new Date(c.nextDue as string | number | Date),
+        startDate: c.startDate ? new Date(c.startDate as string | number | Date) : undefined,
+        endDate: c.endDate ? new Date(c.endDate as string | number | Date) : undefined,
         floorIds: Array.isArray(c.floorIds) ? c.floorIds : [],
         areaIds: Array.isArray(c.areaIds) ? c.areaIds : [],
         recurrencePattern: c.recurrencePattern || (c.isRecurring ? 'monthly_same_date' : 'none'),
@@ -308,7 +314,7 @@ export function useAdminSettings() {
 
     logSettingsAction({
       action: 'add_building',
-      description: `Added building \"${newBuilding.name}\"`,
+      description: `Added building "${newBuilding.name}"`,
       location: { buildingId: newBuilding.id },
     });
 
@@ -328,7 +334,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'update_building',
-        description: `Updated building \"${existing.name}\"`,
+        description: `Updated building "${existing.name}"`,
         location: { buildingId: existing.id },
       });
     }
@@ -345,7 +351,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'delete_building',
-        description: `Deleted building \"${existing.name}\"`,
+        description: `Deleted building "${existing.name}"`,
         location: { buildingId: existing.id },
       });
     }
@@ -522,7 +528,7 @@ export function useAdminSettings() {
 
     logSettingsAction({
       action: 'add_compliance_check',
-      description: `Added compliance check \"${newCheck.name}\"`,
+      description: `Added compliance check "${newCheck.name}"`,
       location: {
         buildingId: newCheck.buildingIds[0],
         floorId: newCheck.floorIds?.[0],
@@ -547,7 +553,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'update_compliance_check',
-        description: `Updated compliance check \"${existing.name}\"`,
+        description: `Updated compliance check "${existing.name}"`,
         location: {
           buildingId: updates.buildingIds?.[0] ?? existing.buildingIds[0],
           floorId: updates.floorIds?.[0] ?? existing.floorIds?.[0],
@@ -569,7 +575,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'delete_compliance_check',
-        description: `Deleted compliance check \"${existing.name}\"`,
+        description: `Deleted compliance check "${existing.name}"`,
         location: {
           buildingId: existing.buildingIds[0],
           floorId: existing.floorIds?.[0],
@@ -593,7 +599,7 @@ export function useAdminSettings() {
 
     logSettingsAction({
       action: 'add_safety_check_item',
-      description: `Added safety check item \"${newItem.name}\"`,
+      description: `Added safety check item "${newItem.name}"`,
     });
 
     return newItem;
@@ -612,7 +618,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'update_safety_check_item',
-        description: `Updated safety check item \"${existing.name}\"`,
+        description: `Updated safety check item "${existing.name}"`,
       });
     }
   }, [logSettingsAction]);
@@ -628,7 +634,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'delete_safety_check_item',
-        description: `Deleted safety check item \"${existing.name}\"`,
+        description: `Deleted safety check item "${existing.name}"`,
       });
     }
   }, [logSettingsAction]);
@@ -646,7 +652,7 @@ export function useAdminSettings() {
 
     logSettingsAction({
       action: 'add_incident_field',
-      description: `Added custom incident field \"${newField.label}\"`,
+      description: `Added custom incident field "${newField.label}"`,
     });
 
     return newField;
@@ -665,7 +671,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'update_incident_field',
-        description: `Updated custom incident field \"${existing.label}\"`,
+        description: `Updated custom incident field "${existing.label}"`,
       });
     }
   }, [logSettingsAction]);
@@ -681,7 +687,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'delete_incident_field',
-        description: `Deleted custom incident field \"${existing.label}\"`,
+        description: `Deleted custom incident field "${existing.label}"`,
       });
     }
   }, [logSettingsAction]);
@@ -696,7 +702,7 @@ export function useAdminSettings() {
 
     logSettingsAction({
       action: 'add_check_type_field',
-      description: `Added check type field \"${newField.label}\"`,
+      description: `Added check type field "${newField.label}"`,
     });
 
     return newField;
@@ -713,7 +719,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'update_check_type_field',
-        description: `Updated check type field \"${existing.label}\"`,
+        description: `Updated check type field "${existing.label}"`,
       });
     }
   }, [logSettingsAction]);
@@ -729,7 +735,7 @@ export function useAdminSettings() {
     if (existing) {
       logSettingsAction({
         action: 'delete_check_type_field',
-        description: `Deleted check type field \"${existing.label}\"`,
+        description: `Deleted check type field "${existing.label}"`,
       });
     }
   }, [logSettingsAction]);

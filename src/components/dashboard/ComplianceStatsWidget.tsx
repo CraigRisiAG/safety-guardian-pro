@@ -192,7 +192,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       officialCoverageScore,
       safetyComplianceScore,
     };
-  }, [settings.complianceChecks, settings.buildings, settings.healthOfficialsRequiredDays, settings.userPermissions, currentUserPermission, isAdmin]);
+  }, [settings, settings.complianceChecks, settings.buildings, settings.healthOfficialsRequiredDays, settings.userPermissions, currentUserPermission, isAdmin]);
 
   const handleOpenPendingDialog = (filter: 'this_week' | 'overdue' | 'all') => {
     setPendingDialogFilter(filter);

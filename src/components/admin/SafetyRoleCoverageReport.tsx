@@ -165,7 +165,7 @@ export function SafetyRoleCoverageReport({ permissions, buildings, requiredDays 
       }
     });
     return filtered;
-  }, [coverageAnalysis.gapsByBuilding, selectedDay]);
+  }, [coverageAnalysis, coverageAnalysis.gapsByBuilding, selectedDay]);
 
   const gapsForSelectedDay = selectedDay === 'all' 
     ? coverageAnalysis.totalGaps 

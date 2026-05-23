@@ -369,7 +369,16 @@
 <a name='L304'></a><a href='#L304'>304</a>
 <a name='L305'></a><a href='#L305'>305</a>
 <a name='L306'></a><a href='#L306'>306</a>
-<a name='L307'></a><a href='#L307'>307</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -378,6 +387,15 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">3x</span>
@@ -685,6 +703,15 @@ const ACTIVE_DRILL_KEY = 'active_drill';
 const DRILL_RECORDS_KEY = 'drill_records';
 const ADMIN_SETTINGS_KEY = 'safeguard_admin_settings';
 &nbsp;
+type StoredDrillRecord = Omit&lt;DrillRecord, 'startedAt' | 'completedAt'&gt; &amp; {
+  startedAt?: string;
+  completedAt?: string;
+};
+&nbsp;
+type StoredArea = { id?: string; name?: string };
+type StoredFloor = { id?: string; name?: string; areas?: StoredArea[] };
+type StoredBuilding = { id?: string; name?: string; floors?: StoredFloor[] };
+&nbsp;
 const parseDateSafe = (value: unknown): Date | undefined =&gt; {
   if (!value || typeof value !== 'string') {
     return undefined;
@@ -762,8 +789,8 @@ const parseDrillRecords = (stored: string | null): DrillRecord[] =&gt; {
 <span class="cstat-no" title="statement not covered" >      return [];</span>
     }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    return parsed</span>
-      .map(<span class="fstat-no" title="function not covered" >(r</span>ecord: any) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
+<span class="cstat-no" title="statement not covered" >    return (parsed as StoredDrillRecord[])</span>
+      .map(<span class="fstat-no" title="function not covered" >(r</span>ecord) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
         ...record,
         startedAt: parseDateSafe(record?.startedAt) ?? new Date(),
         completedAt: parseDateSafe(record?.completedAt) ?? new Date(),
@@ -823,15 +850,15 @@ const resolveBuildings = () =&gt; {
 <span class="cstat-no" title="statement not covered" >      return buildings;</span>
     }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    return parsed.buildings.map(<span class="fstat-no" title="function not covered" >(b</span>uilding: any) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
+<span class="cstat-no" title="statement not covered" >    return (parsed.buildings as StoredBuilding[]).map(<span class="fstat-no" title="function not covered" >(b</span>uilding) =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
       id: building.id,
       name: building.name,
       floors: Array.isArray(building.floors)
-        ? building.floors.map(<span class="fstat-no" title="function not covered" >(f</span>loor: any) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
+        ? building.floors.map(<span class="fstat-no" title="function not covered" >(f</span>loor) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
             id: floor.id,
             name: floor.name,
             areas: Array.isArray(floor.areas)
-              ? floor.areas.map(<span class="fstat-no" title="function not covered" >(a</span>rea: any) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
+              ? floor.areas.map(<span class="fstat-no" title="function not covered" >(a</span>rea) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
                   id: area.id,
                   name: area.name,
                   floorId: floor.id,
@@ -988,7 +1015,7 @@ export function useDrillStatus() {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-23T11:56:46.986Z
+                at 2026-05-23T12:18:24.321Z
             </div>
         <script src="../prettify.js"></script>
         <script>

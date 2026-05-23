@@ -45,6 +45,8 @@ interface ApiResponseDisplay {
   requestId: string;
 }
 
+type SpreadsheetRow = Record<string, unknown>;
+
 const VALID_ROLES: UserRole[] = ['viewer', 'reporter', 'responder', 'admin', 'super_admin'];
 
 const API_EXAMPLE_JSON = `[
@@ -126,7 +128,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     toast.success('Template downloaded');
   };
 
-  const parseBoolean = (value: any): boolean => {
+  const parseBoolean = (value: unknown): boolean => {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') {
       return ['yes', 'true', '1', 'y'].includes(value.toLowerCase().trim());
@@ -157,7 +159,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     }).filter(Boolean) as string[];
   };
 
-  const validateAndParseUser = (row: any, isJsonFormat: boolean): ParsedUser => {
+  const validateAndParseUser = (row: SpreadsheetRow, isJsonFormat: boolean): ParsedUser => {
     const errors: string[] = [];
     
     const userName = isJsonFormat 
@@ -227,9 +229,9 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = XLSX.utils.sheet_to_json<SpreadsheetRow>(worksheet);
 
-      const parsed: ParsedUser[] = jsonData.map((row: any) => validateAndParseUser(row, false));
+      const parsed: ParsedUser[] = jsonData.map((row) => validateAndParseUser(row, false));
 
       setParsedUsers(parsed);
       

@@ -520,7 +520,7 @@ export default function Incidents() {
     logAuditEvent({
       module: 'incidents',
       action: 'create_incident',
-      description: `Created incident \"${newIncident.title}\"`,
+      description: `Created incident "${newIncident.title}"`,
       location: {
         buildingId: newIncident.location.buildingId,
         floorId: newIncident.location.floorId,
@@ -560,7 +560,7 @@ export default function Incidents() {
         logAuditEvent({
           module: 'incidents',
           action: 'update_incident',
-          description: `Updated incident \"${originalIncident.title}\"`,
+          description: `Updated incident "${originalIncident.title}"`,
           location: {
             buildingId: originalIncident.location.buildingId,
             floorId: originalIncident.location.floorId,
@@ -592,7 +592,7 @@ export default function Incidents() {
       logAuditEvent({
         module: 'incidents',
         action: 'delete_incident',
-        description: `Deleted incident \"${targetIncident.title}\"`,
+        description: `Deleted incident "${targetIncident.title}"`,
         location: {
           buildingId: targetIncident.location.buildingId,
           floorId: targetIncident.location.floorId,
@@ -1009,3 +1009,4 @@ export default function Incidents() {
     </AppLayout>
   );
 }
+

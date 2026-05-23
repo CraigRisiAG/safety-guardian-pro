@@ -344,7 +344,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
 
     return messages;
-  }, [activeDrill, incidents, isActiveDrillRelevant, settings.complianceChecks, user?.id]);
+  }, [activeDrill, incidents, isActiveDrillRelevant, settings.complianceChecks, user?.id, isIncidentRelevant]);
 
   const actionableSignature = useMemo(
     () => actionableNotifications.map((entry) => entry.signature).join('|'),

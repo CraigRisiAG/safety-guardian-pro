@@ -3,12 +3,22 @@ import { SafetyCertificate, calculateExpiryDate, isCertificateExpiringSoon, isCe
 
 const STORAGE_KEY = 'safeguard_certificates';
 
+type StoredCertificate = Omit<SafetyCertificate, 'certificationDate' | 'expiryDate'> & {
+  certificationDate: string | Date;
+  expiryDate: string | Date;
+};
+
 export function useCertificates() {
   const [certificates, setCertificates] = useState<SafetyCertificate[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        return JSON.parse(stored).map((c: any) => ({
+        const parsed = JSON.parse(stored) as unknown;
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+
+        return (parsed as StoredCertificate[]).map((c) => ({
           ...c,
           certificationDate: new Date(c.certificationDate),
           expiryDate: new Date(c.expiryDate),

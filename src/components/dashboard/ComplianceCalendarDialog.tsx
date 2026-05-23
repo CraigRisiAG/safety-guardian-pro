@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, CalendarCheck, Play, Plus, User, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,6 +29,10 @@ import {
 } from 'date-fns';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
+
+type StoredCompletedCheckRecord = Omit<CompletedCheckRecord, 'completedAt'> & {
+  completedAt: string | Date;
+};
 
 interface CalendarEvent {
   id: string;
@@ -101,8 +105,12 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
     try {
-      const parsed = JSON.parse(stored);
-      return parsed.map((record: any) => ({
+      const parsed = JSON.parse(stored) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return (parsed as StoredCompletedCheckRecord[]).map((record) => ({
         ...record,
         completedAt: typeof record.completedAt === 'string' 
           ? parseISO(record.completedAt) 
@@ -111,15 +119,15 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     } catch {
       return [];
     }
-  }, [isOpen]);
+  }, []);
 
   // Get building name helper
-  const getBuildingName = (buildingId: string): string => {
+  const getBuildingName = useCallback((buildingId: string): string => {
     const building = settings.buildings.find(b => b.id === buildingId);
     return building?.name || 'Unknown Building';
-  };
+  }, [settings.buildings]);
 
-  const getLocationDetails = (check: ComplianceCheck): string | undefined => {
+  const getLocationDetails = useCallback((check: ComplianceCheck): string | undefined => {
     const floorNames = settings.buildings
       .flatMap((building) => building.floors)
       .filter((floor) => (check.floorIds || []).includes(floor.id))
@@ -140,7 +148,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     }
 
     return parts.length > 0 ? parts.join(' • ') : undefined;
-  };
+  }, [settings.buildings]);
 
   // Create calendar events from scheduled and completed checks
   // Filter based on user role - admins see all, users see only assigned
@@ -256,7 +264,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission, currentMonth]);
+  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {

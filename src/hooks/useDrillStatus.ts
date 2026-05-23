@@ -8,6 +8,15 @@ const ACTIVE_DRILL_KEY = 'active_drill';
 const DRILL_RECORDS_KEY = 'drill_records';
 const ADMIN_SETTINGS_KEY = 'safeguard_admin_settings';
 
+type StoredDrillRecord = Omit<DrillRecord, 'startedAt' | 'completedAt'> & {
+  startedAt?: string;
+  completedAt?: string;
+};
+
+type StoredArea = { id?: string; name?: string };
+type StoredFloor = { id?: string; name?: string; areas?: StoredArea[] };
+type StoredBuilding = { id?: string; name?: string; floors?: StoredFloor[] };
+
 const parseDateSafe = (value: unknown): Date | undefined => {
   if (!value || typeof value !== 'string') {
     return undefined;
@@ -85,8 +94,8 @@ const parseDrillRecords = (stored: string | null): DrillRecord[] => {
       return [];
     }
 
-    return parsed
-      .map((record: any) => ({
+    return (parsed as StoredDrillRecord[])
+      .map((record) => ({
         ...record,
         startedAt: parseDateSafe(record?.startedAt) ?? new Date(),
         completedAt: parseDateSafe(record?.completedAt) ?? new Date(),
@@ -146,15 +155,15 @@ const resolveBuildings = () => {
       return buildings;
     }
 
-    return parsed.buildings.map((building: any) => ({
+    return (parsed.buildings as StoredBuilding[]).map((building) => ({
       id: building.id,
       name: building.name,
       floors: Array.isArray(building.floors)
-        ? building.floors.map((floor: any) => ({
+        ? building.floors.map((floor) => ({
             id: floor.id,
             name: floor.name,
             areas: Array.isArray(floor.areas)
-              ? floor.areas.map((area: any) => ({
+              ? floor.areas.map((area) => ({
                   id: area.id,
                   name: area.name,
                   floorId: floor.id,

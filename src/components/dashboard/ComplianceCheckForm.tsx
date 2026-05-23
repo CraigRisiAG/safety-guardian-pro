@@ -41,6 +41,11 @@ interface ComplianceCheckFormProps {
   onCheckComplete?: () => void;
 }
 
+type CustomFieldValue = string | number | boolean | undefined;
+type CompletedCheckRecordWithCustomFields = CompletedCheckRecord & {
+  customFieldValues?: Record<string, CustomFieldValue>;
+};
+
 export function ComplianceCheckForm({ 
   preselectedCheck, 
   onBehalfOf, 
@@ -55,7 +60,7 @@ export function ComplianceCheckForm({
   const [areaId, setAreaId] = useState('');
   const [notes, setNotes] = useState('');
   const [checkedItems, setCheckedItems] = useState<Record<string, { checked: boolean; notes: string }>>({});
-  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, CustomFieldValue>>({});
 
   // Auto-open and prefill when a scheduled check is selected
   useEffect(() => {
@@ -190,7 +195,7 @@ export function ComplianceCheckForm({
       status = 'partial';
     }
 
-    const record: CompletedCheckRecord = {
+    const record: CompletedCheckRecordWithCustomFields = {
       id: `completed-${Date.now()}`,
       checkType,
       buildingId,
@@ -207,10 +212,10 @@ export function ComplianceCheckForm({
       status,
     };
     if (customFields.length > 0) {
-      (record as any).customFieldValues = customFields.reduce((acc, f) => {
+      record.customFieldValues = customFields.reduce((acc, f) => {
         acc[f.name] = customFieldValues[f.id];
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, CustomFieldValue>);
     }
 
     // Save to localStorage
@@ -439,7 +444,7 @@ export function ComplianceCheckForm({
                   <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
                     {customFields.map((field) => {
                       const value = customFieldValues[field.id];
-                      const setValue = (v: any) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: v }));
+                      const setValue = (v: CustomFieldValue) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: v }));
                       return (
                         <div key={field.id} className="space-y-1.5">
                           <Label className="flex items-center gap-2 text-sm">

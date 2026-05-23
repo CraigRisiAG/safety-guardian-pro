@@ -14,6 +14,10 @@ import { toast } from 'sonner';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
+type StoredCompletedCheckRecord = Omit<CompletedCheckRecord, 'completedAt'> & {
+  completedAt: string | Date;
+};
+
 export function ComplianceHistoryDialog() {
   const { settings } = useAdminSettings();
   const [isOpen, setIsOpen] = useState(false);
@@ -25,16 +29,21 @@ export function ComplianceHistoryDialog() {
   const records = useMemo(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-    
-    return JSON.parse(stored)
-      .map((r: any) => ({
+
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return (parsed as StoredCompletedCheckRecord[])
+      .map((r) => ({
         ...r,
         completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt)
       }))
       .sort((a: CompletedCheckRecord, b: CompletedCheckRecord) => 
         new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
       );
-  }, [isOpen]); // Refresh when dialog opens
+  }, []);
 
   const filteredRecords = useMemo(() => {
     return records.filter((record: CompletedCheckRecord) => {
