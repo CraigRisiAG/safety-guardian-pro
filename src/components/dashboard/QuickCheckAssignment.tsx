@@ -213,6 +213,11 @@ export function QuickCheckAssignment({
       return;
     }
 
+    if (!formData.dueDate) {
+      toast.error(isTrainingMode ? 'Training date is required' : 'Due date is required');
+      return;
+    }
+
     if (isTrainingMode && !formData.trainingParticipantId) {
       toast.error('Please select the person who is going on training');
       return;
@@ -339,6 +344,33 @@ export function QuickCheckAssignment({
 
           {isTrainingMode && (
             <div className="space-y-4 border rounded-lg p-3 bg-muted/20">
+              <div className="space-y-2">
+                <Label>Training Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !formData.dueDate && 'text-muted-foreground',
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formData.dueDate ? format(formData.dueDate, 'PPP') : 'Pick a training date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={formData.dueDate}
+                      onSelect={(date) => date && setFormData((prev) => ({ ...prev, dueDate: date }))}
+                      initialFocus
+                      className={cn('p-3 pointer-events-auto')}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               <div className="space-y-2">
                 <Label>Person Going On Training *</Label>
                 <Select

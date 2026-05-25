@@ -8,6 +8,7 @@ import {
   loadNotificationsFromStorage,
   loadNotificationDeliveryConfig,
   loadNotificationProviderSettings,
+  notifyComplianceChecksAssigned,
   notifyDrillStarted,
   notifyIncidentReported,
   saveNotificationDeliveryConfig,
@@ -199,6 +200,30 @@ describe('notifications', () => {
 
     const snapshot = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
     expect(snapshot).not.toBeNull();
+  });
+
+  it('notifies assigned users when assignment IDs use auth userId values', () => {
+    const summary = notifyComplianceChecksAssigned({
+      assignedChecks: [
+        {
+          checkId: 'check-1',
+          checkName: 'Training: Area User - First Aid (Level 1)',
+          dueAt: new Date('2026-06-01T09:00:00.000Z'),
+          assignedUserIds: ['user-1'],
+          buildingIds: [],
+          areaIds: [],
+        },
+      ],
+      userPermissions: users,
+    });
+
+    expect(summary.total).toBe(1);
+    expect(summary.sent).toBe(1);
+
+    const records = loadNotificationsFromStorage();
+    expect(records).toHaveLength(1);
+    expect(records[0].type).toBe('compliance_assigned');
+    expect(records[0].recipientUserId).toBe('user-1');
   });
 
   it('loads default notification delivery config when storage is empty', () => {

@@ -642,7 +642,11 @@ export const notifyComplianceChecksAssigned = (input: {
   input.assignedChecks.forEach((assignedCheck) => {
     const recipients = uniqueRecipients(
       toNotificationRecipients(
-        input.userPermissions.filter((entry) => assignedCheck.assignedUserIds.includes(entry.id)),
+        input.userPermissions.filter(
+          (entry) =>
+            assignedCheck.assignedUserIds.includes(entry.id) ||
+            assignedCheck.assignedUserIds.includes(entry.userId),
+        ),
       ),
     );
 
