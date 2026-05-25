@@ -144,4 +144,137 @@ describe('useDrillStatus', () => {
     expect(savedDrills[0].id).toBe(baseDrill.id);
     expect(savedDrills[0].status).toBe('active');
   });
+
+  it('restores persisted drill records from storage and parses date fields', () => {
+    localStorage.setItem(
+      'drill_records',
+      JSON.stringify([
+        {
+          id: 'record-1',
+          drillId: 'drill-1',
+          type: 'fire',
+          buildingId: 'building-main',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-ground', name: 'Ground Floor' }],
+          startedAt: '2026-05-23T10:00:00.000Z',
+          completedAt: '2026-05-23T10:10:00.000Z',
+          durationMinutes: 10,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 5, safe: 4, needsAssistance: 1, pending: 0 },
+          floorStats: [],
+        },
+      ]),
+    );
+
+    const { result } = renderHook(() => useDrillStatus());
+
+    expect(result.current.drillRecords).toHaveLength(1);
+    expect(result.current.drillRecords[0].startedAt).toBeInstanceOf(Date);
+    expect(result.current.drillRecords[0].completedAt).toBeInstanceOf(Date);
+    expect(result.current.drillRecords[0].drillId).toBe('drill-1');
+  });
+
+  it('falls back to empty records for invalid persisted drill record payloads', () => {
+    localStorage.setItem('drill_records', '{not-json');
+
+    const { result } = renderHook(() => useDrillStatus());
+
+    expect(result.current.drillRecords).toEqual([]);
+  });
+
+  it('responds to storage events by syncing drill records', () => {
+    localStorage.setItem(
+      'active_drill',
+      JSON.stringify({
+        ...baseDrill,
+        status: 'active',
+        startedAt: new Date('2026-05-25T09:00:00.000Z').toISOString(),
+      }),
+    );
+    localStorage.setItem('drill_records', JSON.stringify([]));
+
+    const { result } = renderHook(() => useDrillStatus());
+    expect(result.current.drillRecords).toHaveLength(0);
+
+    localStorage.setItem(
+      'drill_records',
+      JSON.stringify([
+        {
+          id: 'record-sync-1',
+          drillId: 'drill-1',
+          type: 'fire',
+          buildingId: 'building-main',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-ground', name: 'Ground Floor' }],
+          startedAt: '2026-05-25T09:00:00.000Z',
+          completedAt: '2026-05-25T09:10:00.000Z',
+          durationMinutes: 10,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 3, safe: 2, needsAssistance: 1, pending: 0 },
+          floorStats: [],
+        },
+      ]),
+    );
+
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'drill_records' }));
+    });
+
+    expect(result.current.drillRecords).toHaveLength(1);
+    expect(result.current.drillRecords[0].id).toBe('record-sync-1');
+  });
+
+  it('uses provided floorCheckIns overrides when ending drills', () => {
+    localStorage.setItem(
+      'active_drill',
+      JSON.stringify({
+        ...baseDrill,
+        status: 'active',
+        startedAt: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    );
+    localStorage.setItem(
+      'safeguard_admin_settings',
+      JSON.stringify({
+        buildings: [
+          {
+            id: 'building-main',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'floor-ground',
+                name: 'Ground Floor',
+                areas: [{ id: 'area-reception', name: 'Reception' }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockLoadDrillsFromStorage.mockReturnValue([{ ...baseDrill, status: 'active' }]);
+    mockLoadCheckInsForDrill.mockReturnValue([
+      { id: 'ci-1', status: 'safe', location: { floorId: 'floor-ground' } },
+      { id: 'ci-2', status: 'needs-assistance', location: { floorId: 'floor-ground' } },
+      { id: 'ci-3', status: 'pending', location: { floorId: 'floor-ground' } },
+    ]);
+
+    const { result } = renderHook(() => useDrillStatus());
+
+    let endedRecord: ReturnType<typeof result.current.endDrill>;
+    const floorOverrides = new Map([
+      ['floor-ground', { safe: 7, needsAssistance: 2, pending: 1 }],
+    ]);
+
+    act(() => {
+      endedRecord = result.current.endDrill(undefined, floorOverrides);
+    });
+
+    expect(endedRecord).toBeTruthy();
+    expect(endedRecord?.floorStats[0]).toMatchObject({
+      floorId: 'floor-ground',
+      safe: 7,
+      needsAssistance: 2,
+      pending: 1,
+    });
+  });
 });

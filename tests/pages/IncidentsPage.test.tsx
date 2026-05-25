@@ -7,6 +7,8 @@ const mockUseAuth = vi.fn();
 const mockLoadIncidentsFromStorage = vi.fn();
 const mockSaveIncidentsToStorage = vi.fn();
 const mockLogAuditEvent = vi.fn();
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 
 vi.mock('@/components/layout/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -100,6 +102,13 @@ vi.mock('@/lib/auditLog', () => ({
   logAuditEvent: (...args: unknown[]) => mockLogAuditEvent(...args),
 }));
 
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}));
+
 vi.mock('recharts', () => {
   const Mock = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   return {
@@ -118,6 +127,8 @@ vi.mock('recharts', () => {
 describe('Incidents page', () => {
   beforeEach(() => {
     mockLogAuditEvent.mockReset();
+    mockToastSuccess.mockReset();
+    mockToastError.mockReset();
     mockUseAuth.mockReturnValue({
       user: {
         id: 'admin-1',
@@ -240,5 +251,86 @@ describe('Incidents page', () => {
     expect(afterDelete).toHaveLength(1);
     expect(screen.queryByText('Updated incident title')).not.toBeInTheDocument();
     expect(mockLogAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'delete_incident' }));
+  });
+
+  it('downloads incident CSV/JSON when period has data', () => {
+    const createObjectURLSpy = vi.spyOn(window.URL, 'createObjectURL').mockReturnValue('blob:incidents');
+    const revokeObjectURLSpy = vi.spyOn(window.URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    render(<Incidents />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Download CSV/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Download JSON/i }));
+
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(2);
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+    expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it('shows error when trying to download reports for an empty period', () => {
+    mockLoadIncidentsFromStorage.mockReturnValue([]);
+    render(<Incidents />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Download CSV/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Download JSON/i }));
+
+    expect(mockToastError).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces permission restrictions for reporting and editing incidents', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'viewer-1',
+        email: 'viewer@safeguard.local',
+        name: 'Viewer User',
+        role: 'user',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        customIncidentFields: [],
+        buildings: [
+          {
+            id: 'b-1',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'f-1',
+                name: 'Ground Floor',
+                areas: [{ id: 'a-1', name: 'Reception', floorId: 'f-1' }],
+              },
+            ],
+          },
+        ],
+        userPermissions: [
+          {
+            id: 'perm-viewer',
+            userId: 'viewer-1',
+            userName: 'Viewer User',
+            email: 'viewer@safeguard.local',
+            role: 'viewer',
+            buildingAccess: ['b-1'],
+            primaryFloorId: 'f-1',
+            primaryAreaId: 'a-1',
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: false,
+            canResolveIncidents: false,
+            canManageUsers: false,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+      },
+    });
+
+    render(<Incidents />);
+
+    expect(screen.getByRole('button', { name: /Report Incident/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Delete incident' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Save Mock Incident Edit')).not.toBeInTheDocument();
   });
 });
