@@ -51,8 +51,11 @@ const statusConfig = {
   missed: { icon: XCircle, color: 'text-emergency', bg: 'bg-emergency-muted', label: 'Missed' },
   active: { icon: Play, color: 'text-emergency', bg: 'bg-emergency-muted', label: 'Active' },
   completed: { icon: CheckCircle2, color: 'text-safe', bg: 'bg-safe-muted', label: 'Completed' },
+  failed: { icon: XCircle, color: 'text-emergency', bg: 'bg-emergency-muted', label: 'Failed' },
   cancelled: { icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Cancelled' },
 };
+
+const DRILL_FAILURE_MIN_CHECKIN_RATE = 50;
 
 const isMissedDrill = (drill: Drill) =>
   drill.status === 'scheduled' &&
@@ -101,6 +104,20 @@ const normalizeDrillRecord = (record: DrillRecord): DrillRecord => {
     startedAt: safeStartedAt,
     completedAt: safeCompletedAt,
   };
+};
+
+const getCheckInRate = (record: DrillRecord): number => {
+  const total = record.checkInStats.total;
+  if (total <= 0) {
+    return 100;
+  }
+
+  const checkedIn = Math.max(0, total - record.checkInStats.pending);
+  return (checkedIn / total) * 100;
+};
+
+const isFailedDrillRecord = (record: DrillRecord): boolean => {
+  return getCheckInRate(record) < DRILL_FAILURE_MIN_CHECKIN_RATE;
 };
 
 export default function Drills() {
@@ -316,14 +333,6 @@ export default function Drills() {
     return visibleBuildings.some((building) => selectedBuildingIds.includes(building.id));
   });
 
-  const filteredDrills = scopedDrills.filter(drill => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'history') return false;
-    if (activeTab === 'missed') return isMissedDrill(drill);
-    if (activeTab === 'scheduled') return drill.status === 'scheduled' && !isMissedDrill(drill);
-    return drill.status === activeTab;
-  });
-
   const getLocationDisplay = (drill: Drill) => {
     const selectedBuildingIds = getSafeBuildingIds(drill);
     const selectedBuildings = settings.buildings.filter((building) => selectedBuildingIds.includes(building.id));
@@ -339,6 +348,23 @@ export default function Drills() {
   const normalizedHistoryRecords = useMemo(() => {
     return drillRecords.map((record) => normalizeDrillRecord(record));
   }, [drillRecords]);
+
+  const failedDrillIds = useMemo(() => {
+    return new Set(
+      normalizedHistoryRecords
+        .filter((record) => isFailedDrillRecord(record))
+        .map((record) => record.drillId),
+    );
+  }, [normalizedHistoryRecords]);
+
+  const filteredDrills = scopedDrills.filter((drill) => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'history') return false;
+    if (activeTab === 'failed') return drill.status === 'completed' && failedDrillIds.has(drill.id);
+    if (activeTab === 'missed') return isMissedDrill(drill);
+    if (activeTab === 'scheduled') return drill.status === 'scheduled' && !isMissedDrill(drill);
+    return drill.status === activeTab;
+  });
 
   const filteredHistoryRecords = useMemo(() => {
     return normalizedHistoryRecords.filter((record) => {
@@ -519,6 +545,7 @@ export default function Drills() {
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
             <TabsTrigger value="missed">Missed</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="failed">Failed</TabsTrigger>
             <TabsTrigger value="history" className="gap-1">
               <BarChart3 className="w-3 h-3" />
               History & Stats
@@ -600,6 +627,9 @@ export default function Drills() {
               <div className="text-sm text-muted-foreground">
                 Showing {filteredHistoryRecords.length} of {normalizedHistoryRecords.length} drill record(s)
               </div>
+              <div className="text-xs text-muted-foreground">
+                Failed drill criteria: accounted-for percentage below 50% of uploaded personnel.
+              </div>
 
               {filteredHistoryRecords.length === 0 ? (
                 <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground">
@@ -609,7 +639,14 @@ export default function Drills() {
                 </div>
               ) : (
                 filteredHistoryRecords.map((record) => (
-                  <div key={record.id} className="bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => setSelectedRecord(record)}>
+                  <div
+                    key={record.id}
+                    className={cn(
+                      'bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all',
+                      isFailedDrillRecord(record) && 'border-emergency/40 bg-emergency-muted/20',
+                    )}
+                    onClick={() => setSelectedRecord(record)}
+                  >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
                         <div className={cn('p-3 rounded-lg', drillTypeColors[record.type])}>
@@ -634,8 +671,14 @@ export default function Drills() {
                           </p>
                         </div>
                       </div>
-                      <Badge variant="secondary" className="text-xs">
-                        Completed
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'text-xs',
+                          isFailedDrillRecord(record) && 'bg-emergency-muted text-emergency border border-emergency/30',
+                        )}
+                      >
+                        {isFailedDrillRecord(record) ? 'Failed' : 'Completed'}
                       </Badge>
                     </div>
 
@@ -702,7 +745,7 @@ export default function Drills() {
           </TabsContent>
 
           {/* Other tabs */}
-          {['all', 'active', 'scheduled', 'missed', 'completed'].map(tab => (
+          {['all', 'active', 'scheduled', 'missed', 'completed', 'failed'].map(tab => (
             <TabsContent key={tab} value={tab} className="mt-6">
               <div className="grid gap-4">
                 {filteredDrills.length === 0 ? (
@@ -711,10 +754,16 @@ export default function Drills() {
                   </div>
                 ) : (
                   filteredDrills.map((drill) => {
-                    const statusKey = isMissedDrill(drill) ? 'missed' : drill.status;
+                    const matchingRecord = normalizedHistoryRecords.find((record) => record.drillId === drill.id);
+                    const isFailedCompletedDrill = drill.status === 'completed' && !!matchingRecord && isFailedDrillRecord(matchingRecord);
+                    const statusKey = isMissedDrill(drill) ? 'missed' : isFailedCompletedDrill ? 'failed' : drill.status;
                     const status = statusConfig[statusKey as keyof typeof statusConfig];
                     const StatusIcon = status.icon;
                     const location = getLocationDisplay(drill);
+                    const accountedRate = matchingRecord ? Math.round(getCheckInRate(matchingRecord)) : null;
+                    const accountedCount = matchingRecord
+                      ? Math.max(0, matchingRecord.checkInStats.total - matchingRecord.checkInStats.pending)
+                      : null;
                     
                     return (
                       <div 
@@ -761,6 +810,11 @@ export default function Drills() {
                                   }
                                 </span>
                               </div>
+                              {isFailedCompletedDrill && matchingRecord && accountedRate !== null && accountedCount !== null && (
+                                <p className="text-xs text-emergency mt-1">
+                                  Accounted: {accountedRate}% ({accountedCount}/{matchingRecord.checkInStats.total})
+                                </p>
+                              )}
                             </div>
                           </div>
                           

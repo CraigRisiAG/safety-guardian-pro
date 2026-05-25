@@ -366,6 +366,131 @@ describe('Drills page', () => {
     expect(mockToastSuccess).toHaveBeenCalled();
   });
 
+  it('highlights a completed drill as failed when accounted percentage is under 50%', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'Safety Lead',
+        role: 'admin',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [
+          {
+            id: 'building-1',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'floor-1',
+                name: 'Ground Floor',
+                areas: [{ id: 'area-1', name: 'Reception' }],
+              },
+            ],
+          },
+        ],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'Safety Lead',
+            email: 'user@example.com',
+            role: 'super_admin',
+            buildingAccess: ['building-1'],
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: true,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+      },
+    });
+
+    mockLoadDrillsFromStorage.mockReturnValue([
+      {
+        id: 'drill-failed-1',
+        type: 'fire',
+        status: 'completed',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        startedAt: new Date('2026-05-01T08:00:00.000Z'),
+        completedAt: new Date('2026-05-01T08:25:00.000Z'),
+        initiatedBy: 'Safety Lead',
+      },
+      {
+        id: 'drill-passed-1',
+        type: 'evacuation',
+        status: 'completed',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        startedAt: new Date('2026-05-02T08:00:00.000Z'),
+        completedAt: new Date('2026-05-02T08:12:00.000Z'),
+        initiatedBy: 'Safety Lead',
+      },
+    ]);
+
+    mockUseDrillStatus.mockReturnValue({
+      startDrill: vi.fn(),
+      endDrill: vi.fn(),
+      drillRecords: [
+        {
+          id: 'record-failed-1',
+          drillId: 'drill-failed-1',
+          type: 'fire',
+          buildingId: 'building-1',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-1', name: 'Ground Floor' }],
+          startedAt: new Date('2026-05-01T08:00:00.000Z'),
+          completedAt: new Date('2026-05-01T08:10:00.000Z'),
+          durationMinutes: 10,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 10, safe: 3, needsAssistance: 1, pending: 6 },
+          floorStats: [],
+        },
+        {
+          id: 'record-passed-1',
+          drillId: 'drill-passed-1',
+          type: 'evacuation',
+          buildingId: 'building-1',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-1', name: 'Ground Floor' }],
+          startedAt: new Date('2026-05-02T08:00:00.000Z'),
+          completedAt: new Date('2026-05-02T08:12:00.000Z'),
+          durationMinutes: 12,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 10, safe: 8, needsAssistance: 1, pending: 1 },
+          floorStats: [],
+        },
+      ],
+    });
+
+    render(<Drills />);
+
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
+
+    const failedTab = screen.getByRole('tab', { name: 'Failed' });
+    fireEvent.mouseDown(failedTab, { button: 0, ctrlKey: false });
+    expect(failedTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Fire Drill')).toBeInTheDocument();
+    expect(screen.queryByText('Evacuation Drill')).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /History & Stats/i }), { button: 0, ctrlKey: false });
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
+  });
+
   it('disables drill management actions when user lacks start permissions', () => {
     const startDrillMock = vi.fn();
 

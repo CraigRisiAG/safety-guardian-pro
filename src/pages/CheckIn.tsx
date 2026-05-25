@@ -92,20 +92,65 @@ export default function CheckIn() {
     [building, activeDrill],
   );
 
-  const floorHeadcounts = useMemo(
-    () => drillFloors.map((floor) => ({
+  const expectedPersonnel = useMemo(() => {
+    if (!activeDrill) return [];
+
+    const buildingIds = activeDrill.location.buildingIds?.length
+      ? activeDrill.location.buildingIds
+      : [activeDrill.location.buildingId];
+    const floorIds = activeDrill.location.floorIds;
+    const areaIds = activeDrill.location.areaIds;
+
+    const drillAreaIds = new Set(areaIds);
+    const drillFloorIds = new Set(floorIds);
+
+    return settings.userPermissions.filter((person) => {
+      const inBuildingScope = person.buildingAccess.some((buildingId) => buildingIds.includes(buildingId));
+      if (!inBuildingScope) {
+        return false;
+      }
+
+      if (drillAreaIds.size > 0) {
+        if (person.primaryAreaId) {
+          return drillAreaIds.has(person.primaryAreaId);
+        }
+        if (person.primaryFloorId) {
+          return drillFloorIds.has(person.primaryFloorId);
+        }
+      }
+
+      if (drillFloorIds.size > 0) {
+        if (person.primaryFloorId) {
+          return drillFloorIds.has(person.primaryFloorId);
+        }
+      }
+
+      return true;
+    });
+  }, [activeDrill, settings.userPermissions]);
+
+  const floorHeadcounts = useMemo(() => {
+    const peopleByFloor = expectedPersonnel.reduce((acc, person) => {
+      if (!person.primaryFloorId) {
+        return acc;
+      }
+
+      acc.set(person.primaryFloorId, (acc.get(person.primaryFloorId) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+
+    return drillFloors.map((floor) => ({
       floorId: floor.id,
-      expectedHeadcount: floor.areas.reduce((sum, area) => sum + (area.expectedHeadcount ?? 0), 0),
-    })),
-    [drillFloors],
-  );
+      expectedHeadcount: peopleByFloor.get(floor.id) ?? 0,
+    }));
+  }, [drillFloors, expectedPersonnel]);
 
   const stats = useMemo(() => {
     const relevant = activeDrill ? checkIns.filter((checkIn) => checkIn.drillId === activeDrill.id) : [];
     const safe = relevant.filter((checkIn) => checkIn.status === 'safe').length;
     const needsAssistance = relevant.filter((checkIn) => checkIn.status === 'needs-assistance').length;
     const checkedIn = safe + needsAssistance;
-    const totalExpected = floorHeadcounts.reduce((sum, floor) => sum + floor.expectedHeadcount, 0);
+    const totalExpected = expectedPersonnel.length;
     const pending = totalExpected > 0 ? Math.max(0, totalExpected - checkedIn) : 0;
     const percentage = totalExpected > 0 ? Math.round((checkedIn / totalExpected) * 100) : 100;
 
@@ -117,7 +162,7 @@ export default function CheckIn() {
       pending,
       percentage,
     };
-  }, [activeDrill, checkIns, floorHeadcounts]);
+  }, [activeDrill, checkIns, expectedPersonnel]);
 
   const userSelfCheckIn = useMemo(() => {
     if (!user || !activeDrill) {
@@ -155,16 +200,6 @@ export default function CheckIn() {
     [user, settings.userPermissions],
   );
   const canManageDrill = canStartDrillsForUser(currentPermission);
-
-  const expectedPersonnel = useMemo(() => {
-    if (!activeDrill) return [];
-    const buildingIds = activeDrill.location.buildingIds?.length
-      ? activeDrill.location.buildingIds
-      : [activeDrill.location.buildingId];
-    return settings.userPermissions.filter((person) =>
-      person.buildingAccess.some((buildingId) => buildingIds.includes(buildingId)),
-    );
-  }, [activeDrill, settings.userPermissions]);
 
   const drillCheckIns = useMemo(
     () => (activeDrill ? checkIns.filter((c) => c.drillId === activeDrill.id) : []),

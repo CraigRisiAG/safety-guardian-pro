@@ -16,6 +16,14 @@ type StoredDrillRecord = Omit<DrillRecord, 'startedAt' | 'completedAt'> & {
 type StoredArea = { id?: string; name?: string };
 type StoredFloor = { id?: string; name?: string; areas?: StoredArea[] };
 type StoredBuilding = { id?: string; name?: string; floors?: StoredFloor[] };
+type StoredUserPermission = {
+  id?: string;
+  userId?: string;
+  email?: string;
+  buildingAccess?: string[];
+  primaryFloorId?: string;
+  primaryAreaId?: string;
+};
 
 const parseDateSafe = (value: unknown): Date | undefined => {
   if (!value || typeof value !== 'string') {
@@ -143,38 +151,114 @@ const resolveActiveDrill = (): Drill | null => {
   return null;
 };
 
-const resolveBuildings = () => {
+const resolveAdminSettings = () => {
   try {
     const stored = localStorage.getItem(ADMIN_SETTINGS_KEY);
     if (!stored) {
-      return buildings;
+      return { buildings, userPermissions: [] as StoredUserPermission[] };
     }
 
     const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed?.buildings)) {
-      return buildings;
+    const resolvedBuildings = Array.isArray(parsed?.buildings)
+      ? (parsed.buildings as StoredBuilding[]).map((building) => ({
+          id: building.id,
+          name: building.name,
+          floors: Array.isArray(building.floors)
+            ? building.floors.map((floor) => ({
+                id: floor.id,
+                name: floor.name,
+                areas: Array.isArray(floor.areas)
+                  ? floor.areas.map((area) => ({
+                      id: area.id,
+                      name: area.name,
+                      floorId: floor.id,
+                    }))
+                  : [],
+              }))
+            : [],
+        }))
+      : buildings;
+
+    const resolvedUserPermissions = Array.isArray(parsed?.userPermissions)
+      ? (parsed.userPermissions as StoredUserPermission[])
+      : [];
+
+    return {
+      buildings: resolvedBuildings,
+      userPermissions: resolvedUserPermissions,
+    };
+  } catch {
+    return { buildings, userPermissions: [] as StoredUserPermission[] };
+  }
+};
+
+const getExpectedPersonnelCount = (
+  drill: Drill,
+  allBuildings: ReturnType<typeof resolveAdminSettings>['buildings'],
+  userPermissions: StoredUserPermission[],
+) => {
+  const buildingIds = Array.isArray(drill.location.buildingIds) && drill.location.buildingIds.length > 0
+    ? drill.location.buildingIds
+    : [drill.location.buildingId];
+  const floorIds = Array.isArray(drill.location.floorIds) ? drill.location.floorIds : [];
+  const areaIds = Array.isArray(drill.location.areaIds) ? drill.location.areaIds : [];
+
+  const floorIdsSet = new Set(floorIds);
+  const areaIdsSet = new Set(areaIds);
+
+  const areaToFloor = new Map<string, string>();
+  allBuildings.forEach((building) => {
+    building.floors.forEach((floor) => {
+      floor.areas.forEach((area) => {
+        areaToFloor.set(area.id, floor.id);
+      });
+    });
+  });
+
+  const uniquePersonnel = new Set<string>();
+
+  userPermissions.forEach((person) => {
+    const access = Array.isArray(person.buildingAccess) ? person.buildingAccess : [];
+    const hasBuildingAccess = access.some((buildingId) => buildingIds.includes(buildingId));
+    if (!hasBuildingAccess) {
+      return;
     }
 
-    return (parsed.buildings as StoredBuilding[]).map((building) => ({
-      id: building.id,
-      name: building.name,
-      floors: Array.isArray(building.floors)
-        ? building.floors.map((floor) => ({
-            id: floor.id,
-            name: floor.name,
-            areas: Array.isArray(floor.areas)
-              ? floor.areas.map((area) => ({
-                  id: area.id,
-                  name: area.name,
-                  floorId: floor.id,
-                }))
-              : [],
-          }))
-        : [],
-    }));
-  } catch {
-    return buildings;
-  }
+    if (areaIdsSet.size > 0) {
+      if (typeof person.primaryAreaId === 'string' && areaIdsSet.has(person.primaryAreaId)) {
+        uniquePersonnel.add(person.userId || person.id || person.email || JSON.stringify(person));
+        return;
+      }
+
+      if (typeof person.primaryFloorId === 'string' && floorIdsSet.has(person.primaryFloorId)) {
+        uniquePersonnel.add(person.userId || person.id || person.email || JSON.stringify(person));
+        return;
+      }
+
+      return;
+    }
+
+    if (floorIdsSet.size > 0) {
+      if (typeof person.primaryFloorId === 'string' && floorIdsSet.has(person.primaryFloorId)) {
+        uniquePersonnel.add(person.userId || person.id || person.email || JSON.stringify(person));
+        return;
+      }
+
+      if (typeof person.primaryAreaId === 'string') {
+        const mappedFloorId = areaToFloor.get(person.primaryAreaId);
+        if (mappedFloorId && floorIdsSet.has(mappedFloorId)) {
+          uniquePersonnel.add(person.userId || person.id || person.email || JSON.stringify(person));
+          return;
+        }
+      }
+
+      return;
+    }
+
+    uniquePersonnel.add(person.userId || person.id || person.email || JSON.stringify(person));
+  });
+
+  return uniquePersonnel.size;
 };
 
 export function useDrillStatus() {
@@ -229,23 +313,45 @@ export function useDrillStatus() {
     const durationMinutes = Math.round(durationMs / 60000 * 10) / 10;
 
     const checkIns = loadCheckInsForDrill(drillToEnd.id);
-    const allBuildings = resolveBuildings();
-    const building = allBuildings.find(b => b.id === drillToEnd.location.buildingId);
-    const floors = building?.floors.filter(f => drillToEnd.location.floorIds.includes(f.id)) || [];
+    const adminSettings = resolveAdminSettings();
+    const allBuildings = adminSettings.buildings;
+    const building = allBuildings.find((entry) => entry.id === drillToEnd.location.buildingId);
+    const floors = building?.floors.filter((floor) => drillToEnd.location.floorIds.includes(floor.id)) || [];
 
-    const persistedStats = {
+    const expectedPersonnelCount = getExpectedPersonnelCount(
+      drillToEnd,
+      allBuildings,
+      adminSettings.userPermissions,
+    );
+
+    const persistedBaseStats = {
       safe: checkIns.filter((checkIn) => checkIn.status === 'safe').length,
       needsAssistance: checkIns.filter((checkIn) => checkIn.status === 'needs-assistance').length,
-      pending: checkIns.filter((checkIn) => checkIn.status === 'pending').length,
     };
 
-    const stats = checkInStats || persistedStats;
-    const total = stats.safe + stats.needsAssistance + stats.pending;
+    const persistedPending = checkIns.filter((checkIn) => checkIn.status === 'pending').length;
 
-    const floorStats = floors.map(f => {
+    const baseStats = checkInStats
+      ? { safe: checkInStats.safe, needsAssistance: checkInStats.needsAssistance }
+      : persistedBaseStats;
+
+    const checkedInCount = baseStats.safe + baseStats.needsAssistance;
+    const pendingFromExpected = expectedPersonnelCount > 0
+      ? Math.max(0, expectedPersonnelCount - checkedInCount)
+      : 0;
+    const pending = Math.max(persistedPending, pendingFromExpected);
+    const total = expectedPersonnelCount > 0 ? expectedPersonnelCount : checkedInCount + pending;
+
+    const stats = {
+      safe: baseStats.safe,
+      needsAssistance: baseStats.needsAssistance,
+      pending,
+    };
+
+    const floorStats = floors.map((floor) => {
       const persistedFloorStats = checkIns.reduce(
         (acc, checkIn) => {
-          if (checkIn.location.floorId !== f.id) {
+          if (checkIn.location.floorId !== floor.id) {
             return acc;
           }
 
@@ -260,13 +366,13 @@ export function useDrillStatus() {
         { safe: 0, needsAssistance: 0, pending: 0 },
       );
 
-      const fStats = floorCheckIns?.get(f.id) || persistedFloorStats;
+      const floorOverride = floorCheckIns?.get(floor.id) || persistedFloorStats;
       return {
-        floorId: f.id,
-        floorName: f.name,
-        safe: fStats.safe,
-        needsAssistance: fStats.needsAssistance,
-        pending: fStats.pending,
+        floorId: floor.id,
+        floorName: floor.name,
+        safe: floorOverride.safe,
+        needsAssistance: floorOverride.needsAssistance,
+        pending: floorOverride.pending,
       };
     });
 
@@ -276,7 +382,7 @@ export function useDrillStatus() {
       type: drillToEnd.type,
       buildingId: drillToEnd.location.buildingId,
       buildingName: building?.name || 'Unknown',
-      floors: floors.map(f => ({ id: f.id, name: f.name })),
+      floors: floors.map((floor) => ({ id: floor.id, name: floor.name })),
       startedAt: new Date(startedAt),
       completedAt,
       durationMinutes,
