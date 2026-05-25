@@ -2,7 +2,7 @@
 
 export interface CompletedCheckRecord {
   id: string;
-  checkType: 'evacuation' | 'fire' | 'office' | 'first_aid';
+  checkType: 'evacuation' | 'fire' | 'office' | 'first_aid' | 'training';
   buildingId: string;
   floorId: string;
   areaId?: string;
@@ -14,7 +14,9 @@ export interface CompletedCheckRecord {
   completedAt: Date;
   checkItems: CompletedCheckItem[];
   notes?: string;
-  status: 'pass' | 'fail' | 'partial';
+  status: 'pass' | 'fail' | 'partial' | 'not_done' | 'cancelled';
+  outcomeReason?: string;
+  followUpDate?: Date;
 }
 
 export interface CompletedCheckItem {
@@ -29,6 +31,7 @@ export const CHECK_TYPE_LABELS: Record<CompletedCheckRecord['checkType'], string
   fire: 'Fire Safety Check',
   office: 'Office Safety Check',
   first_aid: 'First Aid Check',
+  training: 'Training Check',
 };
 
 export const CHECK_TYPE_ICONS: Record<CompletedCheckRecord['checkType'], string> = {
@@ -36,6 +39,7 @@ export const CHECK_TYPE_ICONS: Record<CompletedCheckRecord['checkType'], string>
   fire: 'flame',
   office: 'building-2',
   first_aid: 'heart-pulse',
+  training: 'graduation-cap',
 };
 
 export const CHECK_TYPE_COLORS: Record<CompletedCheckRecord['checkType'], string> = {
@@ -43,6 +47,7 @@ export const CHECK_TYPE_COLORS: Record<CompletedCheckRecord['checkType'], string
   fire: 'hsl(var(--emergency))',
   office: 'hsl(var(--info))',
   first_aid: 'hsl(var(--safe))',
+  training: 'hsl(var(--primary))',
 };
 
 // Custom fields configured per compliance check type

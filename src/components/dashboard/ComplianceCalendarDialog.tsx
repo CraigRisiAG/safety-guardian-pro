@@ -35,6 +35,7 @@ const STORAGE_KEY = 'safeguard_completed_checks';
 
 type StoredCompletedCheckRecord = Omit<CompletedCheckRecord, 'completedAt'> & {
   completedAt: string | Date;
+  followUpDate?: string | Date;
 };
 
 interface CalendarEvent {
@@ -42,7 +43,7 @@ interface CalendarEvent {
   title: string;
   date: Date;
   type: 'scheduled' | 'completed' | 'recertification' | 'missed';
-  status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue' | 'incomplete';
+  status: 'pass' | 'fail' | 'partial' | 'not_done' | 'cancelled' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue' | 'incomplete';
   checkType?: string;
   building?: string;
   locationDetails?: string;
@@ -54,6 +55,8 @@ const STATUS_COLORS: Record<string, string> = {
   pass: 'bg-safe text-safe-foreground',
   fail: 'bg-emergency text-white',
   partial: 'bg-warning text-warning-foreground',
+  not_done: 'bg-warning text-warning-foreground',
+  cancelled: 'bg-muted text-muted-foreground',
   pending: 'bg-info text-info-foreground',
   overdue: 'bg-emergency/80 text-white',
   incomplete: 'bg-emergency text-white',
@@ -65,6 +68,8 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   pass: 'bg-safe',
   fail: 'bg-emergency',
   partial: 'bg-warning',
+  not_done: 'bg-warning',
+  cancelled: 'bg-muted-foreground',
   pending: 'bg-info',
   overdue: 'bg-emergency',
   incomplete: 'bg-emergency',
@@ -76,6 +81,8 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   pass: <CheckCircle2 className="w-3 h-3" />,
   fail: <XCircle className="w-3 h-3" />,
   partial: <AlertTriangle className="w-3 h-3" />,
+  not_done: <AlertTriangle className="w-3 h-3" />,
+  cancelled: <XCircle className="w-3 h-3" />,
   pending: <Clock className="w-3 h-3" />,
   overdue: <AlertTriangle className="w-3 h-3" />,
   incomplete: <XCircle className="w-3 h-3" />,
@@ -92,6 +99,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [assignDialogMode, setAssignDialogMode] = useState<'check' | 'training'>('check');
   const { settings } = useAdminSettings();
   const { user } = useAuth();
   const { certificates } = useCertificates();
@@ -121,6 +129,12 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
         completedAt: typeof record.completedAt === 'string' 
           ? parseISO(record.completedAt) 
           : new Date(record.completedAt),
+        followUpDate:
+          typeof record.followUpDate === 'string'
+            ? parseISO(record.followUpDate)
+            : record.followUpDate
+              ? new Date(record.followUpDate)
+              : undefined,
       }));
     } catch {
       return [];
@@ -337,6 +351,12 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   // Handle starting a check from calendar
   // Handle assigning a new check from calendar
   const handleAssignCheck = () => {
+    setAssignDialogMode('check');
+    setShowAssignDialog(true);
+  };
+
+  const handleAssignTraining = () => {
+    setAssignDialogMode('training');
     setShowAssignDialog(true);
   };
 
@@ -408,6 +428,15 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                 >
                   <Plus className="w-3 h-3 mr-1" />
                   Assign Check
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAssignTraining}
+                  className="text-xs"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Assign Training
                 </Button>
                 <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
                   <ChevronRight className="w-4 h-4" />
@@ -528,7 +557,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                   className="text-xs h-7"
                 >
                   <Plus className="w-3 h-3 mr-1" />
-                  Assign
+                  Assign Check
                 </Button>
               )}
             </div>
@@ -630,6 +659,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
           open={showAssignDialog}
           onOpenChange={setShowAssignDialog}
           initialDate={selectedDate || new Date()}
+          assignmentMode={assignDialogMode}
         />
       </DialogContent>
     </Dialog>

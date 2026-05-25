@@ -40,6 +40,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
   }, [user, settings.userPermissions]);
 
   const isAdmin = currentUserPermission?.role === 'admin' || currentUserPermission?.role === 'super_admin';
+  const isSuperAdmin = currentUserPermission?.role === 'super_admin';
   
   const stats = useMemo(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -89,6 +90,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       fire: 0,
       office: 0,
       first_aid: 0,
+      training: 0,
     };
     thisWeekRecords.forEach(r => {
       byType[r.checkType]++;
@@ -99,8 +101,8 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       if (check.status === 'completed') return false;
       const assignedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
       
-      // Admins see all checks
-      if (isAdmin) return true;
+      // Only super admins see all checks
+      if (isSuperAdmin) return true;
       
       // Regular users only see their assigned checks
       if (!currentUserPermission) return false;
@@ -110,7 +112,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     });
 
     const missedRecords = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
-    const visibleMissedCount = isAdmin
+    const visibleMissedCount = isSuperAdmin
       ? missedRecords.length
       : missedRecords.filter((record) =>
           !!currentUserPermission && (
@@ -191,6 +193,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     const safetyComplianceScore = breakdown.score;
     const drillSuccessScore = breakdown.drillSuccessScore;
     const areaReportCoverageScore = breakdown.areaReportCoverageScore;
+    const trainingNotDoneCount = breakdown.trainingNotDoneCount;
 
     return {
       thisWeek: thisWeekRecords.length,
@@ -210,8 +213,9 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       safetyComplianceScore,
       drillSuccessScore,
       areaReportCoverageScore,
+      trainingNotDoneCount,
     };
-  }, [settings, currentUserPermission, isAdmin]);
+  }, [settings, currentUserPermission, isSuperAdmin]);
 
   const handleOpenPendingDialog = (filter: 'this_week' | 'overdue' | 'all') => {
     setPendingDialogFilter(filter);
@@ -264,8 +268,20 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
             </div>
           )}
 
+          {stats.trainingNotDoneCount > 0 && (
+            <button
+              onClick={() => handleOpenPendingDialog('overdue')}
+              className="w-full text-left text-xs text-warning bg-warning-muted/40 border border-warning/30 rounded px-2 py-1 hover:bg-warning-muted/60 transition-colors"
+            >
+              {stats.trainingNotDoneCount} training item{stats.trainingNotDoneCount === 1 ? '' : 's'} marked Not Done are actively penalizing compliance score.
+            </button>
+          )}
+
           {/* Pass/Fail Rate */}
-          <div className="space-y-2">
+          <button
+            onClick={() => handleOpenPendingDialog('overdue')}
+            className="w-full text-left space-y-2"
+          >
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Safety Compliance Score</span>
               <span className="font-medium">{stats.safetyComplianceScore}%</span>
@@ -289,7 +305,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
                 Areas {stats.areaReportCoverageScore}%
               </Badge>
             </div>
-          </div>
+          </button>
 
           {/* Health Officials Gaps */}
           <button

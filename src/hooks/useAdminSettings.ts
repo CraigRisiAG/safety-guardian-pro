@@ -18,6 +18,8 @@ import { CheckTypeField } from '@/types/compliance';
 import { buildings } from '@/data/mockData';
 import { getRolePermissionDefaults } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
+import { notifyComplianceChecksAssigned } from '@/lib/notifications';
+import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
 const SETTINGS_UPDATED_EVENT = 'safeguard_admin_settings_updated';
@@ -602,6 +604,28 @@ export function useAdminSettings() {
         areaIds: newCheck.areaIds,
       },
     });
+
+    const resolvedAssignees = resolveCheckAssignedUsers(
+      newCheck,
+      settingsRef.current.userPermissions,
+      settingsRef.current.buildings,
+    );
+
+    if (resolvedAssignees.length > 0) {
+      notifyComplianceChecksAssigned({
+        assignedChecks: [
+          {
+            checkId: newCheck.id,
+            checkName: newCheck.name,
+            dueAt: new Date(newCheck.nextDue),
+            assignedUserIds: resolvedAssignees.map((entry) => entry.id),
+            areaIds: newCheck.areaIds,
+            buildingIds: newCheck.buildingIds,
+          },
+        ],
+        userPermissions: settingsRef.current.userPermissions,
+      });
+    }
 
     return newCheck;
   }, [logSettingsAction]);

@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Index from '@/pages/Index';
 import Admin from '@/pages/Admin';
+import Incidents from '@/pages/Incidents';
+import Drills from '@/pages/Drills';
+import CheckIn from '@/pages/CheckIn';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import NotFound from '@/pages/NotFound';
@@ -202,6 +205,15 @@ const renderWithRouter = (node: React.ReactNode, route = '/') =>
 
 describe('Page smoke coverage', () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class ResizeObserver {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
     mockUseAuth.mockReturnValue({
       user: {
         id: 'admin-1',
@@ -251,6 +263,21 @@ describe('Page smoke coverage', () => {
   it('renders admin page', () => {
     renderWithRouter(<Admin />);
     expect(screen.getByText('Admin Panel')).toBeInTheDocument();
+  });
+
+  it('renders incidents page', () => {
+    renderWithRouter(<Incidents />);
+    expect(screen.getByText('Incident Management')).toBeInTheDocument();
+  });
+
+  it('renders drills page', () => {
+    renderWithRouter(<Drills />);
+    expect(screen.getByText('Drill Management')).toBeInTheDocument();
+  });
+
+  it('renders check-in page no-active-drill state', () => {
+    renderWithRouter(<CheckIn />);
+    expect(screen.getByText('No Active Drill')).toBeInTheDocument();
   });
 
   it('renders login page', () => {

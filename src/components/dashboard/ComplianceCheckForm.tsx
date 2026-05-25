@@ -26,6 +26,7 @@ const checkTypeCategories: Record<CompletedCheckRecord['checkType'], string[]> =
   fire: ['fire-safety'],
   office: ['electrical', 'equipment'],
   first_aid: ['first-aid'],
+  training: ['training'],
 };
 
 // Map scheduled check categories to check types
@@ -34,8 +35,10 @@ const categoryToCheckType: Record<string, CompletedCheckRecord['checkType']> = {
   'first-aid': 'first_aid',
   'electrical': 'office',
   'equipment': 'office',
-  'training': 'evacuation',
+  'training': 'training',
 };
+
+type TrainingOutcomeStatus = Extract<CompletedCheckRecord['status'], 'pass' | 'fail' | 'not_done' | 'cancelled'>;
 
 interface ComplianceCheckFormProps {
   preselectedCheck?: ComplianceCheck | null;
@@ -63,6 +66,9 @@ export function ComplianceCheckForm({
   const [notes, setNotes] = useState('');
   const [checkedItems, setCheckedItems] = useState<Record<string, { checked: boolean; notes: string }>>({});
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, CustomFieldValue>>({});
+  const [trainingStatus, setTrainingStatus] = useState<TrainingOutcomeStatus>('pass');
+  const [trainingReason, setTrainingReason] = useState('');
+  const [trainingNewDate, setTrainingNewDate] = useState('');
 
   // Auto-open and prefill when a scheduled check is selected
   useEffect(() => {
@@ -109,6 +115,9 @@ export function ComplianceCheckForm({
     setNotes('');
     setCheckedItems({});
     setCustomFieldValues({});
+    setTrainingStatus('pass');
+    setTrainingReason('');
+    setTrainingNewDate('');
     onCheckComplete?.();
   };
 
@@ -150,6 +159,19 @@ export function ComplianceCheckForm({
   };
 
   const handleSubmit = () => {
+        const isTrainingCheck = checkType === 'training';
+
+        if (isTrainingCheck && (trainingStatus === 'not_done' || trainingStatus === 'cancelled')) {
+          if (!trainingReason.trim()) {
+            toast.error('Reason is required when training is not done or cancelled');
+            return;
+          }
+          if (!trainingNewDate) {
+            toast.error('Please provide a new training date when training is not done or cancelled');
+            return;
+          }
+        }
+
     if (!checkType || !buildingId || !floorId) {
       toast.error('Please select check type, building, and floor');
       return;
@@ -179,22 +201,29 @@ export function ComplianceCheckForm({
       return;
     }
 
-    const completedItems: CompletedCheckItem[] = relevantItems.map(item => ({
-      itemId: item.id,
-      itemName: item.name,
-      checked: checkedItems[item.id]?.checked || false,
-      notes: checkedItems[item.id]?.notes || undefined,
-    }));
+    const completedItems: CompletedCheckItem[] = isTrainingCheck
+      ? []
+      : relevantItems.map(item => ({
+          itemId: item.id,
+          itemName: item.name,
+          checked: checkedItems[item.id]?.checked || false,
+          notes: checkedItems[item.id]?.notes || undefined,
+        }));
 
-    const checkedCount = completedItems.filter(i => i.checked).length;
-    const requiredItems = relevantItems.filter(i => i.required);
-    const requiredChecked = requiredItems.filter(i => checkedItems[i.id]?.checked).length;
+    let status: CompletedCheckRecord['status'];
+    if (isTrainingCheck) {
+      status = trainingStatus;
+    } else {
+      const checkedCount = completedItems.filter(i => i.checked).length;
+      const requiredItems = relevantItems.filter(i => i.required);
+      const requiredChecked = requiredItems.filter(i => checkedItems[i.id]?.checked).length;
 
-    let status: CompletedCheckRecord['status'] = 'pass';
-    if (requiredChecked < requiredItems.length) {
-      status = 'fail';
-    } else if (checkedCount < relevantItems.length) {
-      status = 'partial';
+      status = 'pass';
+      if (requiredChecked < requiredItems.length) {
+        status = 'fail';
+      } else if (checkedCount < relevantItems.length) {
+        status = 'partial';
+      }
     }
 
     const record: CompletedCheckRecordWithCustomFields = {
@@ -212,6 +241,14 @@ export function ComplianceCheckForm({
       checkItems: completedItems,
       notes: notes.trim() || undefined,
       status,
+      outcomeReason:
+        isTrainingCheck && (status === 'not_done' || status === 'cancelled')
+          ? trainingReason.trim()
+          : undefined,
+      followUpDate:
+        isTrainingCheck && (status === 'not_done' || status === 'cancelled') && trainingNewDate
+          ? new Date(trainingNewDate)
+          : undefined,
     };
     if (customFields.length > 0) {
       record.customFieldValues = customFields.reduce((acc, f) => {
@@ -229,13 +266,17 @@ export function ComplianceCheckForm({
     // Update the scheduled check status if this was from a preselected check
     if (preselectedCheck) {
       const completionDate = new Date();
-      const resolvedMissed = completeMissedComplianceForCheck(preselectedCheck.id);
+      const shouldRescheduleTraining = isTrainingCheck && (status === 'not_done' || status === 'cancelled') && !!trainingNewDate;
+      const resolvedMissed = shouldRescheduleTraining ? false : completeMissedComplianceForCheck(preselectedCheck.id);
 
       const updates: Partial<ComplianceCheck> = {
-        lastCompleted: completionDate,
+        lastCompleted: shouldRescheduleTraining ? preselectedCheck.lastCompleted : completionDate,
       };
 
-      if (preselectedCheck.isRecurring) {
+      if (shouldRescheduleTraining) {
+        updates.status = 'pending';
+        updates.nextDue = new Date(trainingNewDate);
+      } else if (preselectedCheck.isRecurring) {
         const baseDate = new Date(preselectedCheck.nextDue);
         updates.status = 'pending';
         updates.nextDue = getNextComplianceDueDate(preselectedCheck, baseDate);
@@ -389,7 +430,49 @@ export function ComplianceCheckForm({
             </div>
 
             {/* Check Items */}
-            {checkType && relevantItems.length > 0 && (
+            {checkType === 'training' && (
+              <>
+                <Separator />
+                <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+                  <Label>Training Outcome</Label>
+                  <Select value={trainingStatus} onValueChange={(value: TrainingOutcomeStatus) => setTrainingStatus(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pass">Passed</SelectItem>
+                      <SelectItem value="fail">Failed</SelectItem>
+                      <SelectItem value="not_done">Not Done</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {(trainingStatus === 'not_done' || trainingStatus === 'cancelled') && (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>Reason *</Label>
+                        <Textarea
+                          placeholder="Enter reason..."
+                          value={trainingReason}
+                          onChange={(e) => setTrainingReason(e.target.value)}
+                          className="h-20"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>New Training Date *</Label>
+                        <Input
+                          type="date"
+                          value={trainingNewDate}
+                          onChange={(e) => setTrainingNewDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {checkType && checkType !== 'training' && relevantItems.length > 0 && (
               <>
                 <Separator />
                 <div className="space-y-3">
@@ -444,7 +527,7 @@ export function ComplianceCheckForm({
               </>
             )}
 
-            {checkType && relevantItems.length === 0 && (
+            {checkType && checkType !== 'training' && relevantItems.length === 0 && (
               <div className="text-center py-4 text-muted-foreground text-sm">
                 No check items configured for this type.
                 <br />
@@ -519,7 +602,7 @@ export function ComplianceCheckForm({
             </div>
 
             {/* Summary */}
-            {checkType && relevantItems.length > 0 && (
+            {checkType && checkType !== 'training' && relevantItems.length > 0 && (
               <div className="bg-muted/50 rounded-lg p-3 space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Completed by:</span>

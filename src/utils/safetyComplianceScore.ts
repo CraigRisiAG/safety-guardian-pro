@@ -29,6 +29,7 @@ export interface SafetyComplianceBreakdown {
   areaReportPeriod: 'monthly' | 'quarterly';
   overdueCount: number;
   missedCount: number;
+  trainingNotDoneCount: number;
   requiredOfficialsTotal: number;
   missingOfficialsTotal: number;
   weightsApplied: {
@@ -46,13 +47,22 @@ const loadCompletedRecords = (): CompletedCheckRecord[] => {
     const parsed = JSON.parse(stored) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => {
-      const record = item as Partial<CompletedCheckRecord> & { completedAt?: string | Date };
+      const record = item as Partial<CompletedCheckRecord> & {
+        completedAt?: string | Date;
+        followUpDate?: string | Date;
+      };
       return {
         ...record,
         completedAt:
           typeof record.completedAt === 'string'
             ? parseISO(record.completedAt)
             : new Date(record.completedAt ?? new Date()),
+        followUpDate:
+          typeof record.followUpDate === 'string'
+            ? parseISO(record.followUpDate)
+            : record.followUpDate
+              ? new Date(record.followUpDate)
+              : undefined,
       } as CompletedCheckRecord;
     });
   } catch {
@@ -122,6 +132,9 @@ export function computeSafetyComplianceBreakdown(
   const passCount = records.filter((r) => r.status === 'pass').length;
   const partialCount = records.filter((r) => r.status === 'partial').length;
   const failCount = records.filter((r) => r.status === 'fail').length;
+  const trainingNotDoneCount = records.filter(
+    (r) => r.checkType === 'training' && r.status === 'not_done',
+  ).length;
   const totalCompleted = records.length;
 
   const now = new Date();
@@ -134,7 +147,7 @@ export function computeSafetyComplianceBreakdown(
 
   // Checks score: weighted pass-rate with overdue penalty
   const weightedScore = passCount * 1 + partialCount * scoring.checksPartialCredit;
-  const penaltyCount = overdueCount + missedCount;
+  const penaltyCount = overdueCount + missedCount + trainingNotDoneCount;
   const overduePenalty = penaltyCount * scoring.overduePenaltyPerCheck;
   const denominator = totalCompleted + penaltyCount;
   const checksScore =
@@ -262,6 +275,7 @@ export function computeSafetyComplianceBreakdown(
     areaReportPeriod: scoring.areaReportPeriod,
     overdueCount,
     missedCount,
+    trainingNotDoneCount,
     requiredOfficialsTotal,
     missingOfficialsTotal,
     weightsApplied: {

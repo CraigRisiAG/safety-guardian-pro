@@ -16,6 +16,7 @@ const STORAGE_KEY = 'safeguard_completed_checks';
 
 type StoredCompletedCheckRecord = Omit<CompletedCheckRecord, 'completedAt'> & {
   completedAt: string | Date;
+  followUpDate?: string | Date;
 };
 
 export function ComplianceHistoryDialog() {
@@ -38,7 +39,13 @@ export function ComplianceHistoryDialog() {
     return (parsed as StoredCompletedCheckRecord[])
       .map((r) => ({
         ...r,
-        completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt)
+        completedAt: typeof r.completedAt === 'string' ? parseISO(r.completedAt) : new Date(r.completedAt),
+        followUpDate:
+          typeof r.followUpDate === 'string'
+            ? parseISO(r.followUpDate)
+            : r.followUpDate
+              ? new Date(r.followUpDate)
+              : undefined,
       }))
       .sort((a: CompletedCheckRecord, b: CompletedCheckRecord) => 
         new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -100,6 +107,22 @@ export function ComplianceHistoryDialog() {
             Partial
           </Badge>
         );
+      case 'not_done':
+        return (
+          <Badge className="bg-warning-muted text-warning">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Not Done
+          </Badge>
+        );
+      case 'cancelled':
+        return (
+          <Badge className="bg-muted text-muted-foreground">
+            <XCircle className="w-3 h-3 mr-1" />
+            Cancelled
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">Unknown</Badge>;
     }
   };
 
@@ -227,6 +250,8 @@ export function ComplianceHistoryDialog() {
               <SelectItem value="pass">Pass</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="fail">Fail</SelectItem>
+              <SelectItem value="not_done">Not Done</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
 
@@ -284,6 +309,7 @@ export function ComplianceHistoryDialog() {
                   <TableHead>Location</TableHead>
                   <TableHead>Completed By</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Action Needed</TableHead>
                   <TableHead className="text-right">Items</TableHead>
                 </TableRow>
               </TableHeader>
@@ -291,9 +317,10 @@ export function ComplianceHistoryDialog() {
                 {filteredRecords.map((record: CompletedCheckRecord) => {
                   const checkedCount = record.checkItems.filter(i => i.checked).length;
                   const areaName = getAreaName(record.buildingId, record.floorId, record.areaId);
+                  const needsTrainingFollowUp = record.checkType === 'training' && (record.status === 'not_done' || record.status === 'cancelled');
                   
                   return (
-                    <TableRow key={record.id}>
+                    <TableRow key={record.id} className={needsTrainingFollowUp ? 'bg-warning-muted/25 border-l-2 border-warning' : ''}>
                       <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
@@ -324,6 +351,21 @@ export function ComplianceHistoryDialog() {
                         <span className="text-xs text-muted-foreground">{record.completedBy.email}</span>
                       </TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
+                      <TableCell>
+                        {needsTrainingFollowUp ? (
+                          <div className="text-xs space-y-1">
+                            <div className="font-medium text-warning">Follow-up required</div>
+                            <div className="text-muted-foreground">
+                              Reason: {record.outcomeReason || 'No reason provided'}
+                            </div>
+                            <div className="text-muted-foreground">
+                              New Date: {record.followUpDate ? format(record.followUpDate, 'MMM d, yyyy') : 'Not set'}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <span className="text-sm font-medium">{checkedCount}</span>
                         <span className="text-muted-foreground">/{record.checkItems.length}</span>

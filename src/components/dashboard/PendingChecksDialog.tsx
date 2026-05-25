@@ -31,12 +31,6 @@ export function PendingChecksDialog({
   const [filter, setFilter] = useState<'this_week' | 'overdue' | 'all'>(initialFilter);
   const [selectedUserId, setSelectedUserId] = useState<string>('current');
 
-  useEffect(() => {
-    if (open) {
-      setFilter(initialFilter);
-    }
-  }, [open, initialFilter]);
-
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
     if (!user) return null;
@@ -46,6 +40,14 @@ export function PendingChecksDialog({
   }, [user, settings.userPermissions]);
 
   const isAdmin = currentUserPermission?.role === 'admin' || currentUserPermission?.role === 'super_admin';
+  const isSuperAdmin = currentUserPermission?.role === 'super_admin';
+
+  useEffect(() => {
+    if (open) {
+      setFilter(initialFilter);
+      setSelectedUserId(isSuperAdmin ? 'all' : 'current');
+    }
+  }, [open, initialFilter, isSuperAdmin]);
 
   // Get checks assigned to the current user (or all for admins)
   const pendingChecks = useMemo(() => {
@@ -59,18 +61,17 @@ export function PendingChecksDialog({
         const assignedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
 
         // Filter by assignment
-        if (isAdmin && selectedUserId !== 'current') {
+        if (isSuperAdmin && selectedUserId !== 'current') {
           if (selectedUserId === 'all') return true;
           return assignedUsers.some((entry) => entry.id === selectedUserId || entry.userId === selectedUserId);
         }
         
-        // For non-admins or when 'current' is selected, show only assigned checks
-        if (!currentUserPermission) return isAdmin; // If no user mapping, only admins see all
+        // For non-super-admin users, only show checks assigned to them
+        if (!currentUserPermission) return false;
         return assignedUsers.some((entry) =>
                  entry.id === currentUserPermission.id ||
                  entry.userId === currentUserPermission.userId,
-               ) ||
-               (isAdmin && check.assignedUsers?.length === 0); // Admins see unassigned too
+               );
       })
       .filter(check => {
         const dueDate = new Date(check.nextDue);
@@ -87,13 +88,13 @@ export function PendingChecksDialog({
         }
       })
       .sort((a, b) => new Date(a.nextDue).getTime() - new Date(b.nextDue).getTime());
-  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, currentUserPermission, isAdmin, filter, selectedUserId]);
+  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, currentUserPermission, isSuperAdmin, filter, selectedUserId]);
 
   const missedRecords = useMemo(() => {
     const allMissed = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
 
     return allMissed.filter((record) => {
-      if (isAdmin && selectedUserId !== 'current') {
+      if (isSuperAdmin && selectedUserId !== 'current') {
         if (selectedUserId === 'all') {
           return true;
         }
@@ -101,7 +102,7 @@ export function PendingChecksDialog({
       }
 
       if (!currentUserPermission) {
-        return isAdmin;
+        return false;
       }
 
       return (
@@ -109,7 +110,7 @@ export function PendingChecksDialog({
         record.assignedUserIds.includes(currentUserPermission.userId)
       );
     });
-  }, [isAdmin, selectedUserId, currentUserPermission]);
+  }, [isSuperAdmin, selectedUserId, currentUserPermission]);
 
   // Group checks by status
   const { overdueChecks, upcomingChecks } = useMemo(() => {
@@ -153,7 +154,7 @@ export function PendingChecksDialog({
 
   // Handle starting a check
   const handleStartCheck = (check: ComplianceCheck) => {
-    const onBehalfOf = isAdmin && selectedUserId !== 'current' && selectedUserId !== 'all'
+    const onBehalfOf = isSuperAdmin && selectedUserId !== 'current' && selectedUserId !== 'all'
       ? settings.userPermissions.find(u => u.id === selectedUserId)
       : undefined;
     onStartCheck(check, onBehalfOf);
@@ -169,8 +170,10 @@ export function PendingChecksDialog({
             Pending Compliance Checks
           </DialogTitle>
           <DialogDescription>
-            {isAdmin 
-              ? 'View and complete pending checks. As an admin, you can complete checks on behalf of other users.'
+            {isSuperAdmin 
+              ? 'View and complete pending checks. As a super admin, you can view all users and complete checks on their behalf.'
+              : isAdmin
+              ? 'View and complete pending checks assigned to you.'
               : 'View and complete your assigned compliance checks.'
             }
           </DialogDescription>
@@ -194,7 +197,7 @@ export function PendingChecksDialog({
             </TabsList>
           </Tabs>
 
-          {isAdmin && (
+          {isSuperAdmin && (
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="View as..." />
@@ -280,7 +283,7 @@ export function PendingChecksDialog({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium text-emergency">
                     <AlertTriangle className="w-4 h-4" />
-                    Overdue ({overdueChecks.length})
+                    Overdue Checks And Training ({overdueChecks.length})
                   </div>
                   {overdueChecks.map(check => (
                     <CheckCard 
@@ -349,6 +352,11 @@ function CheckCard({ check, isOverdue, getBuildingNames, getAssignedUserNames, o
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-medium text-sm truncate">{check.name}</span>
+            {check.category === 'training' && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                Training
+              </Badge>
+            )}
             {isOverdue && (
               <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                 Overdue

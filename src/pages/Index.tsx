@@ -8,6 +8,7 @@ import { ComplianceCheckForm } from '@/components/dashboard/ComplianceCheckForm'
 import { ComplianceStatsWidget } from '@/components/dashboard/ComplianceStatsWidget';
 import { ComplianceHistoryDialog } from '@/components/dashboard/ComplianceHistoryDialog';
 import { ComplianceCalendarDialog } from '@/components/dashboard/ComplianceCalendarDialog';
+import { PendingChecksDialog } from '@/components/dashboard/PendingChecksDialog';
 import { PersonnelDialog } from '@/components/dashboard/PersonnelDialog';
 import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
@@ -48,6 +49,7 @@ const Index = () => {
   const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
   const [isComplianceScoreDialogOpen, setIsComplianceScoreDialogOpen] = useState(false);
+  const [isOutstandingChecksDialogOpen, setIsOutstandingChecksDialogOpen] = useState(false);
 
   const visiblePersonnel = useMemo(
     () => filterPersonnelByUserScope(settings.userPermissions, user),
@@ -433,6 +435,19 @@ const Index = () => {
               </div>
               <Progress value={complianceBreakdown.score} className="h-2" />
 
+              <div className="flex justify-center">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setIsComplianceScoreDialogOpen(false);
+                    setIsOutstandingChecksDialogOpen(true);
+                  }}
+                >
+                  View Outstanding Checks And Training
+                </Button>
+              </div>
+
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold text-foreground">How this is calculated</h4>
                 <p className="text-sm text-muted-foreground">
@@ -443,6 +458,7 @@ const Index = () => {
                   <li><span className="text-warning font-medium">Partial</span> = configurable partial credit</li>
                   <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
                   <li>Each <span className="text-emergency font-medium">overdue or missed/incomplete</span> check subtracts a configurable penalty and adds to the total.</li>
+                  <li>Each <span className="text-warning font-medium">Training Not Done</span> outcome also applies the same explicit penalty.</li>
                   <li>Officials coverage = (required − missing) ÷ required across all areas, days and safety roles.</li>
                   <li>Drill success = percentage of completed drills at or above the configurable accounted-for threshold.</li>
                   <li>Area report coverage = percentage of areas with at least one compliance report in the selected monthly/quarterly window.</li>
@@ -517,11 +533,15 @@ const Index = () => {
                   <div className="text-2xl font-bold text-emergency">{complianceBreakdown.missedCount}</div>
                   <div className="text-xs text-muted-foreground">Missed/Incomplete</div>
                 </div>
+                <div className="bg-warning-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-warning">{complianceBreakdown.trainingNotDoneCount}</div>
+                  <div className="text-xs text-muted-foreground">Training Not Done</div>
+                </div>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
                 Total completed checks: <span className="font-medium text-foreground">{complianceBreakdown.totalCompleted}</span>
-                {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && complianceBreakdown.missedCount === 0 && (
+                {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && complianceBreakdown.missedCount === 0 && complianceBreakdown.trainingNotDoneCount === 0 && (
                   <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
                 )}
               </div>
@@ -567,6 +587,13 @@ const Index = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <PendingChecksDialog
+          open={isOutstandingChecksDialogOpen}
+          onOpenChange={setIsOutstandingChecksDialogOpen}
+          initialFilter="overdue"
+          onStartCheck={handleStartScheduledCheck}
+        />
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

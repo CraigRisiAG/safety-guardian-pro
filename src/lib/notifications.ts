@@ -8,7 +8,7 @@ export const NOTIFICATION_DELIVERY_CONFIG_KEY = 'safeguard_notification_delivery
 export const NOTIFICATION_PROVIDER_SETTINGS_KEY = 'safeguard_notification_provider_settings';
 
 export type NotificationChannel = 'in_app' | 'email' | 'sms';
-export type NotificationType = 'drill_started' | 'incident_reported' | 'compliance_missed';
+export type NotificationType = 'drill_started' | 'incident_reported' | 'compliance_missed' | 'compliance_assigned';
 export type NotificationStatus = 'queued' | 'sent' | 'skipped';
 
 export interface NotificationRecord {
@@ -571,6 +571,15 @@ interface MissedComplianceNotificationInput {
   buildingIds?: string[];
 }
 
+interface AssignedComplianceNotificationInput {
+  checkId: string;
+  checkName: string;
+  dueAt: Date;
+  assignedUserIds: string[];
+  areaIds?: string[];
+  buildingIds?: string[];
+}
+
 export const notifyComplianceChecksMissed = (input: {
   missedChecks: MissedComplianceNotificationInput[];
   userPermissions: UserPermission[];
@@ -604,6 +613,53 @@ export const notifyComplianceChecksMissed = (input: {
       metadata: {
         checkId: missedCheck.checkId,
         dueAt: missedCheck.dueAt.toISOString(),
+      },
+    });
+
+    aggregate = {
+      total: aggregate.total + summary.total,
+      sent: aggregate.sent + summary.sent,
+      queued: aggregate.queued + summary.queued,
+      skipped: aggregate.skipped + summary.skipped,
+    };
+  });
+
+  return aggregate;
+};
+
+export const notifyComplianceChecksAssigned = (input: {
+  assignedChecks: AssignedComplianceNotificationInput[];
+  userPermissions: UserPermission[];
+}): NotificationDispatchSummary => {
+  const config = loadNotificationDeliveryConfig();
+  let aggregate: NotificationDispatchSummary = {
+    total: 0,
+    sent: 0,
+    queued: 0,
+    skipped: 0,
+  };
+
+  input.assignedChecks.forEach((assignedCheck) => {
+    const recipients = uniqueRecipients(
+      toNotificationRecipients(
+        input.userPermissions.filter((entry) => assignedCheck.assignedUserIds.includes(entry.id)),
+      ),
+    );
+
+    if (recipients.length === 0) {
+      return;
+    }
+
+    const summary = dispatchNotifications({
+      type: 'compliance_assigned',
+      message: `New compliance assignment: ${assignedCheck.checkName} (due ${assignedCheck.dueAt.toLocaleDateString()})`,
+      recipients,
+      channels: config.incidentChannels,
+      buildingId: assignedCheck.buildingIds?.[0],
+      areaId: assignedCheck.areaIds?.[0],
+      metadata: {
+        checkId: assignedCheck.checkId,
+        dueAt: assignedCheck.dueAt.toISOString(),
       },
     });
 
