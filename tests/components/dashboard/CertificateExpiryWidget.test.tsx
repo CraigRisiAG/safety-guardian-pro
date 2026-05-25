@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { CertificateExpiryWidget } from '@/components/dashboard/CertificateExpiryWidget';
+import { DEFAULT_CERTIFICATE_VALIDITY_BY_TYPE } from '@/types/certificates';
 
 const mockUseCertificates = vi.fn();
 const mockUseAdminSettings = vi.fn();
@@ -18,7 +19,7 @@ describe('CertificateExpiryWidget', () => {
     vi.clearAllMocks();
   });
 
-  it('renders training stats in H&S certificates section', () => {
+  const setupDefaults = () => {
     const now = new Date();
 
     mockUseCertificates.mockReturnValue({
@@ -35,6 +36,13 @@ describe('CertificateExpiryWidget', () => {
       ],
       expiringSoon: [],
       expired: [],
+      addCertificate: vi.fn(),
+      updateCertificate: vi.fn(),
+      deleteCertificate: vi.fn(),
+      getCertificatesForUser: vi.fn(() => []),
+      certificateValidityYearsByType: DEFAULT_CERTIFICATE_VALIDITY_BY_TYPE,
+      updateCertificateValidityYears: vi.fn(),
+      upsertCertificateForTrainingPass: vi.fn(),
     });
 
     mockUseAdminSettings.mockReturnValue({
@@ -57,8 +65,13 @@ describe('CertificateExpiryWidget', () => {
             trainingDetails: { lastOutcomeStatus: 'pass' },
           },
         ],
+        userPermissions: [],
       },
     });
+  };
+
+  it('renders training stats in H&S certificates section', () => {
+    setupDefaults();
 
     render(<CertificateExpiryWidget />);
 
@@ -70,11 +83,29 @@ describe('CertificateExpiryWidget', () => {
     expect(screen.getByText('Follow-Up')).toBeInTheDocument();
   });
 
+  it('opens the admin certificates popup when H&S Certificates is clicked', () => {
+    setupDefaults();
+
+    render(<CertificateExpiryWidget />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open H&S certificates' }));
+
+    expect(screen.getByText('Manage certificates using the same controls available in the Admin screen.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Certificate' })).toBeInTheDocument();
+  });
+
   it('does not render when there are no certificates', () => {
     mockUseCertificates.mockReturnValue({
       certificates: [],
       expiringSoon: [],
       expired: [],
+      addCertificate: vi.fn(),
+      updateCertificate: vi.fn(),
+      deleteCertificate: vi.fn(),
+      getCertificatesForUser: vi.fn(() => []),
+      certificateValidityYearsByType: DEFAULT_CERTIFICATE_VALIDITY_BY_TYPE,
+      updateCertificateValidityYears: vi.fn(),
+      upsertCertificateForTrainingPass: vi.fn(),
     });
 
     mockUseAdminSettings.mockReturnValue({

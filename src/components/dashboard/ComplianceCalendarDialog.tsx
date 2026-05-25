@@ -195,6 +195,11 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
     // Add scheduled checks
     visibleChecks.forEach(check => {
+      // Completed checks should appear only via completed history events, not as scheduled assignments.
+      if (check.status === 'completed') {
+        return;
+      }
+
       const isMonthlyRecurring = check.isRecurring && check.frequency === 'monthly' && check.recurrencePattern !== 'none';
       const locationDetails = getLocationDetails(check);
 

@@ -14,19 +14,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ComplianceCheck, ComplianceCategory, CustomBuilding, UserPermission, SAFETY_ROLE_LABELS } from '@/types/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { CertificateType, CERTIFICATE_TYPE_LABELS } from '@/types/certificates';
 import { userCanPerformCheckCategory, getQualifiedRolesDescription } from '@/utils/complianceRoles';
 import { getMonthlyWeekLabels, WEEKDAY_LABELS } from '@/utils/complianceRecurrence';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-const TRAINING_CERTIFICATE_OPTIONS = [
-  { value: 'first_aid', label: 'First Aid' },
-  { value: 'evacuation', label: 'Evacuation' },
-  { value: 'health_safety_officer', label: 'H&S Officer' },
-  { value: 'fire_marshall', label: 'Fire Marshall' },
-  { value: 'evac_chair', label: 'Evac Chair' },
-] as const;
+const TRAINING_CERTIFICATE_ORDER: CertificateType[] = [
+  'first_aider',
+  'fire_marshall',
+  'evacuation_warden',
+  'evac_chair',
+  'health_safety_officer',
+];
+
+const TRAINING_CERTIFICATE_OPTIONS = TRAINING_CERTIFICATE_ORDER.map((value) => ({
+  value,
+  label: CERTIFICATE_TYPE_LABELS[value],
+}));
 
 const TRAINING_LEVEL_OPTIONS = [
   { value: '1', label: 'Level 1' },
@@ -86,7 +92,7 @@ export function QuickCheckAssignment({
     recurrenceWeekOfMonth: 1 as 1 | 2 | 3 | 4 | 'last',
     recurrenceWeekday: 1 as 0 | 1 | 2 | 3 | 4 | 5 | 6,
     trainingParticipantId: '',
-    trainingCertificateType: TRAINING_CERTIFICATE_OPTIONS[0].value,
+    trainingCertificateType: TRAINING_CERTIFICATE_OPTIONS[0].value as CertificateType,
     trainingLevel: TRAINING_LEVEL_OPTIONS[0].value,
   });
 
@@ -107,7 +113,7 @@ export function QuickCheckAssignment({
         recurrenceWeekOfMonth: 1,
         recurrenceWeekday: 1,
         trainingParticipantId: currentUserPermission?.id || '',
-        trainingCertificateType: TRAINING_CERTIFICATE_OPTIONS[0].value,
+        trainingCertificateType: TRAINING_CERTIFICATE_OPTIONS[0].value as CertificateType,
         trainingLevel: TRAINING_LEVEL_OPTIONS[0].value,
       });
     }

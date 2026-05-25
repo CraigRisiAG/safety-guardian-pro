@@ -13,11 +13,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { useCertificates } from '@/hooks/useCertificates';
 import { CHECK_TYPE_LABELS, CompletedCheckRecord, CompletedCheckItem } from '@/types/compliance';
 import { Input } from '@/components/ui/input';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { normalizeTrainingCertificateType } from '@/types/certificates';
 import { completeMissedComplianceForCheck } from '@/lib/complianceMonitoring';
 import { getNextComplianceDueDate } from '@/utils/complianceRecurrence';
+import { CERTIFICATE_TYPE_LABELS } from '@/types/certificates';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
@@ -43,6 +46,7 @@ type TrainingOutcomeStatus = Extract<CompletedCheckRecord['status'], 'pass' | 'f
 interface ComplianceCheckFormProps {
   preselectedCheck?: ComplianceCheck | null;
   onBehalfOf?: UserPermission | null;
+  openRequestId?: number;
   onCheckComplete?: () => void;
 }
 
@@ -54,10 +58,12 @@ type CompletedCheckRecordWithCustomFields = CompletedCheckRecord & {
 export function ComplianceCheckForm({ 
   preselectedCheck, 
   onBehalfOf, 
+  openRequestId = 0,
   onCheckComplete 
 }: ComplianceCheckFormProps) {
   const { user } = useAuth();
   const { settings, updateComplianceCheck } = useAdminSettings();
+  const { upsertCertificateForTrainingPass, certificateValidityYearsByType } = useCertificates();
   const [isOpen, setIsOpen] = useState(false);
   const [checkType, setCheckType] = useState<CompletedCheckRecord['checkType'] | ''>('');
   const [buildingId, setBuildingId] = useState('');
@@ -69,6 +75,23 @@ export function ComplianceCheckForm({
   const [trainingStatus, setTrainingStatus] = useState<TrainingOutcomeStatus>('pass');
   const [trainingReason, setTrainingReason] = useState('');
   const [trainingNewDate, setTrainingNewDate] = useState('');
+  const [showPassConfirmation, setShowPassConfirmation] = useState(false);
+  const [passCertificationDate, setPassCertificationDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const isTrainingSelected = checkType === 'training';
+
+  const trainingCourseLabel = preselectedCheck?.trainingDetails?.certificateLabel || preselectedCheck?.name || 'Training course';
+  const trainingParticipantLabel = preselectedCheck?.trainingDetails?.participantName;
+  const normalizedTrainingType = preselectedCheck?.trainingDetails
+    ? normalizeTrainingCertificateType(preselectedCheck.trainingDetails.certificateType)
+    : null;
+  const trainingValidityYears = normalizedTrainingType ? certificateValidityYearsByType[normalizedTrainingType] : 3;
+
+  const parseCertificationDate = () => {
+    if (!passCertificationDate) {
+      return null;
+    }
+    return new Date(`${passCertificationDate}T00:00:00`);
+  };
 
   // Auto-open and prefill when a scheduled check is selected
   useEffect(() => {
@@ -86,7 +109,7 @@ export function ComplianceCheckForm({
         setBuildingId(preselectedCheck.buildingIds[0]);
       }
     }
-  }, [preselectedCheck]);
+  }, [preselectedCheck, openRequestId]);
 
   // Get available floors for selected building
   const selectedBuilding = settings.buildings.find(b => b.id === buildingId);
@@ -122,6 +145,8 @@ export function ComplianceCheckForm({
     setTrainingStatus('pass');
     setTrainingReason('');
     setTrainingNewDate('');
+    setShowPassConfirmation(false);
+    setPassCertificationDate(new Date().toISOString().slice(0, 10));
     onCheckComplete?.();
   };
 
@@ -167,16 +192,16 @@ export function ComplianceCheckForm({
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (options?: { skipPassConfirmation?: boolean; certificationDate?: Date }) => {
         const isTrainingCheck = checkType === 'training';
 
         if (isTrainingCheck && (trainingStatus === 'not_done' || trainingStatus === 'cancelled')) {
           if (!trainingReason.trim()) {
-            toast.error('Reason is required when training is not done or cancelled');
+            toast.error(`Missing required field: Reason. Explain why ${trainingCourseLabel} was ${trainingStatus === 'not_done' ? 'not done' : 'cancelled'}.`);
             return;
           }
           if (!trainingNewDate) {
-            toast.error('Please provide a new training date when training is not done or cancelled');
+            toast.error(`Missing required field: New Training Date. Set the next date for ${trainingCourseLabel}.`);
             return;
           }
         }
@@ -238,6 +263,11 @@ export function ComplianceCheckForm({
       } else if (checkedCount < relevantItems.length) {
         status = 'partial';
       }
+    }
+
+    if (isTrainingCheck && status === 'pass' && !options?.skipPassConfirmation) {
+      setShowPassConfirmation(true);
+      return;
     }
 
     const record: CompletedCheckRecordWithCustomFields = {
@@ -324,6 +354,45 @@ export function ComplianceCheckForm({
 
       if (resolvedMissed) {
         toast.success('Missed check resolved and marked completed');
+      }
+
+      if (isTrainingCheck && status === 'pass') {
+        const details = preselectedCheck.trainingDetails;
+        const text = `${preselectedCheck.name} ${preselectedCheck.description}`.toLowerCase();
+
+        let rawCertificateType = details?.certificateType;
+        if (!rawCertificateType) {
+          if (text.includes('fire marshall')) rawCertificateType = 'fire_marshall';
+          else if (text.includes('evac chair')) rawCertificateType = 'evac_chair';
+          else if (text.includes('evacuation warden') || text.includes('evacuation')) rawCertificateType = 'evacuation';
+          else if (text.includes('first aid') || text.includes('first aider')) rawCertificateType = 'first_aid';
+          else if (text.includes('health & safety') || text.includes('h&s') || text.includes('health safety')) rawCertificateType = 'health_safety_officer';
+        }
+
+        const normalizedType = rawCertificateType ? normalizeTrainingCertificateType(rawCertificateType) : null;
+
+        const completedByUserId = 'userId' in completingUser ? completingUser.userId : completingUser.id;
+        const completingPermission = settings.userPermissions.find(
+          (entry) => entry.userId === completedByUserId || entry.email.toLowerCase() === completingUser.email.toLowerCase(),
+        );
+
+        const participant = settings.userPermissions.find((entry) =>
+          entry.id === details?.participantId ||
+          entry.userId === details?.participantId ||
+          (!!details?.participantName && entry.userName === details.participantName),
+        );
+
+        if (normalizedType) {
+          upsertCertificateForTrainingPass({
+            userId: participant?.id || completingPermission?.id || details?.participantId || completedByUserId,
+            userName: participant?.userName || details?.participantName || completingUser.userName,
+            email: participant?.email || completingPermission?.email || completingUser.email,
+            certificateType: normalizedType,
+            certificationDate: options?.certificationDate || completionDate,
+          });
+        } else {
+          toast.error('Could not determine certificate type from this training record. Please update training details and try again.');
+        }
       }
     }
 
@@ -474,6 +543,20 @@ export function ComplianceCheckForm({
               <>
                 <Separator />
                 <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+                  <Alert className="bg-primary/10 border-primary/30">
+                    <ClipboardCheck className="w-4 h-4 text-primary" />
+                    <AlertDescription className="text-sm space-y-1">
+                      <div>
+                        <strong>Course:</strong> {trainingCourseLabel}
+                      </div>
+                      {trainingParticipantLabel && (
+                        <div>
+                          <strong>Participant:</strong> {trainingParticipantLabel}
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+
                   <Label>Training Outcome</Label>
                   <Select value={trainingStatus} onValueChange={(value: TrainingOutcomeStatus) => setTrainingStatus(value)}>
                     <SelectTrigger>
@@ -489,6 +572,9 @@ export function ComplianceCheckForm({
 
                   {(trainingStatus === 'not_done' || trainingStatus === 'cancelled') && (
                     <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        Required fields for this outcome: Reason and New Training Date.
+                      </p>
                       <div className="space-y-2">
                         <Label>Reason *</Label>
                         <Textarea
@@ -663,12 +749,73 @@ export function ComplianceCheckForm({
           <Button variant="outline" onClick={() => { resetForm(); setIsOpen(false); }}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!checkType || !buildingId || !floorId}>
+          <Button onClick={handleSubmit} disabled={!checkType || (!isTrainingSelected && (!buildingId || !floorId))}>
             <CheckCircle2 className="w-4 h-4 mr-2" />
             Complete Check
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={showPassConfirmation} onOpenChange={setShowPassConfirmation}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Passed Training</DialogTitle>
+            <DialogDescription>
+              Confirm the certification date before adding or updating this certificate in H&S Certificates.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="text-sm">
+              <span className="font-medium">Course:</span> {trainingCourseLabel}
+            </div>
+            {trainingParticipantLabel && (
+              <div className="text-sm">
+                <span className="font-medium">Participant:</span> {trainingParticipantLabel}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="pass-certification-date">Certification Date *</Label>
+              <Input
+                id="pass-certification-date"
+                type="date"
+                value={passCertificationDate}
+                onChange={(event) => setPassCertificationDate(event.target.value)}
+              />
+            </div>
+
+            {normalizedTrainingType ? (
+              <div className="text-xs text-muted-foreground">
+                Certificate Type: {CERTIFICATE_TYPE_LABELS[normalizedTrainingType]} · Validity: {trainingValidityYears} year{trainingValidityYears === 1 ? '' : 's'}
+              </div>
+            ) : (
+              <div className="text-xs text-warning">
+                This training type is not currently mapped to a certificate type. A certificate will not be created.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPassConfirmation(false)}>
+              Back
+            </Button>
+            <Button
+              onClick={() => {
+                const certificationDate = parseCertificationDate();
+                if (!certificationDate) {
+                  toast.error(`Missing required field: Certification Date for ${trainingCourseLabel}.`);
+                  return;
+                }
+
+                setShowPassConfirmation(false);
+                handleSubmit({ skipPassConfirmation: true, certificationDate });
+              }}
+            >
+              Confirm And Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

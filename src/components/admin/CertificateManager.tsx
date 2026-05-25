@@ -18,7 +18,14 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 export function CertificateManager() {
-  const { certificates, addCertificate, updateCertificate, deleteCertificate } = useCertificates();
+  const {
+    certificates,
+    addCertificate,
+    updateCertificate,
+    deleteCertificate,
+    certificateValidityYearsByType,
+    updateCertificateValidityYears,
+  } = useCertificates();
   const { settings } = useAdminSettings();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCert, setEditingCert] = useState<string | null>(null);
@@ -128,6 +135,39 @@ export function CertificateManager() {
         ))}
       </div>
 
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div>
+          <h4 className="text-sm font-semibold">Certificate Validity Settings</h4>
+          <p className="text-xs text-muted-foreground">
+            Configure expiry periods per certificate type. Existing certificates update automatically.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {(Object.keys(CERTIFICATE_TYPE_LABELS) as CertificateType[]).map((type) => (
+            <div key={type} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div className="text-sm font-medium">{CERTIFICATE_TYPE_LABELS[type]}</div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor={`validity-${type}`} className="text-xs text-muted-foreground">Years</Label>
+                <Input
+                  id={`validity-${type}`}
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={certificateValidityYearsByType[type]}
+                  onChange={(event) => {
+                    const nextYears = Number(event.target.value);
+                    if (Number.isFinite(nextYears) && nextYears >= 1) {
+                      updateCertificateValidityYears(type, nextYears);
+                    }
+                  }}
+                  className="w-20"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Certificate List */}
       <ScrollArea className="max-h-[500px]">
         <div className="space-y-3">
@@ -193,7 +233,7 @@ export function CertificateManager() {
               {editingCert ? 'Edit Certificate' : 'Add Certificate'}
             </DialogTitle>
             <DialogDescription>
-              Certificates expire 3 years after certification date.
+              Certificates expire according to the configured validity for the selected certificate type.
             </DialogDescription>
           </DialogHeader>
 
@@ -245,7 +285,14 @@ export function CertificateManager() {
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-muted-foreground">
-                Expires: {format(new Date(formData.certificationDate.getFullYear() + 3, formData.certificationDate.getMonth(), formData.certificationDate.getDate()), 'dd MMM yyyy')}
+                Expires: {format(
+                  new Date(
+                    formData.certificationDate.getFullYear() + (certificateValidityYearsByType[formData.certificateType] || 3),
+                    formData.certificationDate.getMonth(),
+                    formData.certificationDate.getDate(),
+                  ),
+                  'dd MMM yyyy',
+                )}
               </p>
             </div>
 

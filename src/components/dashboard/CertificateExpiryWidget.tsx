@@ -1,16 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Award, AlertTriangle, XCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCertificates } from '@/hooks/useCertificates';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
+import { CertificateManager } from '@/components/admin/CertificateManager';
 import { CERTIFICATE_TYPE_LABELS } from '@/types/certificates';
 import { format, differenceInDays } from 'date-fns';
 
 export function CertificateExpiryWidget() {
   const { certificates, expiringSoon, expired } = useCertificates();
   const { settings } = useAdminSettings();
+  const [isCertificatesDialogOpen, setIsCertificatesDialogOpen] = useState(false);
 
   const validCount = useMemo(() =>
     certificates.filter(c => {
@@ -54,8 +57,15 @@ export function CertificateExpiryWidget() {
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <Award className="w-5 h-5 text-primary" />
-          H&S Certificates
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 text-left hover:text-primary transition-colors"
+            onClick={() => setIsCertificatesDialogOpen(true)}
+            aria-label="Open H&S certificates"
+          >
+            <Award className="w-5 h-5 text-primary" />
+            H&S Certificates
+          </button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -156,6 +166,18 @@ export function CertificateExpiryWidget() {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={isCertificatesDialogOpen} onOpenChange={setIsCertificatesDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>H&S Certificates</DialogTitle>
+            <DialogDescription>
+              Manage certificates using the same controls available in the Admin screen.
+            </DialogDescription>
+          </DialogHeader>
+          <CertificateManager />
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

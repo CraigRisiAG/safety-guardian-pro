@@ -45,6 +45,7 @@ const Index = () => {
   const { activeDrill, drillRecords } = useDrillStatus();
   const [selectedCheck, setSelectedCheck] = useState<ComplianceCheck | null>(null);
   const [onBehalfOfUser, setOnBehalfOfUser] = useState<UserPermission | null>(null);
+  const [startCheckRequestId, setStartCheckRequestId] = useState(0);
   const [isOpenIncidentsDialogOpen, setIsOpenIncidentsDialogOpen] = useState(false);
   const [isScheduledDrillsDialogOpen, setIsScheduledDrillsDialogOpen] = useState(false);
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
@@ -174,6 +175,7 @@ const Index = () => {
   const handleStartScheduledCheck = (check: ComplianceCheck, onBehalfOf?: UserPermission) => {
     setSelectedCheck(check);
     setOnBehalfOfUser(onBehalfOf || null);
+    setStartCheckRequestId((value) => value + 1);
     
     // Show a toast to guide user
     const message = onBehalfOf 
@@ -674,6 +676,7 @@ const Index = () => {
               <ComplianceCheckForm 
                 preselectedCheck={selectedCheck}
                 onBehalfOf={onBehalfOfUser}
+                openRequestId={startCheckRequestId}
                 onCheckComplete={() => {
                   setSelectedCheck(null);
                   setOnBehalfOfUser(null);
