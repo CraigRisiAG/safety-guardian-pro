@@ -16,6 +16,8 @@ import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { CHECK_TYPE_LABELS, CompletedCheckRecord, CompletedCheckItem } from '@/types/compliance';
 import { Input } from '@/components/ui/input';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { completeMissedComplianceForCheck } from '@/lib/complianceMonitoring';
+import { getNextComplianceDueDate } from '@/utils/complianceRecurrence';
 
 const STORAGE_KEY = 'safeguard_completed_checks';
 
@@ -226,10 +228,28 @@ export function ComplianceCheckForm({
 
     // Update the scheduled check status if this was from a preselected check
     if (preselectedCheck) {
+      const completionDate = new Date();
+      const resolvedMissed = completeMissedComplianceForCheck(preselectedCheck.id);
+
+      const updates: Partial<ComplianceCheck> = {
+        lastCompleted: completionDate,
+      };
+
+      if (preselectedCheck.isRecurring) {
+        const baseDate = new Date(preselectedCheck.nextDue);
+        updates.status = 'pending';
+        updates.nextDue = getNextComplianceDueDate(preselectedCheck, baseDate);
+      } else {
+        updates.status = 'completed';
+      }
+
       updateComplianceCheck(preselectedCheck.id, {
-        status: 'completed',
-        lastCompleted: new Date(),
+        ...updates,
       });
+
+      if (resolvedMissed) {
+        toast.success('Missed check resolved and marked completed');
+      }
     }
 
     const buildingName = selectedBuilding?.name || 'Unknown';

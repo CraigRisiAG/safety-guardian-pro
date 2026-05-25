@@ -15,6 +15,7 @@ import { ComplianceCheck, ComplianceCategory, CustomBuilding, UserPermission, SA
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { userCanPerformCheckCategory, getQualifiedRolesDescription } from '@/utils/complianceRoles';
+import { getMonthlyWeekLabels, WEEKDAY_LABELS } from '@/utils/complianceRecurrence';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -55,7 +56,9 @@ export function QuickCheckAssignment({
     areaIds: [] as string[],
     assignedUsers: [] as string[],
     assignToSelf: !isAdmin, // Non-admins assign to self by default
-    monthlySameDate: false,
+    recurrencePattern: 'none' as NonNullable<ComplianceCheck['recurrencePattern']>,
+    recurrenceWeekOfMonth: 1 as 1 | 2 | 3 | 4 | 'last',
+    recurrenceWeekday: 1 as 0 | 1 | 2 | 3 | 4 | 5 | 6,
   });
 
   // Reset form when dialog opens
@@ -71,7 +74,9 @@ export function QuickCheckAssignment({
         areaIds: [],
         assignedUsers: [],
         assignToSelf: !isAdmin,
-        monthlySameDate: false,
+        recurrencePattern: 'none',
+        recurrenceWeekOfMonth: 1,
+        recurrenceWeekday: 1,
       });
     }
     onOpenChange(newOpen);
@@ -176,9 +181,17 @@ export function QuickCheckAssignment({
       status: 'pending',
       category: formData.category,
       assignedUsers: assignedUserIds,
-      isRecurring: formData.monthlySameDate,
-      recurrencePattern: formData.monthlySameDate ? 'monthly_same_date' : 'none',
-      startDate: formData.monthlySameDate ? formData.dueDate : undefined,
+      isRecurring: formData.recurrencePattern !== 'none',
+      recurrencePattern: formData.recurrencePattern,
+      recurrenceWeekOfMonth:
+        formData.recurrencePattern === 'monthly_week_of_month'
+          ? formData.recurrenceWeekOfMonth
+          : undefined,
+      recurrenceWeekday:
+        formData.recurrencePattern === 'monthly_week_of_month'
+          ? formData.recurrenceWeekday
+          : undefined,
+      startDate: formData.recurrencePattern !== 'none' ? formData.dueDate : undefined,
       reminderDaysBefore: 1,
     });
 
@@ -382,16 +395,82 @@ export function QuickCheckAssignment({
               <Repeat className="w-4 h-4" />
               Recurrence
             </Label>
-            <div className="border rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formData.monthlySameDate}
-                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, monthlySameDate: !!checked }))}
-                />
-                <label className="text-sm cursor-pointer">
-                  Repeat monthly on the same date ({format(formData.dueDate, 'do')})
-                </label>
+            <div className="border rounded-lg p-3 space-y-3">
+              <div className="space-y-2">
+                <Label>Recurrence mode</Label>
+                <Select
+                  value={formData.recurrencePattern}
+                  onValueChange={(value: NonNullable<ComplianceCheck['recurrencePattern']>) =>
+                    setFormData((prev) => ({ ...prev, recurrencePattern: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">One-off (no recurrence)</SelectItem>
+                    <SelectItem value="monthly_same_date">Same date each month ({format(formData.dueDate, 'do')})</SelectItem>
+                    <SelectItem value="monthly_last_day">Last day of month</SelectItem>
+                    <SelectItem value="monthly_last_working_day">Last working day of month</SelectItem>
+                    <SelectItem value="monthly_week_of_month">Specific week + weekday of month</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {formData.recurrencePattern === 'monthly_week_of_month' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Week of month</Label>
+                    <Select
+                      value={String(formData.recurrenceWeekOfMonth)}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          recurrenceWeekOfMonth:
+                            value === 'last'
+                              ? 'last'
+                              : (parseInt(value, 10) as 1 | 2 | 3 | 4),
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getMonthlyWeekLabels().map((entry) => (
+                          <SelectItem key={entry.value} value={entry.value}>
+                            {entry.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Weekday</Label>
+                    <Select
+                      value={String(formData.recurrenceWeekday)}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          recurrenceWeekday: parseInt(value, 10) as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WEEKDAY_LABELS.map((entry) => (
+                          <SelectItem key={entry.value} value={String(entry.value)}>
+                            {entry.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

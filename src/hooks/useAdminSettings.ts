@@ -126,9 +126,33 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
         nextDue: new Date(c.nextDue as string | number | Date),
         startDate: c.startDate ? new Date(c.startDate as string | number | Date) : undefined,
         endDate: c.endDate ? new Date(c.endDate as string | number | Date) : undefined,
+        lastMissedDueAt: c.lastMissedDueAt ? new Date(c.lastMissedDueAt as string | number | Date) : undefined,
+        lastMissedNotificationAt: c.lastMissedNotificationAt
+          ? new Date(c.lastMissedNotificationAt as string | number | Date)
+          : undefined,
         floorIds: Array.isArray(c.floorIds) ? c.floorIds : [],
         areaIds: Array.isArray(c.areaIds) ? c.areaIds : [],
+        assignedUsers: Array.isArray(c.assignedUsers) ? c.assignedUsers : [],
+        assignedSafetyRoles: Array.isArray(c.assignedSafetyRoles) ? c.assignedSafetyRoles : [],
         recurrencePattern: c.recurrencePattern || (c.isRecurring ? 'monthly_same_date' : 'none'),
+        recurrenceWeekOfMonth:
+          c.recurrenceWeekOfMonth === 1 ||
+          c.recurrenceWeekOfMonth === 2 ||
+          c.recurrenceWeekOfMonth === 3 ||
+          c.recurrenceWeekOfMonth === 4 ||
+          c.recurrenceWeekOfMonth === 'last'
+            ? c.recurrenceWeekOfMonth
+            : undefined,
+        recurrenceWeekday:
+          c.recurrenceWeekday === 0 ||
+          c.recurrenceWeekday === 1 ||
+          c.recurrenceWeekday === 2 ||
+          c.recurrenceWeekday === 3 ||
+          c.recurrenceWeekday === 4 ||
+          c.recurrenceWeekday === 5 ||
+          c.recurrenceWeekday === 6
+            ? c.recurrenceWeekday
+            : undefined,
       })),
     };
   } catch {

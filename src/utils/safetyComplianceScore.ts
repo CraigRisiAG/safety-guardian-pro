@@ -7,6 +7,7 @@ import {
 } from '@/types/admin';
 import { CompletedCheckRecord } from '@/types/compliance';
 import { DrillRecord } from '@/types/safety';
+import { loadMissedComplianceRecords } from '@/lib/complianceMonitoring';
 
 const COMPLETED_CHECKS_STORAGE_KEY = 'safeguard_completed_checks';
 const DRILL_RECORDS_STORAGE_KEY = 'drill_records';
@@ -27,6 +28,7 @@ export interface SafetyComplianceBreakdown {
   coveredAreasInPeriod: number;
   areaReportPeriod: 'monthly' | 'quarterly';
   overdueCount: number;
+  missedCount: number;
   requiredOfficialsTotal: number;
   missingOfficialsTotal: number;
   weightsApplied: {
@@ -106,6 +108,7 @@ export function computeSafetyComplianceBreakdown(
   settings: AdminSettings,
 ): SafetyComplianceBreakdown {
   const records = loadCompletedRecords();
+  const missedRecords = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
   const drillRecords = loadDrillRecords();
   const scoring = {
     ...DEFAULT_COMPLIANCE_SCORING_SETTINGS,
@@ -127,11 +130,13 @@ export function computeSafetyComplianceBreakdown(
     return isBefore(new Date(c.nextDue), now);
   });
   const overdueCount = overdueChecks.length;
+  const missedCount = missedRecords.length;
 
   // Checks score: weighted pass-rate with overdue penalty
   const weightedScore = passCount * 1 + partialCount * scoring.checksPartialCredit;
-  const overduePenalty = overdueCount * scoring.overduePenaltyPerCheck;
-  const denominator = totalCompleted + overdueCount;
+  const penaltyCount = overdueCount + missedCount;
+  const overduePenalty = penaltyCount * scoring.overduePenaltyPerCheck;
+  const denominator = totalCompleted + penaltyCount;
   const checksScore =
     denominator > 0
       ? Math.max(
@@ -256,6 +261,7 @@ export function computeSafetyComplianceBreakdown(
     coveredAreasInPeriod,
     areaReportPeriod: scoring.areaReportPeriod,
     overdueCount,
+    missedCount,
     requiredOfficialsTotal,
     missingOfficialsTotal,
     weightsApplied: {

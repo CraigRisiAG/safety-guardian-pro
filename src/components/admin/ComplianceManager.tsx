@@ -17,9 +17,10 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ComplianceCheck, SafetyCheckItem, ComplianceCategory, CustomBuilding, UserPermission, SAFETY_ROLE_LABELS } from '@/types/admin';
 import { toast } from 'sonner';
-import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { userCanPerformCheckCategory, getQualifiedRolesDescription } from '@/utils/complianceRoles';
+import { getNextComplianceDueDate, getMonthlyWeekLabels, WEEKDAY_LABELS } from '@/utils/complianceRecurrence';
 
 interface ComplianceManagerProps {
   checks: ComplianceCheck[];
@@ -43,19 +44,12 @@ const frequencyLabels = {
   annually: 'Annually',
 };
 
-const getNextDueDate = (frequency: ComplianceCheck['frequency'], customDays?: number): Date => {
-  const now = new Date();
-  if (frequency === 'daily' && customDays) {
-    return addDays(now, customDays);
-  }
-  switch (frequency) {
-    case 'daily': return addDays(now, 1);
-    case 'weekly': return addWeeks(now, 1);
-    case 'monthly': return addMonths(now, 1);
-    case 'quarterly': return addMonths(now, 3);
-    case 'annually': return addYears(now, 1);
-    default: return addMonths(now, 1);
-  }
+const recurrencePatternLabels: Record<NonNullable<ComplianceCheck['recurrencePattern']>, string> = {
+  none: 'One-off',
+  monthly_same_date: 'Same date each month',
+  monthly_last_day: 'Last day of month',
+  monthly_last_working_day: 'Last working day of month',
+  monthly_week_of_month: 'Specific week of month',
 };
 
 export function ComplianceManager({ 
@@ -80,6 +74,12 @@ export function ComplianceManager({
     buildingIds: [] as string[],
     category: categories[0]?.id || '',
     assignedUsers: [] as string[],
+    assignedSafetyRoles: [] as (keyof typeof SAFETY_ROLE_LABELS)[],
+    recurrencePattern: 'monthly_same_date' as NonNullable<ComplianceCheck['recurrencePattern']>,
+    recurrenceWeekOfMonth: 1 as 1 | 2 | 3 | 4 | 'last',
+    recurrenceWeekday: 1 as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+    floorIds: [] as string[],
+    areaIds: [] as string[],
     isRecurring: true,
     customFrequencyDays: undefined as number | undefined,
     startDate: undefined as Date | undefined,
@@ -98,21 +98,76 @@ export function ComplianceManager({
       toast.error('Check name is required');
       return;
     }
+    const startDate = checkFormData.startDate || new Date();
+    const recurrenceTemplate: ComplianceCheck = {
+      id: 'template',
+      name: checkFormData.name.trim(),
+      description: checkFormData.description.trim(),
+      frequency: checkFormData.frequency,
+      buildingIds: checkFormData.buildingIds,
+      floorIds: checkFormData.floorIds,
+      areaIds: checkFormData.areaIds,
+      lastCompleted: undefined,
+      nextDue: startDate,
+      assignedTo: undefined,
+      assignedUsers: checkFormData.assignedUsers,
+      assignedSafetyRoles: checkFormData.assignedSafetyRoles,
+      status: 'pending',
+      category: checkFormData.category,
+      isRecurring: checkFormData.isRecurring,
+      recurrencePattern:
+        checkFormData.isRecurring && checkFormData.frequency === 'monthly'
+          ? checkFormData.recurrencePattern
+          : 'none',
+      recurrenceWeekOfMonth:
+        checkFormData.frequency === 'monthly' && checkFormData.recurrencePattern === 'monthly_week_of_month'
+          ? checkFormData.recurrenceWeekOfMonth
+          : undefined,
+      recurrenceWeekday:
+        checkFormData.frequency === 'monthly' && checkFormData.recurrencePattern === 'monthly_week_of_month'
+          ? checkFormData.recurrenceWeekday
+          : undefined,
+      customFrequencyDays: checkFormData.customFrequencyDays,
+      startDate,
+      endDate: checkFormData.endDate,
+      reminderDaysBefore: checkFormData.reminderDaysBefore,
+    };
+
     onAddCheck({
       name: checkFormData.name.trim(),
       description: checkFormData.description.trim(),
       frequency: checkFormData.frequency,
       buildingIds: checkFormData.buildingIds,
-      nextDue: checkFormData.startDate || getNextDueDate(checkFormData.frequency, checkFormData.customFrequencyDays),
+      nextDue: startDate,
       status: 'pending',
       category: checkFormData.category,
       assignedUsers: checkFormData.assignedUsers,
+      assignedSafetyRoles: checkFormData.assignedSafetyRoles,
+      recurrencePattern:
+        checkFormData.isRecurring && checkFormData.frequency === 'monthly'
+          ? checkFormData.recurrencePattern
+          : 'none',
+      recurrenceWeekOfMonth:
+        checkFormData.frequency === 'monthly' && checkFormData.recurrencePattern === 'monthly_week_of_month'
+          ? checkFormData.recurrenceWeekOfMonth
+          : undefined,
+      recurrenceWeekday:
+        checkFormData.frequency === 'monthly' && checkFormData.recurrencePattern === 'monthly_week_of_month'
+          ? checkFormData.recurrenceWeekday
+          : undefined,
+      floorIds: checkFormData.floorIds,
+      areaIds: checkFormData.areaIds,
       isRecurring: checkFormData.isRecurring,
       customFrequencyDays: checkFormData.customFrequencyDays,
-      startDate: checkFormData.startDate,
+      startDate,
       endDate: checkFormData.endDate,
       reminderDaysBefore: checkFormData.reminderDaysBefore,
     });
+
+    if (checkFormData.isRecurring) {
+      const previewNextDue = getNextComplianceDueDate(recurrenceTemplate, startDate);
+      toast.info(`Next scheduled recurrence will be ${format(previewNextDue, 'MMM d, yyyy')}`);
+    }
     setCheckFormData({ 
       name: '', 
       description: '', 
@@ -120,6 +175,12 @@ export function ComplianceManager({
       buildingIds: [], 
       category: categories[0]?.id || '',
       assignedUsers: [],
+      assignedSafetyRoles: [],
+      recurrencePattern: 'monthly_same_date',
+      recurrenceWeekOfMonth: 1,
+      recurrenceWeekday: 1,
+      floorIds: [],
+      areaIds: [],
       isRecurring: true,
       customFrequencyDays: undefined,
       startDate: undefined,
@@ -151,20 +212,37 @@ export function ComplianceManager({
     const check = checks.find(c => c.id === checkId);
     if (!check) return;
     onUpdateCheck(checkId, {
-      status: 'completed',
+      status: check.isRecurring ? 'pending' : 'completed',
       lastCompleted: new Date(),
-      nextDue: check.isRecurring ? getNextDueDate(check.frequency, check.customFrequencyDays) : check.nextDue,
+      nextDue: check.isRecurring ? getNextComplianceDueDate(check, new Date(check.nextDue)) : check.nextDue,
     });
     toast.success('Check marked as complete');
   };
 
   const toggleBuildingForCheck = (buildingId: string) => {
-    setCheckFormData(prev => ({
-      ...prev,
-      buildingIds: prev.buildingIds.includes(buildingId)
-        ? prev.buildingIds.filter(id => id !== buildingId)
-        : [...prev.buildingIds, buildingId],
-    }));
+    setCheckFormData((prev) => {
+      const buildingIds = prev.buildingIds.includes(buildingId)
+        ? prev.buildingIds.filter((id) => id !== buildingId)
+        : [...prev.buildingIds, buildingId];
+
+      const availableFloorIds = buildings
+        .filter((building) => buildingIds.includes(building.id))
+        .flatMap((building) => building.floors.map((floor) => floor.id));
+
+      const floorIds = prev.floorIds.filter((id) => availableFloorIds.includes(id));
+      const availableAreaIds = buildings
+        .filter((building) => buildingIds.includes(building.id))
+        .flatMap((building) => building.floors)
+        .filter((floor) => floorIds.includes(floor.id))
+        .flatMap((floor) => floor.areas.map((area) => area.id));
+
+      return {
+        ...prev,
+        buildingIds,
+        floorIds,
+        areaIds: prev.areaIds.filter((id) => availableAreaIds.includes(id)),
+      };
+    });
   };
 
   const toggleUserForCheck = (userId: string) => {
@@ -176,10 +254,62 @@ export function ComplianceManager({
     }));
   };
 
+  const toggleRoleForCheck = (role: keyof typeof SAFETY_ROLE_LABELS) => {
+    setCheckFormData((prev) => ({
+      ...prev,
+      assignedSafetyRoles: prev.assignedSafetyRoles.includes(role)
+        ? prev.assignedSafetyRoles.filter((entry) => entry !== role)
+        : [...prev.assignedSafetyRoles, role],
+    }));
+  };
+
+  const toggleFloorForCheck = (floorId: string) => {
+    setCheckFormData((prev) => {
+      const floorIds = prev.floorIds.includes(floorId)
+        ? prev.floorIds.filter((id) => id !== floorId)
+        : [...prev.floorIds, floorId];
+
+      const availableAreaIds = buildings
+        .filter((building) => prev.buildingIds.includes(building.id))
+        .flatMap((building) => building.floors)
+        .filter((floor) => floorIds.includes(floor.id))
+        .flatMap((floor) => floor.areas.map((area) => area.id));
+
+      return {
+        ...prev,
+        floorIds,
+        areaIds: prev.areaIds.filter((areaId) => availableAreaIds.includes(areaId)),
+      };
+    });
+  };
+
+  const toggleAreaForCheck = (areaId: string) => {
+    setCheckFormData((prev) => ({
+      ...prev,
+      areaIds: prev.areaIds.includes(areaId)
+        ? prev.areaIds.filter((id) => id !== areaId)
+        : [...prev.areaIds, areaId],
+    }));
+  };
+
   const getUserName = (userId: string) => {
     const user = users.find(u => u.id === userId);
     return user?.userName || 'Unknown User';
   };
+
+  const availableFloors = useMemo(
+    () => buildings
+      .filter((building) => checkFormData.buildingIds.includes(building.id))
+      .flatMap((building) => building.floors),
+    [buildings, checkFormData.buildingIds],
+  );
+
+  const availableAreas = useMemo(
+    () => availableFloors
+      .filter((floor) => checkFormData.floorIds.includes(floor.id))
+      .flatMap((floor) => floor.areas),
+    [availableFloors, checkFormData.floorIds],
+  );
 
   const getStatusBadge = (status: ComplianceCheck['status']) => {
     switch (status) {
@@ -287,6 +417,85 @@ export function ComplianceManager({
                           </Select>
                         </div>
                       </div>
+
+                      {checkFormData.isRecurring && checkFormData.frequency === 'monthly' && (
+                        <div className="space-y-3 border rounded-md p-3 bg-background/70">
+                          <div className="space-y-2">
+                            <Label>Monthly recurrence mode</Label>
+                            <Select
+                              value={checkFormData.recurrencePattern}
+                              onValueChange={(value: NonNullable<ComplianceCheck['recurrencePattern']>) =>
+                                setCheckFormData((prev) => ({ ...prev, recurrencePattern: value }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="monthly_same_date">{recurrencePatternLabels.monthly_same_date}</SelectItem>
+                                <SelectItem value="monthly_last_day">{recurrencePatternLabels.monthly_last_day}</SelectItem>
+                                <SelectItem value="monthly_last_working_day">{recurrencePatternLabels.monthly_last_working_day}</SelectItem>
+                                <SelectItem value="monthly_week_of_month">{recurrencePatternLabels.monthly_week_of_month}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {checkFormData.recurrencePattern === 'monthly_week_of_month' && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Week of month</Label>
+                                <Select
+                                  value={String(checkFormData.recurrenceWeekOfMonth)}
+                                  onValueChange={(value) =>
+                                    setCheckFormData((prev) => ({
+                                      ...prev,
+                                      recurrenceWeekOfMonth:
+                                        value === 'last'
+                                          ? 'last'
+                                          : (parseInt(value, 10) as 1 | 2 | 3 | 4),
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getMonthlyWeekLabels().map((entry) => (
+                                      <SelectItem key={entry.value} value={entry.value}>
+                                        {entry.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Weekday</Label>
+                                <Select
+                                  value={String(checkFormData.recurrenceWeekday)}
+                                  onValueChange={(value) =>
+                                    setCheckFormData((prev) => ({
+                                      ...prev,
+                                      recurrenceWeekday: parseInt(value, 10) as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {WEEKDAY_LABELS.map((entry) => (
+                                      <SelectItem key={entry.value} value={String(entry.value)}>
+                                        {entry.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {checkFormData.frequency === 'daily' && (
                         <div className="space-y-2">
@@ -514,6 +723,64 @@ export function ComplianceManager({
                         ))}
                       </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label>Applicable Floors</Label>
+                      <div className="border rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+                        {availableFloors.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Select at least one building first.</p>
+                        ) : (
+                          availableFloors.map((floor) => (
+                            <div key={floor.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={checkFormData.floorIds.includes(floor.id)}
+                                onCheckedChange={() => toggleFloorForCheck(floor.id)}
+                              />
+                              <label className="text-sm cursor-pointer">{floor.name}</label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Applicable Areas</Label>
+                      <div className="border rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+                        {availableAreas.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Select at least one floor to scope this report.</p>
+                        ) : (
+                          availableAreas.map((area) => (
+                            <div key={area.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={checkFormData.areaIds.includes(area.id)}
+                                onCheckedChange={() => toggleAreaForCheck(area.id)}
+                              />
+                              <label className="text-sm cursor-pointer">{area.name}</label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Assign By Safety Role</Label>
+                      <div className="border rounded-lg p-3 space-y-2">
+                        {(Object.keys(SAFETY_ROLE_LABELS) as Array<keyof typeof SAFETY_ROLE_LABELS>).map((role) => (
+                          <div key={role} className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={checkFormData.assignedSafetyRoles.includes(role)}
+                              onCheckedChange={() => toggleRoleForCheck(role)}
+                            />
+                            <label className="text-sm cursor-pointer">{SAFETY_ROLE_LABELS[role]}</label>
+                          </div>
+                        ))}
+                      </div>
+                      {checkFormData.assignedSafetyRoles.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Users with these role(s), in selected area scope, will see and update this report.
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddingCheck(false)}>Cancel</Button>
@@ -547,6 +814,9 @@ export function ComplianceManager({
                         <p className="text-sm text-muted-foreground mb-2">{check.description}</p>
                         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                           <span>Frequency: {frequencyLabels[check.frequency]}{check.customFrequencyDays ? ` (every ${check.customFrequencyDays} days)` : ''}</span>
+                          {check.isRecurring && check.frequency === 'monthly' && (
+                            <span>Monthly mode: {recurrencePatternLabels[check.recurrencePattern ?? 'monthly_same_date']}</span>
+                          )}
                           <span>Next Due: {format(new Date(check.nextDue), 'MMM d, yyyy')}</span>
                           {check.lastCompleted && (
                             <span>Last Completed: {format(new Date(check.lastCompleted), 'MMM d, yyyy')}</span>
@@ -567,6 +837,23 @@ export function ComplianceManager({
                                 </Badge>
                               )}
                             </div>
+                          </div>
+                        )}
+                        {!!check.assignedSafetyRoles?.length && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <Users className="w-3 h-3 text-muted-foreground" />
+                            <div className="flex flex-wrap gap-1">
+                              {check.assignedSafetyRoles.map((role) => (
+                                <Badge key={role} variant="outline" className="text-xs bg-primary/10 text-primary">
+                                  {SAFETY_ROLE_LABELS[role]}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {!!check.areaIds?.length && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Scoped to {check.areaIds.length} area{check.areaIds.length === 1 ? '' : 's'}
                           </div>
                         )}
                       </div>

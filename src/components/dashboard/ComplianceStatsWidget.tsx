@@ -10,6 +10,8 @@ import { startOfWeek, endOfWeek, isWithinInterval, parseISO, isBefore } from 'da
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
+import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
+import { loadMissedComplianceRecords } from '@/lib/complianceMonitoring';
 import {
   ALL_SAFETY_ROLES,
   ComplianceCheck,
@@ -95,15 +97,27 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     // Calculate pending checks for the current user (or all for admins)
     const userPendingChecks = settings.complianceChecks.filter(check => {
       if (check.status === 'completed') return false;
+      const assignedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
       
       // Admins see all checks
       if (isAdmin) return true;
       
       // Regular users only see their assigned checks
       if (!currentUserPermission) return false;
-      return check.assignedUsers?.includes(currentUserPermission.id) || 
-             check.assignedTo === currentUserPermission.id;
+      return assignedUsers.some((entry) =>
+        entry.id === currentUserPermission.id || entry.userId === currentUserPermission.userId,
+      );
     });
+
+    const missedRecords = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
+    const visibleMissedCount = isAdmin
+      ? missedRecords.length
+      : missedRecords.filter((record) =>
+          !!currentUserPermission && (
+            record.assignedUserIds.includes(currentUserPermission.id) ||
+            record.assignedUserIds.includes(currentUserPermission.userId)
+          ),
+        ).length;
 
     // This week's pending checks
     const thisWeekPending = userPendingChecks.filter(check => {
@@ -188,6 +202,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       passRate,
       byType,
       overdueCount: overdueChecks.length,
+      missedCount: visibleMissedCount,
       overdueChecks,
       roleGapItems,
       missingOfficialsTotal,
@@ -242,6 +257,12 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
               <div className="text-xs text-muted-foreground">Overdue</div>
             </button>
           </div>
+
+          {stats.missedCount > 0 && (
+            <div className="text-xs text-emergency bg-emergency-muted/40 border border-emergency/30 rounded px-2 py-1">
+              {stats.missedCount} missed check{stats.missedCount === 1 ? '' : 's'} have been logged as incomplete.
+            </div>
+          )}
 
           {/* Pass/Fail Rate */}
           <div className="space-y-2">

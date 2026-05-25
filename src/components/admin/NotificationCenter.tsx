@@ -28,6 +28,7 @@ const channelLabel: Record<NotificationChannel, string> = {
 const typeLabel: Record<NotificationType, string> = {
   drill_started: 'Drill',
   incident_reported: 'Incident',
+  compliance_missed: 'Compliance',
 };
 
 const statusVariant: Record<NotificationStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -178,6 +179,7 @@ export function NotificationCenter() {
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="drill_started">Drill</SelectItem>
                 <SelectItem value="incident_reported">Incident</SelectItem>
+                <SelectItem value="compliance_missed">Compliance</SelectItem>
               </SelectContent>
             </Select>
           </div>

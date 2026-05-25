@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserMenu } from '@/components/UserMenu';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { canManageUsersForUser, canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
+import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
 import { INCIDENTS_UPDATED_EVENT, loadIncidentsFromStorage } from '@/lib/incidentsStorage';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
 import { ActiveDrillBanner } from '@/components/dashboard/ActiveDrillBanner';
@@ -327,7 +328,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         return false;
       }
 
-      const isAssigned = check.assignedTo === user.id || check.assignedUsers.includes(user.id);
+      const isAssigned = resolveCheckAssignedUsers(
+        check,
+        settings.userPermissions,
+        settings.buildings,
+      ).some((entry) => entry.id === user.id || entry.userId === user.id);
       if (!isAssigned) {
         return false;
       }
@@ -344,7 +349,16 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
 
     return messages;
-  }, [activeDrill, incidents, isActiveDrillRelevant, settings.complianceChecks, user?.id, isIncidentRelevant]);
+  }, [
+    activeDrill,
+    incidents,
+    isActiveDrillRelevant,
+    settings.complianceChecks,
+    settings.userPermissions,
+    settings.buildings,
+    user?.id,
+    isIncidentRelevant,
+  ]);
 
   const actionableSignature = useMemo(
     () => actionableNotifications.map((entry) => entry.signature).join('|'),

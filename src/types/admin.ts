@@ -134,14 +134,19 @@ export interface ComplianceCheck {
   nextDue: Date;
   assignedTo?: string; // Primary assignee user ID
   assignedUsers: string[]; // List of user IDs assigned to this check
+  assignedSafetyRoles?: SafetyRole[]; // Role-based assignees for this check
   status: 'pending' | 'completed' | 'overdue' | 'not_applicable';
   category: string;
   isRecurring: boolean;
-  recurrencePattern?: 'none' | 'monthly_same_date';
+  recurrencePattern?: 'none' | 'monthly_same_date' | 'monthly_last_day' | 'monthly_last_working_day' | 'monthly_week_of_month';
+  recurrenceWeekOfMonth?: 1 | 2 | 3 | 4 | 'last';
+  recurrenceWeekday?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   customFrequencyDays?: number; // For custom frequency intervals
   startDate?: Date; // When the recurring schedule starts
   endDate?: Date; // Optional end date for the recurring schedule
   reminderDaysBefore?: number; // Days before due date to send reminder
+  lastMissedDueAt?: Date; // Last due date that was logged as missed
+  lastMissedNotificationAt?: Date; // Last missed due date that triggered notifications
 }
 
 export interface SafetyCheckItem {

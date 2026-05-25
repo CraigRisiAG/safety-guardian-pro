@@ -8,7 +8,7 @@ export const NOTIFICATION_DELIVERY_CONFIG_KEY = 'safeguard_notification_delivery
 export const NOTIFICATION_PROVIDER_SETTINGS_KEY = 'safeguard_notification_provider_settings';
 
 export type NotificationChannel = 'in_app' | 'email' | 'sms';
-export type NotificationType = 'drill_started' | 'incident_reported';
+export type NotificationType = 'drill_started' | 'incident_reported' | 'compliance_missed';
 export type NotificationStatus = 'queued' | 'sent' | 'skipped';
 
 export interface NotificationRecord {
@@ -560,4 +560,60 @@ export const notifyIncidentReported = (input: {
       severity: input.incident.severity,
     },
   });
+};
+
+interface MissedComplianceNotificationInput {
+  checkId: string;
+  checkName: string;
+  dueAt: Date;
+  assignedUserIds: string[];
+  areaIds?: string[];
+  buildingIds?: string[];
+}
+
+export const notifyComplianceChecksMissed = (input: {
+  missedChecks: MissedComplianceNotificationInput[];
+  userPermissions: UserPermission[];
+}): NotificationDispatchSummary => {
+  const config = loadNotificationDeliveryConfig();
+  let aggregate: NotificationDispatchSummary = {
+    total: 0,
+    sent: 0,
+    queued: 0,
+    skipped: 0,
+  };
+
+  input.missedChecks.forEach((missedCheck) => {
+    const recipients = uniqueRecipients(
+      toNotificationRecipients(
+        input.userPermissions.filter((entry) => missedCheck.assignedUserIds.includes(entry.id)),
+      ),
+    );
+
+    if (recipients.length === 0) {
+      return;
+    }
+
+    const summary = dispatchNotifications({
+      type: 'compliance_missed',
+      message: `Compliance check missed: ${missedCheck.checkName} (due ${missedCheck.dueAt.toLocaleDateString()})`,
+      recipients,
+      channels: config.incidentChannels,
+      buildingId: missedCheck.buildingIds?.[0],
+      areaId: missedCheck.areaIds?.[0],
+      metadata: {
+        checkId: missedCheck.checkId,
+        dueAt: missedCheck.dueAt.toISOString(),
+      },
+    });
+
+    aggregate = {
+      total: aggregate.total + summary.total,
+      sent: aggregate.sent + summary.sent,
+      queued: aggregate.queued + summary.queued,
+      skipped: aggregate.skipped + summary.skipped,
+    };
+  });
+
+  return aggregate;
 };

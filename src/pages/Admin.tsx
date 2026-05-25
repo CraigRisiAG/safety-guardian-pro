@@ -24,6 +24,7 @@ import { AdminAccountSecurity } from '@/components/admin/AdminAccountSecurity';
 import { HealthOfficialsCoverageSettings } from '@/components/admin/HealthOfficialsCoverageSettings';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { ComplianceScoringSettingsPanel } from '@/components/admin/ComplianceScoringSettings';
+import { MissedComplianceReport } from '@/components/admin/MissedComplianceReport';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
 import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManager';
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
@@ -234,6 +235,10 @@ export default function Admin() {
             <ComplianceScoringSettingsPanel
               settings={adminSettings.settings.complianceScoring ?? DEFAULT_COMPLIANCE_SCORING_SETTINGS}
               onChange={adminSettings.updateComplianceScoring}
+            />
+            <MissedComplianceReport
+              users={adminSettings.settings.userPermissions}
+              buildings={adminSettings.settings.buildings}
             />
             <ComplianceManager 
               checks={adminSettings.settings.complianceChecks}

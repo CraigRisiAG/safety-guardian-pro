@@ -31,9 +31,10 @@ import { Progress } from '@/components/ui/progress';
 import { computeSafetyComplianceBreakdown } from '@/utils/safetyComplianceScore';
 import { useAuth } from '@/contexts/AuthContext';
 import { filterPersonnelByUserScope } from '@/lib/personnelAccess';
+import { processOverdueComplianceChecks } from '@/lib/complianceMonitoring';
 
 const Index = () => {
-  const { settings, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
+  const { settings, updateComplianceCheck, updateUserPermission, bulkAddUserPermissions, deleteUserPermission } = useAdminSettings();
   const { user } = useAuth();
   const [incidents, setIncidents] = useState(() => loadIncidentsFromStorage());
   const [drills, setDrills] = useState(() => loadDrillsFromStorage());
@@ -147,6 +148,13 @@ const Index = () => {
       clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    processOverdueComplianceChecks({
+      settings,
+      updateComplianceCheck: (id, updates) => updateComplianceCheck(id, updates),
+    });
+  }, [settings, updateComplianceCheck]);
 
   const openIncidentsList = incidents.filter((incident) => incident.status === 'open');
   const openIncidents = openIncidentsList.length;
@@ -434,7 +442,7 @@ const Index = () => {
                   <li><span className="text-safe font-medium">Pass</span> = 1.0 point</li>
                   <li><span className="text-warning font-medium">Partial</span> = configurable partial credit</li>
                   <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
-                  <li>Each <span className="text-emergency font-medium">overdue</span> scheduled check subtracts a configurable penalty and adds to the total.</li>
+                  <li>Each <span className="text-emergency font-medium">overdue or missed/incomplete</span> check subtracts a configurable penalty and adds to the total.</li>
                   <li>Officials coverage = (required − missing) ÷ required across all areas, days and safety roles.</li>
                   <li>Drill success = percentage of completed drills at or above the configurable accounted-for threshold.</li>
                   <li>Area report coverage = percentage of areas with at least one compliance report in the selected monthly/quarterly window.</li>
@@ -505,11 +513,15 @@ const Index = () => {
                   <div className="text-2xl font-bold text-emergency">{complianceBreakdown.overdueCount}</div>
                   <div className="text-xs text-muted-foreground">Overdue</div>
                 </div>
+                <div className="bg-emergency-muted rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-emergency">{complianceBreakdown.missedCount}</div>
+                  <div className="text-xs text-muted-foreground">Missed/Incomplete</div>
+                </div>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
                 Total completed checks: <span className="font-medium text-foreground">{complianceBreakdown.totalCompleted}</span>
-                {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && (
+                {complianceBreakdown.totalCompleted === 0 && complianceBreakdown.overdueCount === 0 && complianceBreakdown.missedCount === 0 && (
                   <p className="mt-1">No checks have been completed yet — score defaults to 100%.</p>
                 )}
               </div>

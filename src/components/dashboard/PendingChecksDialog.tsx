@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ClipboardList, Clock, AlertTriangle, CheckCircle2, User, Users, Calendar, Building2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,8 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
-import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { ComplianceCheck, SAFETY_ROLE_LABELS, UserPermission } from '@/types/admin';
 import { format, isBefore, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns';
+import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
+import { loadMissedComplianceRecords } from '@/lib/complianceMonitoring';
 
 interface PendingChecksDialogProps {
   open: boolean;
@@ -28,6 +30,12 @@ export function PendingChecksDialog({
   const { settings } = useAdminSettings();
   const [filter, setFilter] = useState<'this_week' | 'overdue' | 'all'>(initialFilter);
   const [selectedUserId, setSelectedUserId] = useState<string>('current');
+
+  useEffect(() => {
+    if (open) {
+      setFilter(initialFilter);
+    }
+  }, [open, initialFilter]);
 
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
@@ -48,16 +56,20 @@ export function PendingChecksDialog({
     return settings.complianceChecks
       .filter(check => check.status !== 'completed')
       .filter(check => {
+        const assignedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
+
         // Filter by assignment
         if (isAdmin && selectedUserId !== 'current') {
           if (selectedUserId === 'all') return true;
-          return check.assignedUsers?.includes(selectedUserId) || check.assignedTo === selectedUserId;
+          return assignedUsers.some((entry) => entry.id === selectedUserId || entry.userId === selectedUserId);
         }
         
         // For non-admins or when 'current' is selected, show only assigned checks
         if (!currentUserPermission) return isAdmin; // If no user mapping, only admins see all
-        return check.assignedUsers?.includes(currentUserPermission.id) || 
-               check.assignedTo === currentUserPermission.id ||
+        return assignedUsers.some((entry) =>
+                 entry.id === currentUserPermission.id ||
+                 entry.userId === currentUserPermission.userId,
+               ) ||
                (isAdmin && check.assignedUsers?.length === 0); // Admins see unassigned too
       })
       .filter(check => {
@@ -75,7 +87,29 @@ export function PendingChecksDialog({
         }
       })
       .sort((a, b) => new Date(a.nextDue).getTime() - new Date(b.nextDue).getTime());
-  }, [settings.complianceChecks, currentUserPermission, isAdmin, filter, selectedUserId]);
+  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, currentUserPermission, isAdmin, filter, selectedUserId]);
+
+  const missedRecords = useMemo(() => {
+    const allMissed = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
+
+    return allMissed.filter((record) => {
+      if (isAdmin && selectedUserId !== 'current') {
+        if (selectedUserId === 'all') {
+          return true;
+        }
+        return record.assignedUserIds.includes(selectedUserId);
+      }
+
+      if (!currentUserPermission) {
+        return isAdmin;
+      }
+
+      return (
+        record.assignedUserIds.includes(currentUserPermission.id) ||
+        record.assignedUserIds.includes(currentUserPermission.userId)
+      );
+    });
+  }, [isAdmin, selectedUserId, currentUserPermission]);
 
   // Group checks by status
   const { overdueChecks, upcomingChecks } = useMemo(() => {
@@ -100,11 +134,21 @@ export function PendingChecksDialog({
     if (check.assignedTo && !users.includes(check.assignedTo)) {
       users.unshift(check.assignedTo);
     }
-    return users
+    const names = users
       .map(id => settings.userPermissions.find(u => u.id === id)?.userName)
       .filter(Boolean)
       .slice(0, 2)
       .join(', ') + (users.length > 2 ? ` +${users.length - 2}` : '');
+
+    if (names) {
+      return names;
+    }
+
+    if (check.assignedSafetyRoles?.length) {
+      return `Roles: ${check.assignedSafetyRoles.map((role) => SAFETY_ROLE_LABELS[role]).join(', ')}`;
+    }
+
+    return '';
   };
 
   // Handle starting a check
@@ -180,7 +224,7 @@ export function PendingChecksDialog({
 
         {/* Check List */}
         <ScrollArea className="h-[400px] pr-3">
-          {pendingChecks.length === 0 ? (
+          {pendingChecks.length === 0 && missedRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <CheckCircle2 className="w-12 h-12 mb-3 text-safe" />
               <p className="font-medium">All caught up!</p>
@@ -188,6 +232,49 @@ export function PendingChecksDialog({
             </div>
           ) : (
             <div className="space-y-3">
+              {missedRecords.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-emergency">
+                    <AlertTriangle className="w-4 h-4" />
+                    Missed And Logged Incomplete ({missedRecords.length})
+                  </div>
+                  {missedRecords.slice(0, 20).map((record) => {
+                    const linkedCheck = settings.complianceChecks.find((check) => check.id === record.checkId);
+                    return (
+                      <div key={record.id} className="p-3 rounded-lg border bg-emergency-muted/40 border-emergency/30">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{record.checkName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Due {format(new Date(record.dueAt), 'MMM d, yyyy')} · Logged {format(new Date(record.loggedAt), 'MMM d, yyyy')}
+                            </div>
+                            {linkedCheck?.description && (
+                              <div className="text-xs text-muted-foreground mt-1 truncate">{linkedCheck.description}</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="destructive">Incomplete</Badge>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={!linkedCheck}
+                              onClick={() => {
+                                if (linkedCheck) {
+                                  handleStartCheck(linkedCheck);
+                                }
+                              }}
+                            >
+                              Start
+                              <ChevronRight className="w-4 h-4 ml-1" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Overdue Section */}
               {overdueChecks.length > 0 && (
                 <div className="space-y-2">

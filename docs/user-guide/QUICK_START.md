@@ -48,3 +48,20 @@ See the full guide with screenshots at:
 - [Notification integrations API guide](../NOTIFICATION_INTEGRATIONS_API.md)
 - [OpenAPI contract (backend-ready)](../NOTIFICATION_INTEGRATIONS_OPENAPI_CONTRACT.yaml)
 - [OpenAPI contract (JSON)](../NOTIFICATION_INTEGRATIONS_OPENAPI_CONTRACT.json)
+
+## 7. Compliance calendar and missed checks
+
+- Overdue checks are automatically logged as missed/incomplete once their due date passes.
+- Missed/incomplete checks count against the Safety Compliance Score.
+- Assigned users are notified when their compliance checks are missed.
+- You can assign checks by user and by safety role, then scope those checks to specific buildings, floors, and office areas.
+- Users only see and update checks that match their assignment and allocated office area.
+- Completing a missed check resolves it from missed/incomplete and it no longer counts as missed.
+- Monthly recurring checks support: same date each month, last day of month, last working day of month, or a specific week + weekday of month.
+
+### Missed compliance report (Admin)
+
+- Go to Admin -> Compliance & Safety Checks.
+- Open the Missed Compliance Report card.
+- Filter by date range, safety role, and office area.
+- Export filtered results as CSV or JSON for audit and management reporting.

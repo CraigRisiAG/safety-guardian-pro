@@ -12,6 +12,9 @@ import { useCertificates } from '@/hooks/useCertificates';
 import { CERTIFICATE_TYPE_LABELS } from '@/types/certificates';
 import { ComplianceCheck, UserPermission } from '@/types/admin';
 import { QuickCheckAssignment } from './QuickCheckAssignment';
+import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
+import { loadMissedComplianceRecords } from '@/lib/complianceMonitoring';
+import { getNextComplianceDueDate } from '@/utils/complianceRecurrence';
 import {
   format, 
   startOfMonth, 
@@ -38,8 +41,8 @@ interface CalendarEvent {
   id: string;
   title: string;
   date: Date;
-  type: 'scheduled' | 'completed' | 'recertification';
-  status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue';
+  type: 'scheduled' | 'completed' | 'recertification' | 'missed';
+  status: 'pass' | 'fail' | 'partial' | 'pending' | 'overdue' | 'recert_due' | 'recert_overdue' | 'incomplete';
   checkType?: string;
   building?: string;
   locationDetails?: string;
@@ -53,6 +56,7 @@ const STATUS_COLORS: Record<string, string> = {
   partial: 'bg-warning text-warning-foreground',
   pending: 'bg-info text-info-foreground',
   overdue: 'bg-emergency/80 text-white',
+  incomplete: 'bg-emergency text-white',
   recert_due: 'bg-warning text-warning-foreground',
   recert_overdue: 'bg-emergency/80 text-white',
 };
@@ -63,6 +67,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   partial: 'bg-warning',
   pending: 'bg-info',
   overdue: 'bg-emergency',
+  incomplete: 'bg-emergency',
   recert_due: 'bg-warning',
   recert_overdue: 'bg-emergency',
 };
@@ -73,6 +78,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   partial: <AlertTriangle className="w-3 h-3" />,
   pending: <Clock className="w-3 h-3" />,
   overdue: <AlertTriangle className="w-3 h-3" />,
+  incomplete: <XCircle className="w-3 h-3" />,
   recert_due: <Award className="w-3 h-3" />,
   recert_overdue: <Award className="w-3 h-3" />,
 };
@@ -163,8 +169,11 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
       
       // Regular users only see their assigned checks
       if (!currentUserPermission) return false;
-      return check.assignedUsers?.includes(currentUserPermission.id) || 
-             check.assignedTo === currentUserPermission.id;
+      return resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings).some(
+        (entry) =>
+          entry.id === currentUserPermission.id ||
+          entry.userId === currentUserPermission.userId,
+      );
     });
 
     const monthStart = startOfMonth(currentMonth);
@@ -172,36 +181,44 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
     // Add scheduled checks
     visibleChecks.forEach(check => {
-      const isMonthlySameDate = check.isRecurring && check.recurrencePattern === 'monthly_same_date';
+      const isMonthlyRecurring = check.isRecurring && check.frequency === 'monthly' && check.recurrencePattern !== 'none';
       const locationDetails = getLocationDetails(check);
 
-      if (isMonthlySameDate) {
-        const anchorDate = check.startDate ? new Date(check.startDate) : new Date(check.nextDue);
-        const dayInMonth = anchorDate.getDate();
-        const occurrenceDate = new Date(
-          monthStart.getFullYear(),
-          monthStart.getMonth(),
-          Math.min(dayInMonth, monthEnd.getDate()),
-          anchorDate.getHours(),
-          anchorDate.getMinutes(),
-        );
+      if (isMonthlyRecurring) {
+        const startBoundary = check.startDate ? new Date(check.startDate) : new Date(check.nextDue);
+        let occurrenceDate = new Date(startBoundary);
+        let loopGuard = 0;
 
-        const beforeStart = check.startDate && occurrenceDate < new Date(check.startDate);
-        const afterEnd = check.endDate && occurrenceDate > new Date(check.endDate);
+        while (isBefore(occurrenceDate, monthStart) && loopGuard < 600) {
+          occurrenceDate = getNextComplianceDueDate(check, occurrenceDate);
+          loopGuard += 1;
+        }
 
-        if (!beforeStart && !afterEnd) {
-          const isOverdue = isBefore(occurrenceDate, now) && check.status !== 'completed';
-          events.push({
-            id: `scheduled-${check.id}-${format(occurrenceDate, 'yyyy-MM')}`,
-            title: check.name,
-            date: occurrenceDate,
-            type: 'scheduled',
-            status: isOverdue ? 'overdue' : 'pending',
-            checkType: check.category,
-            building: check.buildingIds.map(id => getBuildingName(id)).join(', '),
-            locationDetails,
-            checkData: check,
-          });
+        while (!isBefore(monthEnd, occurrenceDate) && loopGuard < 700) {
+          const beforeStart = check.startDate && occurrenceDate < new Date(check.startDate);
+          const afterEnd = check.endDate && occurrenceDate > new Date(check.endDate);
+
+          if (!beforeStart && !afterEnd) {
+            const isOverdue = isBefore(occurrenceDate, now) && check.status !== 'completed';
+            events.push({
+              id: `scheduled-${check.id}-${format(occurrenceDate, 'yyyy-MM-dd')}`,
+              title: check.name,
+              date: occurrenceDate,
+              type: 'scheduled',
+              status: isOverdue ? 'overdue' : 'pending',
+              checkType: check.category,
+              building: check.buildingIds.map(id => getBuildingName(id)).join(', '),
+              locationDetails,
+              checkData: check,
+            });
+          }
+
+          const nextOccurrence = getNextComplianceDueDate(check, occurrenceDate);
+          if (nextOccurrence.getTime() === occurrenceDate.getTime()) {
+            break;
+          }
+          occurrenceDate = nextOccurrence;
+          loopGuard += 1;
         }
 
         return;
@@ -244,6 +261,27 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
       });
     });
 
+    const missedRecords = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
+    const visibleMissedRecords = missedRecords.filter((record) => {
+      if (isAdmin) return true;
+      if (!currentUserPermission) return false;
+      return (
+        record.assignedUserIds.includes(currentUserPermission.id) ||
+        record.assignedUserIds.includes(currentUserPermission.userId)
+      );
+    });
+
+    visibleMissedRecords.forEach((record) => {
+      events.push({
+        id: `missed-${record.id}`,
+        title: record.checkName,
+        date: record.dueAt,
+        type: 'missed',
+        status: 'incomplete',
+        checkType: record.category,
+      });
+    });
+
     // Add certificate recertification events
     const visibleCerts = certificates.filter(cert => {
       if (isAdmin) return true;
@@ -264,7 +302,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, completedChecks, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
+  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, completedChecks, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {
@@ -316,6 +354,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
       completed: monthEvents.filter(e => e.type === 'completed').length,
       scheduled: monthEvents.filter(e => e.type === 'scheduled' && e.status === 'pending').length,
       overdue: monthEvents.filter(e => e.status === 'overdue' || e.status === 'recert_overdue').length,
+      incomplete: monthEvents.filter(e => e.status === 'incomplete').length,
       passed: monthEvents.filter(e => e.status === 'pass').length,
       failed: monthEvents.filter(e => e.status === 'fail').length,
       recertifications: monthEvents.filter(e => e.type === 'recertification').length,
@@ -465,6 +504,10 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                 <div className="w-2.5 h-2.5 rounded-full bg-emergency/80" />
                 <span>Overdue ({stats.overdue})</span>
               </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-emergency" />
+                <span>Missed ({stats.incomplete})</span>
+              </div>
             </div>
           </div>
 
@@ -527,7 +570,13 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
                           <div className="flex items-center gap-1.5">
                             <CalendarCheck className="w-3 h-3" />
                             <span>
-                              {event.type === 'completed' ? 'Completed' : event.type === 'recertification' ? 'Recertification due' : 'Scheduled'}
+                              {event.type === 'completed'
+                                ? 'Completed'
+                                : event.type === 'recertification'
+                                  ? 'Recertification due'
+                                  : event.type === 'missed'
+                                    ? 'Missed and logged incomplete'
+                                    : 'Scheduled'}
                               {event.type !== 'recertification' && ` at ${format(event.date, 'h:mm a')}`}
                               {event.type === 'recertification' && ` ${format(event.date, 'dd MMM yyyy')}`}
                             </span>
