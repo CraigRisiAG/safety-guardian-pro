@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   findCurrentUserPermission,
+  isAdminPersonnelUser,
   getRolePermissionDefaults,
   getScopedAreaIds,
   filterPersonnelByUserScope,
@@ -61,6 +62,15 @@ const createPermission = (overrides: Partial<UserPermission>): UserPermission =>
 });
 
 describe('personnelAccess', () => {
+  it('handles null user/permission gracefully', () => {
+    expect(findCurrentUserPermission(null, [])).toBeNull();
+    expect(getScopedAreaIds(null, buildings)).toEqual([]);
+    expect(canStartDrillsForUser(null)).toBe(false);
+    expect(canResolveIncidentsForUser(null)).toBe(false);
+    expect(canManageUsersForUser(null)).toBe(false);
+    expect(isAdminPersonnelUser(null, null)).toBe(false);
+  });
+
   it('finds current permission by id, userId, or case-insensitive email', () => {
     const user: User = {
       id: 'u-100',
@@ -114,6 +124,36 @@ describe('personnelAccess', () => {
     expect(canStartDrillsForUser(superAdmin)).toBe(true);
     expect(canResolveIncidentsForUser(superAdmin)).toBe(true);
     expect(canManageUsersForUser(superAdmin)).toBe(true);
+    expect(isAdminPersonnelUser({ id: 'x', email: 'x@x.com', name: 'X', role: 'admin' }, superAdmin)).toBe(true);
+  });
+
+  it('returns all personnel for super admin and empty for unmatched users', () => {
+    const personnel = [
+      createPermission({ id: 'perm-super', userId: 'super-1', email: 'super@example.com', role: 'super_admin' }),
+      createPermission({ id: 'perm-2', userId: 'u-2', email: 'u2@example.com' }),
+    ];
+
+    const superUser: User = { id: 'super-1', email: 'super@example.com', name: 'Super', role: 'admin' };
+    const unknownUser: User = { id: 'unknown', email: 'unknown@example.com', name: 'Unknown', role: 'user' };
+
+    expect(filterPersonnelByUserScope(personnel, superUser)).toHaveLength(2);
+    expect(filterPersonnelByUserScope(personnel, unknownUser)).toEqual([]);
+  });
+
+  it('limits viewers with no floor/area scope to self only', () => {
+    const viewerUser: User = { id: 'viewer-1', email: 'viewer@example.com', name: 'Viewer', role: 'user' };
+    const viewerPermission = createPermission({
+      id: 'perm-viewer',
+      userId: 'viewer-1',
+      email: 'viewer@example.com',
+      role: 'viewer',
+      primaryFloorId: undefined,
+      primaryAreaId: undefined,
+    });
+    const anotherUser = createPermission({ id: 'perm-other', userId: 'u-2', email: 'other@example.com' });
+
+    const scoped = filterPersonnelByUserScope([viewerPermission, anotherUser], viewerUser);
+    expect(scoped.map((entry) => entry.id)).toEqual(['perm-viewer']);
   });
 
   it('filters personnel by viewer and non-admin scopes', () => {

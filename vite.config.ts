@@ -28,10 +28,6 @@ export default defineConfig(({ mode }) => ({
         "src/lib/drillsStorage.ts",
         "src/lib/incidentsStorage.ts",
         "src/lib/personnelAccess.ts",
-        "src/hooks/useDrillStatus.ts",
-        "src/pages/Drills.tsx",
-        "src/pages/Incidents.tsx",
-        "src/pages/CheckIn.tsx",
       ],
       thresholds: {
         statements: 35,

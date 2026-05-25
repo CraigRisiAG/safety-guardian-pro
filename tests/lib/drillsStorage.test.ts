@@ -70,4 +70,52 @@ describe('drillsStorage', () => {
 
     expect(snapshot).toBe(JSON.stringify(mockDrills));
   });
+
+  it('falls back to mock drills when stored value is not an array', () => {
+    localStorage.setItem(DRILLS_STORAGE_KEY, JSON.stringify({ not: 'array' }));
+
+    const drills = loadDrillsFromStorage();
+
+    expect(drills).toEqual(mockDrills);
+  });
+
+  it('normalizes missing buildingId and preserves cancelled status', () => {
+    localStorage.setItem(
+      DRILLS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: 'drill-cancelled',
+          type: 'medical',
+          status: 'cancelled',
+          location: {
+            floorIds: ['f-1'],
+            areaIds: ['a-1'],
+          },
+          initiatedBy: 'Safety Officer',
+        },
+      ]),
+    );
+
+    const drills = loadDrillsFromStorage();
+
+    expect(drills).toHaveLength(1);
+    expect(drills[0].status).toBe('cancelled');
+    expect(drills[0].location.buildingId).toBe('unknown-building');
+  });
+
+  it('handles storage read/write errors gracefully', () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage read blocked');
+    });
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage write blocked');
+    });
+
+    expect(loadDrillsFromStorage()).toEqual(mockDrills);
+    expect(() => saveDrillsToStorage(mockDrills)).not.toThrow();
+    expect(getDrillsStorageSnapshot()).toBeNull();
+
+    getItemSpy.mockRestore();
+    setItemSpy.mockRestore();
+  });
 });

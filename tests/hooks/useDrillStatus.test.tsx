@@ -277,4 +277,73 @@ describe('useDrillStatus', () => {
       pending: 1,
     });
   });
+
+  it('ignores unrelated storage events when syncing state', () => {
+    localStorage.setItem(
+      'active_drill',
+      JSON.stringify({
+        ...baseDrill,
+        status: 'active',
+        startedAt: new Date('2026-05-25T09:00:00.000Z').toISOString(),
+      }),
+    );
+    localStorage.setItem('drill_records', JSON.stringify([]));
+
+    const { result } = renderHook(() => useDrillStatus());
+    expect(result.current.drillRecords).toHaveLength(0);
+
+    localStorage.setItem(
+      'drill_records',
+      JSON.stringify([
+        {
+          id: 'record-unrelated-1',
+          drillId: 'drill-1',
+          type: 'fire',
+          buildingId: 'building-main',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-ground', name: 'Ground Floor' }],
+          startedAt: '2026-05-25T09:00:00.000Z',
+          completedAt: '2026-05-25T09:10:00.000Z',
+          durationMinutes: 10,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 3, safe: 2, needsAssistance: 1, pending: 0 },
+          floorStats: [],
+        },
+      ]),
+    );
+
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'some_other_key' }));
+    });
+
+    expect(result.current.drillRecords).toHaveLength(0);
+  });
+
+  it('falls back on malformed admin settings and ignores non-matching floor check-ins', () => {
+    localStorage.setItem(
+      'active_drill',
+      JSON.stringify({
+        ...baseDrill,
+        status: 'active',
+        startedAt: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    );
+    localStorage.setItem('safeguard_admin_settings', '{bad-json');
+    mockLoadDrillsFromStorage.mockReturnValue([{ ...baseDrill, status: 'active' }]);
+    mockLoadCheckInsForDrill.mockReturnValue([
+      { id: 'ci-1', status: 'safe', location: { floorId: 'not-in-drill-floor' } },
+      { id: 'ci-2', status: 'pending', location: { floorId: 'not-in-drill-floor' } },
+    ]);
+
+    const { result } = renderHook(() => useDrillStatus());
+
+    let endedRecord: ReturnType<typeof result.current.endDrill>;
+    act(() => {
+      endedRecord = result.current.endDrill();
+    });
+
+    expect(endedRecord).toBeTruthy();
+    expect(endedRecord?.buildingName).toBe('Unknown');
+    expect(endedRecord?.floorStats).toEqual([]);
+  });
 });
