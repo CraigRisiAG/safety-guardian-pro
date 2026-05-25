@@ -264,7 +264,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, completedChecks, settings.buildings, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
+  }, [settings.complianceChecks, completedChecks, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {

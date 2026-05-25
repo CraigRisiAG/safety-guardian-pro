@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Users, Building2, Layers, MapPin, Edit2, Search, X, ChevronUp, ChevronDown, Upload, Download, FileSpreadsheet, AlertCircle, Plus, UserPlus, Trash2, Phone, User, Heart } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -209,10 +209,10 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     [personnel, user],
   );
 
-  const getPersonnelType = (person: UserPermission) => {
+  const getPersonnelType = useCallback((person: UserPermission) => {
     if (isSystemUser(person)) return 'system';
     return 'personnel';
-  };
+  }, []);
 
   const parseBuildingAccess = (value: string | string[]): string[] => {
     if (!value) return [];
@@ -442,7 +442,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     setShowUpload(false);
   };
 
-  const getLocationInfo = (person: UserPermission) => {
+  const getLocationInfo = useCallback((person: UserPermission) => {
     let buildingName = '-';
     let floorName = '-';
     let areaName = '-';
@@ -470,7 +470,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     }
 
     return { buildingName, floorName, areaName };
-  };
+  }, [buildings]);
 
   const getDrillParticipation = (person: UserPermission) => {
     const completedDrills = mockDrills.filter(d => d.status === 'completed');
@@ -505,7 +505,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         personnelType,
       };
     });
-  }, [scopedPersonnel, buildings, getLocationInfo, getPersonnelType]);
+  }, [scopedPersonnel, getLocationInfo, getPersonnelType]);
 
   const filteredPersonnel = useMemo(() => {
     let result = enhancedPersonnel;

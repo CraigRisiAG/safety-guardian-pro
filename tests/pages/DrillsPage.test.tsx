@@ -151,4 +151,121 @@ describe('Drills page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Start Now/i }));
     expect(startDrillMock).toHaveBeenCalledTimes(1);
   });
+
+  it('covers missed and scheduled tabs plus history date-range empty branch', () => {
+    const now = Date.now();
+
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'Safety Lead',
+        role: 'admin',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [
+          {
+            id: 'building-1',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'floor-1',
+                name: 'Ground Floor',
+                areas: [{ id: 'area-1', name: 'Reception' }],
+              },
+            ],
+          },
+        ],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'Safety Lead',
+            email: 'user@example.com',
+            role: 'super_admin',
+            buildingAccess: ['building-1'],
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: true,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+      },
+    });
+
+    mockLoadDrillsFromStorage.mockReturnValue([
+      {
+        id: 'drill-missed',
+        type: 'fire',
+        status: 'scheduled',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        scheduledFor: new Date(now - 3 * 24 * 60 * 60 * 1000),
+        initiatedBy: 'Safety Lead',
+      },
+      {
+        id: 'drill-upcoming',
+        type: 'evacuation',
+        status: 'scheduled',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        scheduledFor: new Date(now + 3 * 24 * 60 * 60 * 1000),
+        initiatedBy: 'Safety Lead',
+      },
+    ]);
+
+    mockUseDrillStatus.mockReturnValue({
+      startDrill: vi.fn(),
+      endDrill: vi.fn(),
+      drillRecords: [
+        {
+          id: 'record-1',
+          drillId: 'drill-upcoming',
+          type: 'evacuation',
+          buildingId: 'building-1',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-1', name: 'Ground Floor' }],
+          startedAt: new Date('2026-01-01T08:00:00.000Z'),
+          completedAt: new Date('2026-01-01T08:10:00.000Z'),
+          durationMinutes: 10,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 10, safe: 9, needsAssistance: 1, pending: 0 },
+          floorStats: [],
+        },
+      ],
+    });
+
+    const { container } = render(<Drills />);
+
+    const missedTab = screen.getByRole('tab', { name: 'Missed' });
+    fireEvent.mouseDown(missedTab, { button: 0, ctrlKey: false });
+    expect(missedTab).toHaveAttribute('aria-selected', 'true');
+
+    const scheduledTab = screen.getByRole('tab', { name: 'Scheduled' });
+    fireEvent.mouseDown(scheduledTab, { button: 0, ctrlKey: false });
+    expect(scheduledTab).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /History & Stats/i }), { button: 0, ctrlKey: false });
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    expect(dateInputs.length).toBe(2);
+
+    fireEvent.change(dateInputs[0], { target: { value: '2030-01-01' } });
+    fireEvent.change(dateInputs[1], { target: { value: '2030-01-31' } });
+
+    expect(screen.getByText(/No drill records in selected range/i)).toBeInTheDocument();
+  });
 });

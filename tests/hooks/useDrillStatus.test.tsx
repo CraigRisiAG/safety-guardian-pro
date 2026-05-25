@@ -101,4 +101,47 @@ describe('useDrillStatus', () => {
     const finalSaveArg = mockSaveDrillsToStorage.mock.calls.at(-1)?.[0] ?? [];
     expect(finalSaveArg[0].status).toBe('completed');
   });
+
+  it('resolves active drill from drills storage when dedicated storage is missing', () => {
+    const activeFromList: Drill = {
+      ...baseDrill,
+      status: 'active',
+      startedAt: new Date(),
+    };
+    mockLoadDrillsFromStorage.mockReturnValue([activeFromList]);
+
+    const { result } = renderHook(() => useDrillStatus());
+
+    expect(result.current.activeDrill?.id).toBe(activeFromList.id);
+    expect(result.current.isCheckInEnabled).toBe(true);
+    const persistedActive = localStorage.getItem('active_drill');
+    expect(persistedActive).toContain('"status":"active"');
+  });
+
+  it('returns undefined when ending without an active drill', () => {
+    const { result } = renderHook(() => useDrillStatus());
+
+    let endedRecord: ReturnType<typeof result.current.endDrill>;
+    act(() => {
+      endedRecord = result.current.endDrill();
+    });
+
+    expect(endedRecord).toBeUndefined();
+    expect(mockSaveDrillsToStorage).not.toHaveBeenCalled();
+  });
+
+  it('updates an existing drill entry when starting a drill already present in storage', () => {
+    mockLoadDrillsFromStorage.mockReturnValue([{ ...baseDrill, status: 'scheduled' }]);
+    const { result } = renderHook(() => useDrillStatus());
+
+    act(() => {
+      result.current.startDrill(baseDrill);
+    });
+
+    expect(mockSaveDrillsToStorage).toHaveBeenCalled();
+    const savedDrills = mockSaveDrillsToStorage.mock.calls.at(-1)?.[0] as Drill[];
+    expect(savedDrills).toHaveLength(1);
+    expect(savedDrills[0].id).toBe(baseDrill.id);
+    expect(savedDrills[0].status).toBe('active');
+  });
 });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Incidents from '@/pages/Incidents';
 
@@ -6,9 +6,81 @@ const mockUseAdminSettings = vi.fn();
 const mockUseAuth = vi.fn();
 const mockLoadIncidentsFromStorage = vi.fn();
 const mockSaveIncidentsToStorage = vi.fn();
+const mockLogAuditEvent = vi.fn();
 
 vi.mock('@/components/layout/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock('@/components/incidents/IncidentForm', () => ({
+  IncidentForm: ({ onSubmit }: { onSubmit: (data: {
+    title: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    buildingId: string;
+    floorId: string;
+    areaId: string;
+    customFieldValues: Record<string, string | boolean | number>;
+  }) => void }) => (
+    <button
+      type="button"
+      onClick={() => onSubmit({
+        title: 'Created incident title',
+        description: 'Created incident description',
+        severity: 'high',
+        buildingId: 'b-1',
+        floorId: 'f-1',
+        areaId: 'a-1',
+        customFieldValues: {},
+      })}
+    >
+      Submit Mock Incident
+    </button>
+  ),
+}));
+
+vi.mock('@/components/incidents/IncidentEditForm', () => ({
+  IncidentEditForm: ({ onSave }: { onSave: (updates: {
+    title: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    status: 'open' | 'in_progress' | 'closed';
+    rootCause?: string;
+    customFieldValues?: Record<string, string | boolean | number>;
+  }) => void }) => (
+    <button
+      type="button"
+      onClick={() => onSave({
+        title: 'Updated incident title',
+        description: 'Updated description',
+        severity: 'critical',
+        status: 'closed',
+        rootCause: 'Resolved during test',
+        customFieldValues: {},
+      })}
+    >
+      Save Mock Incident Edit
+    </button>
+  ),
+}));
+
+vi.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogAction: ({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
+    <button type="button" className={className} onClick={onClick}>{children}</button>
+  ),
+  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
 vi.mock('@/hooks/useAdminSettings', () => ({
@@ -25,7 +97,7 @@ vi.mock('@/lib/incidentsStorage', () => ({
 }));
 
 vi.mock('@/lib/auditLog', () => ({
-  logAuditEvent: vi.fn(),
+  logAuditEvent: (...args: unknown[]) => mockLogAuditEvent(...args),
 }));
 
 vi.mock('recharts', () => {
@@ -45,6 +117,7 @@ vi.mock('recharts', () => {
 
 describe('Incidents page', () => {
   beforeEach(() => {
+    mockLogAuditEvent.mockReset();
     mockUseAuth.mockReturnValue({
       user: {
         id: 'admin-1',
@@ -136,5 +209,36 @@ describe('Incidents page', () => {
     fireEvent.click(screen.getByRole('button', { name: /By Severity/i }));
     fireEvent.click(screen.getByRole('button', { name: /By Status/i }));
     expect(screen.getByText(/Reporting period:/i)).toBeInTheDocument();
+  });
+
+  it('supports create, edit, and delete incident flows', () => {
+    render(<Incidents />);
+
+    fireEvent.click(screen.getByText('Submit Mock Incident'));
+    const afterCreate = mockSaveIncidentsToStorage.mock.calls.at(-1)?.[0] as Array<{ title: string }>;
+    expect(afterCreate).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Created incident title' })]));
+    expect(mockLogAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_incident' }));
+
+    const incidentTitle = screen.getByText('Wet floor by lobby');
+    const rowContainer = incidentTitle.closest('.transition-colors') as HTMLElement;
+    const rowButtons = within(rowContainer).getAllByRole('button');
+    fireEvent.click(rowButtons[0]);
+
+    fireEvent.click(screen.getByText('Save Mock Incident Edit'));
+    const afterEdit = mockSaveIncidentsToStorage.mock.calls.at(-1)?.[0] as Array<{ title: string; status: string }>;
+    expect(afterEdit).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Updated incident title', status: 'closed' })]));
+    expect(mockLogAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'update_incident' }));
+
+    const updatedIncidentTitle = screen.getByText('Updated incident title');
+    const updatedRowContainer = updatedIncidentTitle.closest('.transition-colors') as HTMLElement;
+    const updatedRowDeleteButton = within(updatedRowContainer).getByRole('button', { name: 'Delete incident' });
+    fireEvent.click(updatedRowDeleteButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    const afterDelete = mockSaveIncidentsToStorage.mock.calls.at(-1)?.[0] as Array<{ id: string }>;
+    expect(afterDelete).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Created incident title' })]));
+    expect(afterDelete).toHaveLength(1);
+    expect(screen.queryByText('Updated incident title')).not.toBeInTheDocument();
+    expect(mockLogAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'delete_incident' }));
   });
 });

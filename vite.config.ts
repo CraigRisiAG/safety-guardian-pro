@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
       reportsDirectory: "./coverage",
       include: [
         "src/lib/drillsStorage.ts",
+        "src/lib/incidentsStorage.ts",
         "src/lib/personnelAccess.ts",
         "src/hooks/useDrillStatus.ts",
         "src/pages/Drills.tsx",

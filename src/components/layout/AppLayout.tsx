@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -189,13 +189,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, []);
 
-  const isIncidentRelevant = (areaId: string) => {
+  const isIncidentRelevant = useCallback((areaId: string) => {
     if (isSuperAdmin) {
       return true;
     }
 
     return scopedAreaIds.has(areaId);
-  };
+  }, [isSuperAdmin, scopedAreaIds]);
 
   const activeDrillCheckInStats = useMemo(() => {
     if (!activeDrill) {

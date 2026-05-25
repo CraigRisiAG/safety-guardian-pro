@@ -83,10 +83,9 @@ export default function Incidents() {
   const [statsPeriod, setStatsPeriod] = useState<'month' | 'quarter' | 'year'>('month');
   const [chartMode, setChartMode] = useState<'status' | 'severity'>('status');
 
-  const now = new Date();
-  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
-  const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
-  const [selectedQuarter, setSelectedQuarter] = useState<string>(String(Math.floor(now.getMonth() / 3) + 1));
+  const [selectedYear, setSelectedYear] = useState<string>(() => String(new Date().getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => String(new Date().getMonth() + 1));
+  const [selectedQuarter, setSelectedQuarter] = useState<string>(() => String(Math.floor(new Date().getMonth() / 3) + 1));
 
   const currentPermission = useMemo(
     () => findCurrentUserPermission(user, settings.userPermissions),
@@ -133,13 +132,13 @@ export default function Incidents() {
   });
 
   const reportYears = useMemo(() => {
-    const years = new Set<number>([now.getFullYear()]);
+    const years = new Set<number>([new Date().getFullYear()]);
     visibleIncidents.forEach((incident) => {
       years.add(new Date(incident.reportedAt).getFullYear());
     });
 
     return Array.from(years).sort((a, b) => b - a);
-  }, [visibleIncidents, now]);
+  }, [visibleIncidents]);
 
   const incidentsForPeriod = useMemo(() => {
     const year = Number(selectedYear);
