@@ -95,6 +95,49 @@ export const completeMissedComplianceForCheck = (checkId: string) => {
   return true;
 };
 
+export const refreshMissedComplianceAssignments = (settings: AdminSettings): number => {
+  const existingRecords = loadMissedComplianceRecords();
+  if (existingRecords.length === 0) {
+    return 0;
+  }
+
+  const checksById = new Map(settings.complianceChecks.map((check) => [check.id, check]));
+  let changedCount = 0;
+
+  const nextRecords = existingRecords.map((record) => {
+    const check = checksById.get(record.checkId);
+    if (!check) {
+      return record;
+    }
+
+    const resolvedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
+    const nextAssignedUserIds = resolvedUsers.map((entry) => entry.id).sort();
+    const currentAssignedUserIds = [...record.assignedUserIds].sort();
+    const nextAssignedSafetyRoles = [...(check.assignedSafetyRoles ?? [])].sort();
+    const currentAssignedSafetyRoles = [...record.assignedSafetyRoles].sort();
+
+    const usersChanged = JSON.stringify(nextAssignedUserIds) !== JSON.stringify(currentAssignedUserIds);
+    const rolesChanged = JSON.stringify(nextAssignedSafetyRoles) !== JSON.stringify(currentAssignedSafetyRoles);
+
+    if (!usersChanged && !rolesChanged) {
+      return record;
+    }
+
+    changedCount += 1;
+    return {
+      ...record,
+      assignedUserIds: nextAssignedUserIds,
+      assignedSafetyRoles: nextAssignedSafetyRoles,
+    };
+  });
+
+  if (changedCount > 0) {
+    persistMissedRecords(nextRecords);
+  }
+
+  return changedCount;
+};
+
 interface ProcessResult {
   loggedCount: number;
   notifiedCount: number;

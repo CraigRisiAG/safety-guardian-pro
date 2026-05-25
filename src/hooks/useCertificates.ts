@@ -77,6 +77,88 @@ export function useCertificates() {
     parseStoredValidityConfig(localStorage.getItem(VALIDITY_STORAGE_KEY)),
   );
 
+  const syncSafetyRolesFromCertificates = useCallback((items: SafetyCertificate[]) => {
+    if (items.length === 0) {
+      return;
+    }
+
+    const raw = localStorage.getItem(ADMIN_SETTINGS_KEY);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        userPermissions?: Array<{
+          id: string;
+          userId: string;
+          email: string;
+          safetyRoles?: SafetyRole[];
+          [key: string]: unknown;
+        }>;
+        [key: string]: unknown;
+      };
+
+      if (!Array.isArray(parsed.userPermissions)) {
+        return;
+      }
+
+      let changed = false;
+
+      const nextPermissions = parsed.userPermissions.map((permission) => ({
+        ...permission,
+        safetyRoles: Array.isArray(permission.safetyRoles) ? [...permission.safetyRoles] : [],
+      }));
+
+      items.forEach((certificate) => {
+        const mappedRole = CERTIFICATE_TO_SAFETY_ROLE_MAP[certificate.certificateType];
+        if (!mappedRole) {
+          return;
+        }
+
+        const idMatchIndex = nextPermissions.findIndex(
+          (permission) => permission.id === certificate.userId || permission.userId === certificate.userId,
+        );
+
+        const targetIndex =
+          idMatchIndex >= 0
+            ? idMatchIndex
+            : nextPermissions.findIndex(
+                (permission) =>
+                  permission.email?.trim().toLowerCase() === certificate.email.trim().toLowerCase(),
+              );
+
+        if (targetIndex < 0) {
+          return;
+        }
+
+        const target = nextPermissions[targetIndex];
+        if (target.safetyRoles.includes(mappedRole)) {
+          return;
+        }
+
+        changed = true;
+        target.safetyRoles.push(mappedRole);
+        target.updatedAt = new Date();
+      });
+
+      if (!changed) {
+        return;
+      }
+
+      localStorage.setItem(
+        ADMIN_SETTINGS_KEY,
+        JSON.stringify({
+          ...parsed,
+          userPermissions: nextPermissions,
+        }),
+      );
+      window.dispatchEvent(new CustomEvent(ADMIN_SETTINGS_UPDATED_EVENT));
+    } catch {
+      // Ignore malformed settings payloads.
+    }
+  }, []);
+
   const syncSafetyRoleForCertificate = useCallback((data: {
     userId: string;
     email: string;
@@ -159,6 +241,11 @@ export function useCertificates() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(certificates));
     window.dispatchEvent(new CustomEvent(CERTIFICATES_UPDATED_EVENT));
   }, [certificates]);
+
+  // Backfill safety roles for certificates that existed before role-sync logic was introduced.
+  useEffect(() => {
+    syncSafetyRolesFromCertificates(certificates);
+  }, [certificates, syncSafetyRolesFromCertificates]);
 
   useEffect(() => {
     localStorage.setItem(VALIDITY_STORAGE_KEY, JSON.stringify(certificateValidityYearsByType));

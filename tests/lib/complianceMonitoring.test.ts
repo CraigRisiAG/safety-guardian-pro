@@ -3,6 +3,7 @@ import {
   processOverdueComplianceChecks,
   loadMissedComplianceRecords,
   completeMissedComplianceForCheck,
+  refreshMissedComplianceAssignments,
 } from '@/lib/complianceMonitoring';
 import { AdminSettings, ComplianceCheck } from '@/types/admin';
 
@@ -188,5 +189,74 @@ describe('processOverdueComplianceChecks', () => {
     const records = loadMissedComplianceRecords();
     expect(records[0].status).toBe('completed');
     expect(records[0].resolvedAt).toBeInstanceOf(Date);
+  });
+
+  it('re-resolves missed assignment user ids when seating area changes', () => {
+    localStorage.setItem(
+      'safeguard_missed_compliance_records',
+      JSON.stringify([
+        {
+          id: 'missed-2',
+          checkId: 'check-area-1',
+          checkName: 'Reception floor safety check',
+          dueAt: '2026-03-01T09:00:00.000Z',
+          loggedAt: '2026-03-02T09:00:00.000Z',
+          category: 'fire-safety',
+          buildingIds: ['b-1'],
+          floorIds: ['f-1'],
+          areaIds: ['a-1'],
+          assignedUserIds: ['u-1'],
+          assignedSafetyRoles: [],
+          status: 'incomplete',
+        },
+      ]),
+    );
+
+    const check: ComplianceCheck = {
+      id: 'check-area-1',
+      name: 'Reception floor safety check',
+      description: 'Area scoped check',
+      frequency: 'monthly',
+      buildingIds: ['b-1'],
+      floorIds: ['f-1'],
+      areaIds: ['a-1'],
+      nextDue: new Date('2026-03-01T09:00:00.000Z'),
+      assignedUsers: ['u-1'],
+      assignedSafetyRoles: [],
+      status: 'overdue',
+      category: 'fire-safety',
+      isRecurring: false,
+      recurrencePattern: 'none',
+    };
+
+    const settingsAfterMove: AdminSettings = {
+      ...makeSettings(check),
+      userPermissions: [
+        {
+          ...makeSettings(check).userPermissions[0],
+          primaryAreaId: 'a-2',
+        },
+      ],
+      buildings: [
+        {
+          ...makeSettings(check).buildings[0],
+          floors: [
+            {
+              ...makeSettings(check).buildings[0].floors[0],
+              areas: [
+                { id: 'a-1', floorId: 'f-1', name: 'North' },
+                { id: 'a-2', floorId: 'f-1', name: 'Reception' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const changed = refreshMissedComplianceAssignments(settingsAfterMove);
+    expect(changed).toBe(1);
+
+    const records = loadMissedComplianceRecords();
+    expect(records[0].assignedUserIds).toEqual([]);
   });
 });

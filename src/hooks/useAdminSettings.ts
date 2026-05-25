@@ -20,6 +20,7 @@ import { getRolePermissionDefaults } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
 import { notifyComplianceChecksAssigned } from '@/lib/notifications';
 import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
+import { refreshMissedComplianceAssignments } from '@/lib/complianceMonitoring';
 
 const STORAGE_KEY = 'safeguard_admin_settings';
 const SETTINGS_UPDATED_EVENT = 'safeguard_admin_settings_updated';
@@ -426,10 +427,13 @@ export function useAdminSettings() {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    setSettings((prev) => ({
-      ...prev,
-      userPermissions: [...prev.userPermissions, newPermission],
-    }));
+    const nextSettings: AdminSettings = {
+      ...settingsRef.current,
+      userPermissions: [...settingsRef.current.userPermissions, newPermission],
+    };
+
+    setSettings(nextSettings);
+    refreshMissedComplianceAssignments(nextSettings);
 
     logSettingsAction({
       action: 'add_user_permission',
@@ -451,10 +455,13 @@ export function useAdminSettings() {
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
-    setSettings((prev) => ({
-      ...prev,
-      userPermissions: [...prev.userPermissions, ...newPermissions],
-    }));
+    const nextSettings: AdminSettings = {
+      ...settingsRef.current,
+      userPermissions: [...settingsRef.current.userPermissions, ...newPermissions],
+    };
+
+    setSettings(nextSettings);
+    refreshMissedComplianceAssignments(nextSettings);
 
     logSettingsAction({
       action: 'bulk_add_user_permissions',
@@ -468,12 +475,15 @@ export function useAdminSettings() {
   const updateUserPermission = useCallback((id: string, updates: Partial<UserPermission>) => {
     const existing = settingsRef.current.userPermissions.find((entry) => entry.id === id);
 
-    setSettings((prev) => ({
-      ...prev,
-      userPermissions: prev.userPermissions.map((p) =>
-        p.id === id ? { ...p, ...updates, updatedAt: new Date() } : p
+    const nextSettings: AdminSettings = {
+      ...settingsRef.current,
+      userPermissions: settingsRef.current.userPermissions.map((permission) =>
+        permission.id === id ? { ...permission, ...updates, updatedAt: new Date() } : permission,
       ),
-    }));
+    };
+
+    setSettings(nextSettings);
+    refreshMissedComplianceAssignments(nextSettings);
 
     if (existing) {
       logSettingsAction({
@@ -527,6 +537,7 @@ export function useAdminSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSettings));
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
     setSettings(nextSettings);
+    refreshMissedComplianceAssignments(nextSettings);
 
     logSettingsAction({
       action: existing ? 'update_user_permission_identity' : 'add_user_permission_identity',
@@ -544,10 +555,13 @@ export function useAdminSettings() {
   const deleteUserPermission = useCallback((id: string) => {
     const existing = settingsRef.current.userPermissions.find((entry) => entry.id === id);
 
-    setSettings((prev) => ({
-      ...prev,
-      userPermissions: prev.userPermissions.filter((p) => p.id !== id),
-    }));
+    const nextSettings: AdminSettings = {
+      ...settingsRef.current,
+      userPermissions: settingsRef.current.userPermissions.filter((permission) => permission.id !== id),
+    };
+
+    setSettings(nextSettings);
+    refreshMissedComplianceAssignments(nextSettings);
 
     if (existing) {
       logSettingsAction({

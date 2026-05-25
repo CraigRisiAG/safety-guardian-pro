@@ -9,6 +9,73 @@ describe('useCertificates', () => {
     localStorage.clear();
   });
 
+  it('retroactively syncs roles from existing stored certificates on hook load', async () => {
+    localStorage.setItem(
+      'safeguard_certificates',
+      JSON.stringify([
+        {
+          id: 'cert-existing-1',
+          userId: 'participant-user-1',
+          userName: 'Reception Officer',
+          email: 'reception@example.com',
+          certificateType: 'fire_marshall',
+          certificationDate: '2026-01-05T00:00:00.000Z',
+          expiryDate: '2029-01-05T00:00:00.000Z',
+        },
+        {
+          id: 'cert-existing-2',
+          userId: 'participant-user-1',
+          userName: 'Reception Officer',
+          email: 'reception@example.com',
+          certificateType: 'first_aider',
+          certificationDate: '2026-02-10T00:00:00.000Z',
+          expiryDate: '2029-02-10T00:00:00.000Z',
+        },
+      ]),
+    );
+
+    localStorage.setItem(
+      ADMIN_SETTINGS_KEY,
+      JSON.stringify({
+        buildings: [],
+        userPermissions: [
+          {
+            id: 'perm-reception-1',
+            userId: 'participant-user-1',
+            userName: 'Reception Officer',
+            email: 'reception@example.com',
+            role: 'viewer',
+            buildingAccess: [],
+            primaryFloorId: 'floor-ground',
+            primaryAreaId: 'area-reception',
+            workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+            safetyRoles: [],
+            canStartDrills: false,
+            canResolveIncidents: false,
+            canManageUsers: false,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+        healthOfficialsRequiredDays: ['monday'],
+        complianceChecks: [],
+        safetyCheckItems: [],
+        complianceCategories: [],
+        customIncidentFields: [],
+        checkTypeFields: [],
+      }),
+    );
+
+    renderHook(() => useCertificates());
+
+    await waitFor(() => {
+      const settings = JSON.parse(localStorage.getItem(ADMIN_SETTINGS_KEY) || '{}');
+      const roles: string[] = settings.userPermissions[0].safetyRoles;
+      expect(roles).toContain('fire_marshall');
+      expect(roles).toContain('first_aider');
+    });
+  });
+
   it('uses configured validity years when creating and recalculating certificate expiry', () => {
     const { result } = renderHook(() => useCertificates());
 

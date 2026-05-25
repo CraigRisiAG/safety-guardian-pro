@@ -63,7 +63,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <ShieldCheck className="w-6 h-6 text-safe-foreground" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-sidebar-foreground">SafeGuard</h1>
+          <h1 className="text-lg font-semibold text-sidebar-foreground">Safety Guardian</h1>
           <p className="text-xs text-sidebar-foreground/60">Health & Safety</p>
         </div>
       </div>
