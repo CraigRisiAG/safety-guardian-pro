@@ -9,6 +9,7 @@ const mockLoadDrillsFromStorage = vi.fn();
 const mockSaveDrillsToStorage = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockToastInfo = vi.fn();
 
 vi.mock('@/components/layout/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -39,6 +40,7 @@ vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
+    info: (...args: unknown[]) => mockToastInfo(...args),
   },
 }));
 
@@ -46,6 +48,7 @@ describe('Drills page', () => {
   beforeEach(() => {
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
+    mockToastInfo.mockReset();
     mockLoadDrillsFromStorage.mockReturnValue([]);
     mockUseDrillStatus.mockReturnValue({
       startDrill: vi.fn(),

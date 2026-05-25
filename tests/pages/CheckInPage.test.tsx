@@ -11,6 +11,7 @@ const mockGetCheckInsStorageSnapshot = vi.fn();
 const mockLogAuditEvent = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockToastInfo = vi.fn();
 
 vi.mock('@/components/layout/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -80,6 +81,7 @@ vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
+    info: (...args: unknown[]) => mockToastInfo(...args),
   },
 }));
 
@@ -91,6 +93,7 @@ describe('CheckIn page', () => {
     mockLogAuditEvent.mockReset();
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
+    mockToastInfo.mockReset();
     mockLoadCheckInsForDrill.mockReturnValue([]);
 
     mockUseDrillStatus.mockReturnValue({
