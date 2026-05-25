@@ -43,6 +43,12 @@ Primary sign-in reference:
 ### Dashboard
 
 - Purpose: operational overview and quick actions.
+- Compliance exceptions are separated into:
+	- Overdue Checks (non-training compliance checks)
+	- Overdue Training (training assignments)
+- Safety Compliance Score popup actions:
+	- View Overdue Checks
+	- View Overdue Training
 - Visual reference: ../screenshots/02-dashboard.png
 - Annotated reference: ../annotated/dashboard-annotated.svg
 

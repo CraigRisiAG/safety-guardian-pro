@@ -23,9 +23,15 @@ Safety officers typically use:
 ## Daily workflow
 
 1. Open Dashboard and check Open Incidents and Scheduled Drills.
-2. Update incident statuses to reflect current handling.
-3. Prepare drill schedules and confirm scope (building/floor/area).
-4. During active drills, monitor check-in progress and support unresolved statuses.
+2. Review compliance exceptions separately:
+	- Overdue Checks (non-training compliance checks)
+	- Overdue Training (training assignments)
+3. Use the Safety Compliance Score popup actions to open the right queue:
+	- View Overdue Checks
+	- View Overdue Training
+4. Update incident statuses to reflect current handling.
+5. Prepare drill schedules and confirm scope (building/floor/area).
+6. During active drills, monitor check-in progress and support unresolved statuses.
 
 ## Incident handling process
 

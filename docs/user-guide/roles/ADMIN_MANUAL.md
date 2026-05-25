@@ -25,9 +25,15 @@ Admins can access all core modules:
 ## Daily workflow
 
 1. Open Dashboard and review open incidents and compliance score.
-2. Check Drills tab for overdue or missed scheduled drills.
-3. Verify Safety Check-In readiness for active drill periods.
-4. Review Admin logs for unusual access or workflow failures.
+2. Review compliance exceptions separately:
+	- Overdue Checks (non-training compliance checks)
+	- Overdue Training (training assignments)
+3. Use the Safety Compliance Score popup actions for targeted follow-up:
+	- View Overdue Checks
+	- View Overdue Training
+4. Check Drills tab for overdue or missed scheduled drills.
+5. Verify Safety Check-In readiness for active drill periods.
+6. Review Admin logs for unusual access or workflow failures.
 
 ## Weekly workflow
 

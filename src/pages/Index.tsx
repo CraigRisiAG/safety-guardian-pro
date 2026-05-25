@@ -50,6 +50,7 @@ const Index = () => {
   const [isCreateDrillDialogOpen, setIsCreateDrillDialogOpen] = useState(false);
   const [isComplianceScoreDialogOpen, setIsComplianceScoreDialogOpen] = useState(false);
   const [isOutstandingChecksDialogOpen, setIsOutstandingChecksDialogOpen] = useState(false);
+  const [isOutstandingTrainingDialogOpen, setIsOutstandingTrainingDialogOpen] = useState(false);
 
   const visiblePersonnel = useMemo(
     () => filterPersonnelByUserScope(settings.userPermissions, user),
@@ -435,7 +436,7 @@ const Index = () => {
               </div>
               <Progress value={complianceBreakdown.score} className="h-2" />
 
-              <div className="flex justify-center">
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button
                   variant="destructive"
                   size="sm"
@@ -444,7 +445,17 @@ const Index = () => {
                     setIsOutstandingChecksDialogOpen(true);
                   }}
                 >
-                  View Outstanding Checks And Training
+                  View Overdue Checks
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsComplianceScoreDialogOpen(false);
+                    setIsOutstandingTrainingDialogOpen(true);
+                  }}
+                >
+                  View Overdue Training
                 </Button>
               </div>
 
@@ -457,7 +468,7 @@ const Index = () => {
                   <li><span className="text-safe font-medium">Pass</span> = 1.0 point</li>
                   <li><span className="text-warning font-medium">Partial</span> = configurable partial credit</li>
                   <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
-                  <li>Each <span className="text-emergency font-medium">overdue or missed/incomplete</span> check subtracts a configurable penalty and adds to the total.</li>
+                  <li>Each <span className="text-emergency font-medium">overdue check or missed/incomplete check</span> subtracts a configurable penalty and adds to the total.</li>
                   <li>Each <span className="text-warning font-medium">Training Not Done</span> outcome also applies the same explicit penalty.</li>
                   <li>Officials coverage = (required − missing) ÷ required across all areas, days and safety roles.</li>
                   <li>Drill success = percentage of completed drills at or above the configurable accounted-for threshold.</li>
@@ -527,7 +538,7 @@ const Index = () => {
                 </div>
                 <div className="bg-emergency-muted rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-emergency">{complianceBreakdown.overdueCount}</div>
-                  <div className="text-xs text-muted-foreground">Overdue</div>
+                  <div className="text-xs text-muted-foreground">Overdue Checks</div>
                 </div>
                 <div className="bg-emergency-muted rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-emergency">{complianceBreakdown.missedCount}</div>
@@ -592,6 +603,15 @@ const Index = () => {
           open={isOutstandingChecksDialogOpen}
           onOpenChange={setIsOutstandingChecksDialogOpen}
           initialFilter="overdue"
+          categoryFilter="non_training"
+          onStartCheck={handleStartScheduledCheck}
+        />
+
+        <PendingChecksDialog
+          open={isOutstandingTrainingDialogOpen}
+          onOpenChange={setIsOutstandingTrainingDialogOpen}
+          initialFilter="overdue"
+          categoryFilter="training"
           onStartCheck={handleStartScheduledCheck}
         />
 

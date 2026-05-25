@@ -51,8 +51,15 @@ See the full guide with screenshots at:
 
 ## 7. Compliance calendar and missed checks
 
+- The dashboard now separates overdue compliance items into two groups:
+	- Overdue Checks (non-training compliance checks)
+	- Overdue Training (training assignments)
+- The Safety Compliance Score popup now has two separate actions:
+	- View Overdue Checks
+	- View Overdue Training
 - Overdue checks are automatically logged as missed/incomplete once their due date passes.
 - Missed/incomplete checks count against the Safety Compliance Score.
+- Training Not Done outcomes are tracked and penalized separately from overdue checks.
 - Assigned users are notified when their compliance checks are missed.
 - You can assign checks by user and by safety role, then scope those checks to specific buildings, floors, and office areas.
 - Users only see and update checks that match their assignment and allocated office area.

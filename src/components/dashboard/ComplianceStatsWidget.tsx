@@ -30,6 +30,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
   const { user } = useAuth();
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
   const [pendingDialogFilter, setPendingDialogFilter] = useState<'this_week' | 'overdue' | 'all'>('all');
+  const [pendingDialogCategoryFilter, setPendingDialogCategoryFilter] = useState<'all' | 'non_training' | 'training'>('non_training');
 
   // Determine if current user is admin/super_admin
   const currentUserPermission = useMemo(() => {
@@ -121,14 +122,23 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
           ),
         ).length;
 
-    // This week's pending checks
-    const thisWeekPending = userPendingChecks.filter(check => {
+    const userPendingTraining = userPendingChecks.filter((check) => check.category === 'training');
+    const userPendingNonTraining = userPendingChecks.filter((check) => check.category !== 'training');
+
+    // This week's pending checks (excluding training)
+    const thisWeekPending = userPendingNonTraining.filter(check => {
       const dueDate = new Date(check.nextDue);
       return isWithinInterval(dueDate, { start: weekStart, end: weekEnd }) || isBefore(dueDate, now);
     });
 
-    // Calculate overdue scheduled checks
-    const overdueChecks = userPendingChecks.filter(check => {
+    // Calculate overdue checks excluding training
+    const overdueChecks = userPendingNonTraining.filter(check => {
+      const dueDate = new Date(check.nextDue);
+      return isBefore(dueDate, now);
+    });
+
+    // Calculate overdue training separately
+    const overdueTraining = userPendingTraining.filter(check => {
       const dueDate = new Date(check.nextDue);
       return isBefore(dueDate, now);
     });
@@ -205,8 +215,10 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       passRate,
       byType,
       overdueCount: overdueChecks.length,
+      overdueTrainingCount: overdueTraining.length,
       missedCount: visibleMissedCount,
       overdueChecks,
+      overdueTraining,
       roleGapItems,
       missingOfficialsTotal,
       officialCoverageScore,
@@ -217,8 +229,12 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     };
   }, [settings, currentUserPermission, isSuperAdmin]);
 
-  const handleOpenPendingDialog = (filter: 'this_week' | 'overdue' | 'all') => {
+  const handleOpenPendingDialog = (
+    filter: 'this_week' | 'overdue' | 'all',
+    categoryFilter: 'all' | 'non_training' | 'training' = 'non_training',
+  ) => {
     setPendingDialogFilter(filter);
+    setPendingDialogCategoryFilter(categoryFilter);
     setPendingDialogOpen(true);
   };
 
@@ -241,14 +257,14 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
           {/* This Week Summary - Clickable */}
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => handleOpenPendingDialog('this_week')}
+              onClick={() => handleOpenPendingDialog('this_week', 'non_training')}
               className="bg-primary/10 hover:bg-primary/20 rounded-lg p-3 text-center transition-all cursor-pointer hover:shadow-md hover:shadow-primary/10"
             >
               <div className="text-2xl font-bold text-primary">{stats.thisWeekPending}</div>
-              <div className="text-xs text-muted-foreground">Due This Week</div>
+              <div className="text-xs text-muted-foreground">Checks Due This Week</div>
             </button>
             <button
-              onClick={() => handleOpenPendingDialog('overdue')}
+              onClick={() => handleOpenPendingDialog('overdue', 'non_training')}
               className={`rounded-lg p-3 text-center transition-all cursor-pointer hover:shadow-md ${
                 stats.overdueCount > 0 
                   ? 'bg-emergency-muted hover:bg-emergency-muted/80 hover:shadow-emergency/10' 
@@ -258,7 +274,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
               <div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-emergency' : 'text-safe'}`}>
                 {stats.overdueCount}
               </div>
-              <div className="text-xs text-muted-foreground">Overdue</div>
+              <div className="text-xs text-muted-foreground">Overdue Checks</div>
             </button>
           </div>
 
@@ -270,7 +286,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
 
           {stats.trainingNotDoneCount > 0 && (
             <button
-              onClick={() => handleOpenPendingDialog('overdue')}
+              onClick={() => handleOpenPendingDialog('overdue', 'training')}
               className="w-full text-left text-xs text-warning bg-warning-muted/40 border border-warning/30 rounded px-2 py-1 hover:bg-warning-muted/60 transition-colors"
             >
               {stats.trainingNotDoneCount} training item{stats.trainingNotDoneCount === 1 ? '' : 's'} marked Not Done are actively penalizing compliance score.
@@ -279,7 +295,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
 
           {/* Pass/Fail Rate */}
           <button
-            onClick={() => handleOpenPendingDialog('overdue')}
+            onClick={() => handleOpenPendingDialog('overdue', 'non_training')}
             className="w-full text-left space-y-2"
           >
             <div className="flex items-center justify-between text-sm">
@@ -343,7 +359,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
           {/* Overdue Warning */}
           {stats.overdueCount > 0 && (
             <button
-              onClick={() => handleOpenPendingDialog('overdue')}
+              onClick={() => handleOpenPendingDialog('overdue', 'non_training')}
               className="w-full text-left bg-emergency-muted/50 hover:bg-emergency-muted/70 border border-emergency/30 rounded-lg p-3 transition-all cursor-pointer"
             >
               <div className="flex items-center gap-2 text-emergency text-sm font-medium mb-1">
@@ -360,6 +376,26 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
               </ul>
             </button>
           )}
+
+          {stats.overdueTrainingCount > 0 && (
+            <button
+              onClick={() => handleOpenPendingDialog('overdue', 'training')}
+              className="w-full text-left bg-warning-muted/50 hover:bg-warning-muted/70 border border-warning/30 rounded-lg p-3 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2 text-warning text-sm font-medium mb-1">
+                <AlertTriangle className="w-4 h-4" />
+                {stats.overdueTrainingCount} Overdue Training Item{stats.overdueTrainingCount > 1 ? 's' : ''}
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-0.5">
+                {stats.overdueTraining.slice(0, 3).map((check) => (
+                  <li key={check.id} className="truncate">• {check.name}</li>
+                ))}
+                {stats.overdueTrainingCount > 3 && (
+                  <li className="text-warning">+ {stats.overdueTrainingCount - 3} more</li>
+                )}
+              </ul>
+            </button>
+          )}
         </CardContent>
       </Card>
 
@@ -368,6 +404,7 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
         open={pendingDialogOpen}
         onOpenChange={setPendingDialogOpen}
         initialFilter={pendingDialogFilter}
+        categoryFilter={pendingDialogCategoryFilter}
         onStartCheck={handleStartCheck}
       />
     </>

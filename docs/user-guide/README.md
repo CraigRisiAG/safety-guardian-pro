@@ -11,6 +11,22 @@ This guide explains how to use Safety Guardian Pro day to day, with screenshots 
 - Annotated screenshots: [annotated/README.md](./annotated/README.md)
 - Print/PDF pack: [print/PDF_PRINT_GUIDE.md](./print/PDF_PRINT_GUIDE.md)
 
+## Terminology standard
+
+Use the following terms consistently across product docs, UI copy, and reports:
+
+- Overdue Checks: non-training compliance checks that are past due.
+- Overdue Training: training assignments that are past due.
+- Training Not Done: completed training outcome that was marked not done (penalized separately from overdue checks).
+- Missed/Incomplete Checks: checks logged as missed/incomplete after due date processing.
+
+Preferred UI action labels:
+
+- View Overdue Checks
+- View Overdue Training
+
+Avoid ambiguous combined labels such as "Overdue Checks And Training" unless a screen intentionally shows both categories together.
+
 ## Who this guide is for
 
 - Safety officers managing incidents and drills
@@ -35,6 +51,16 @@ The dashboard provides a high-level snapshot:
 - Compliance score
 - Total personnel
 - Quick actions for common tasks
+
+Compliance items in dashboard workflows are split into separate groups:
+
+- Overdue Checks (non-training compliance checks)
+- Overdue Training (training assignments)
+
+From the Safety Compliance Score popup, use separate actions:
+
+- View Overdue Checks
+- View Overdue Training
 
 ![Dashboard](./screenshots/02-dashboard.png)
 
@@ -86,6 +112,7 @@ Common admin tasks:
 - Manage personnel and permissions
 - Configure compliance settings
 - Review and download system logs (CSV/JSON)
+- Monitor compliance exceptions separately for checks and training
 
 ![Admin page](./screenshots/06-admin.png)
 

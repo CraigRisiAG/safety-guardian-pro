@@ -17,6 +17,7 @@ interface PendingChecksDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialFilter?: 'this_week' | 'overdue' | 'all';
+  categoryFilter?: 'all' | 'non_training' | 'training';
   onStartCheck: (check: ComplianceCheck, onBehalfOf?: UserPermission) => void;
 }
 
@@ -24,6 +25,7 @@ export function PendingChecksDialog({
   open, 
   onOpenChange, 
   initialFilter = 'all',
+  categoryFilter = 'all',
   onStartCheck 
 }: PendingChecksDialogProps) {
   const { user } = useAuth();
@@ -58,6 +60,17 @@ export function PendingChecksDialog({
     return settings.complianceChecks
       .filter(check => check.status !== 'completed')
       .filter(check => {
+        if (categoryFilter === 'training') {
+          return check.category === 'training';
+        }
+
+        if (categoryFilter === 'non_training') {
+          return check.category !== 'training';
+        }
+
+        return true;
+      })
+      .filter(check => {
         const assignedUsers = resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings);
 
         // Filter by assignment
@@ -88,7 +101,7 @@ export function PendingChecksDialog({
         }
       })
       .sort((a, b) => new Date(a.nextDue).getTime() - new Date(b.nextDue).getTime());
-  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, currentUserPermission, isSuperAdmin, filter, selectedUserId]);
+  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, currentUserPermission, isSuperAdmin, filter, selectedUserId, categoryFilter]);
 
   const missedRecords = useMemo(() => {
     const allMissed = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
@@ -109,8 +122,23 @@ export function PendingChecksDialog({
         record.assignedUserIds.includes(currentUserPermission.id) ||
         record.assignedUserIds.includes(currentUserPermission.userId)
       );
+    }).filter((record) => {
+      if (categoryFilter === 'all') {
+        return true;
+      }
+
+      const linkedCheck = settings.complianceChecks.find((check) => check.id === record.checkId);
+      if (!linkedCheck) {
+        return categoryFilter !== 'training';
+      }
+
+      if (categoryFilter === 'training') {
+        return linkedCheck.category === 'training';
+      }
+
+      return linkedCheck.category !== 'training';
     });
-  }, [isSuperAdmin, selectedUserId, currentUserPermission]);
+  }, [isSuperAdmin, selectedUserId, currentUserPermission, categoryFilter, settings.complianceChecks]);
 
   // Group checks by status
   const { overdueChecks, upcomingChecks } = useMemo(() => {
@@ -167,13 +195,19 @@ export function PendingChecksDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-primary" />
-            Pending Compliance Checks
+            {categoryFilter === 'training' ? 'Pending Training Assignments' : 'Pending Compliance Checks'}
           </DialogTitle>
           <DialogDescription>
             {isSuperAdmin 
-              ? 'View and complete pending checks. As a super admin, you can view all users and complete checks on their behalf.'
+              ? categoryFilter === 'training'
+                ? 'View and complete pending training items. As a super admin, you can view all users and complete training on their behalf.'
+                : 'View and complete pending checks. As a super admin, you can view all users and complete checks on their behalf.'
               : isAdmin
-              ? 'View and complete pending checks assigned to you.'
+              ? categoryFilter === 'training'
+                ? 'View and complete pending training assigned to you.'
+                : 'View and complete pending checks assigned to you.'
+              : categoryFilter === 'training'
+              ? 'View and complete your assigned training items.'
               : 'View and complete your assigned compliance checks.'
             }
           </DialogDescription>
@@ -184,15 +218,15 @@ export function PendingChecksDialog({
           <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)} className="flex-1">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="all" className="text-xs sm:text-sm">
-                All ({pendingChecks.length})
+                {categoryFilter === 'training' ? `All Training (${pendingChecks.length})` : `All Checks (${pendingChecks.length})`}
               </TabsTrigger>
               <TabsTrigger value="this_week" className="text-xs sm:text-sm">
                 <Calendar className="w-3 h-3 mr-1 hidden sm:inline" />
-                This Week
+                {categoryFilter === 'training' ? 'Training This Week' : 'Checks This Week'}
               </TabsTrigger>
               <TabsTrigger value="overdue" className="text-xs sm:text-sm">
                 <AlertTriangle className="w-3 h-3 mr-1 hidden sm:inline" />
-                Overdue
+                {categoryFilter === 'training' ? 'Overdue Training' : 'Overdue Checks'}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -231,7 +265,11 @@ export function PendingChecksDialog({
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <CheckCircle2 className="w-12 h-12 mb-3 text-safe" />
               <p className="font-medium">All caught up!</p>
-              <p className="text-sm">No pending checks match your filters.</p>
+              <p className="text-sm">
+                {categoryFilter === 'training'
+                  ? 'No pending training items match your filters.'
+                  : 'No pending checks match your filters.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -283,7 +321,9 @@ export function PendingChecksDialog({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium text-emergency">
                     <AlertTriangle className="w-4 h-4" />
-                    Overdue Checks And Training ({overdueChecks.length})
+                    {categoryFilter === 'training'
+                      ? `Overdue Training (${overdueChecks.length})`
+                      : `Overdue Checks (${overdueChecks.length})`}
                   </div>
                   {overdueChecks.map(check => (
                     <CheckCard 
@@ -304,7 +344,9 @@ export function PendingChecksDialog({
                   {overdueChecks.length > 0 && (
                     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mt-4">
                       <Clock className="w-4 h-4" />
-                      Upcoming ({upcomingChecks.length})
+                      {categoryFilter === 'training'
+                        ? `Upcoming Training (${upcomingChecks.length})`
+                        : `Upcoming (${upcomingChecks.length})`}
                     </div>
                   )}
                   {upcomingChecks.map(check => (
