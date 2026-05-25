@@ -272,6 +272,16 @@ export function QuickCheckAssignment({
           : undefined,
       startDate: !isTrainingMode && formData.recurrencePattern !== 'none' ? formData.dueDate : undefined,
       reminderDaysBefore: 1,
+      trainingDetails: isTrainingMode
+        ? {
+            participantId: selectedTrainingParticipant?.id || formData.trainingParticipantId,
+            participantName: selectedTrainingParticipant?.userName || 'Unknown User',
+            certificateType: formData.trainingCertificateType,
+            certificateLabel: selectedTrainingCertificate || 'Training',
+            level: formData.trainingLevel,
+            assignedDate: formData.dueDate,
+          }
+        : undefined,
     });
 
     toast.success(isTrainingMode ? 'Training assigned successfully' : 'Compliance check assigned successfully');

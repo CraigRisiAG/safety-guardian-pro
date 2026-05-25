@@ -77,8 +77,12 @@ export function ComplianceCheckForm({
       // Map the category to a check type
       const mappedType = categoryToCheckType[preselectedCheck.category] || 'office';
       setCheckType(mappedType);
-      // Pre-select first building if available
-      if (preselectedCheck.buildingIds.length > 0) {
+      if (mappedType === 'training') {
+        setBuildingId('');
+        setFloorId('');
+        setAreaId('');
+      } else if (preselectedCheck.buildingIds.length > 0) {
+        // Pre-select first building for non-training checks.
         setBuildingId(preselectedCheck.buildingIds[0]);
       }
     }
@@ -136,6 +140,11 @@ export function ComplianceCheckForm({
     setCheckType(value);
     setCheckedItems({});
     setCustomFieldValues({});
+    if (value === 'training') {
+      setBuildingId('');
+      setFloorId('');
+      setAreaId('');
+    }
   };
 
   const toggleItem = (itemId: string) => {
@@ -172,8 +181,13 @@ export function ComplianceCheckForm({
           }
         }
 
-    if (!checkType || !buildingId || !floorId) {
-      toast.error('Please select check type, building, and floor');
+    if (!checkType) {
+      toast.error('Please select check type');
+      return;
+    }
+
+    if (!isTrainingCheck && (!buildingId || !floorId)) {
+      toast.error('Please select building and floor');
       return;
     }
 
@@ -229,8 +243,12 @@ export function ComplianceCheckForm({
     const record: CompletedCheckRecordWithCustomFields = {
       id: `completed-${Date.now()}`,
       checkType,
-      buildingId,
-      floorId,
+      buildingId: isTrainingCheck
+        ? preselectedCheck?.buildingIds?.[0] || 'training'
+        : buildingId,
+      floorId: isTrainingCheck
+        ? preselectedCheck?.floorIds?.[0] || 'training'
+        : floorId,
       areaId: areaId || undefined,
       completedBy: {
         userId: 'userId' in completingUser ? completingUser.userId : completingUser.id,
@@ -273,6 +291,22 @@ export function ComplianceCheckForm({
         lastCompleted: shouldRescheduleTraining ? preselectedCheck.lastCompleted : completionDate,
       };
 
+      if (isTrainingCheck) {
+        updates.trainingDetails = {
+          ...preselectedCheck.trainingDetails,
+          lastOutcomeStatus: status,
+          lastOutcomeAt: completionDate,
+          lastOutcomeReason:
+            status === 'not_done' || status === 'cancelled'
+              ? trainingReason.trim()
+              : undefined,
+          followUpDate:
+            status === 'not_done' || status === 'cancelled'
+              ? (trainingNewDate ? new Date(trainingNewDate) : undefined)
+              : undefined,
+        };
+      }
+
       if (shouldRescheduleTraining) {
         updates.status = 'pending';
         updates.nextDue = new Date(trainingNewDate);
@@ -301,7 +335,9 @@ export function ComplianceCheckForm({
       : `${CHECK_TYPE_LABELS[checkType]} completed`;
     
     toast.success(
-      `${completionMessage} for ${buildingName} - ${floorName}`,
+      checkType === 'training'
+        ? completionMessage
+        : `${completionMessage} for ${buildingName} - ${floorName}`,
       { description: `Status: ${status.charAt(0).toUpperCase() + status.slice(1)}` }
     );
 
@@ -369,65 +405,69 @@ export function ComplianceCheckForm({
               </Select>
             </div>
 
-            {/* Building */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                Building *
-              </Label>
-              <Select value={buildingId} onValueChange={handleBuildingChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select building..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {settings.buildings.map((building) => (
-                    <SelectItem key={building.id} value={building.id}>
-                      {building.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {checkType !== 'training' && (
+              <>
+                {/* Building */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Building *
+                  </Label>
+                  <Select value={buildingId} onValueChange={handleBuildingChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select building..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {settings.buildings.map((building) => (
+                        <SelectItem key={building.id} value={building.id}>
+                          {building.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Floor */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Layers className="w-4 h-4" />
-                Floor *
-              </Label>
-              <Select value={floorId} onValueChange={handleFloorChange} disabled={!buildingId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={buildingId ? "Select floor..." : "Select building first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {floors.map((floor) => (
-                    <SelectItem key={floor.id} value={floor.id}>
-                      {floor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Floor */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Layers className="w-4 h-4" />
+                    Floor *
+                  </Label>
+                  <Select value={floorId} onValueChange={handleFloorChange} disabled={!buildingId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={buildingId ? 'Select floor...' : 'Select building first'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {floors.map((floor) => (
+                        <SelectItem key={floor.id} value={floor.id}>
+                          {floor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Area (Optional) */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Area/Section (Optional)
-              </Label>
-              <Select value={areaId} onValueChange={setAreaId} disabled={!floorId || areas.length === 0}>
-                <SelectTrigger>
-                  <SelectValue placeholder={!floorId ? "Select floor first" : areas.length === 0 ? "No areas defined" : "Select area..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {areas.map((area) => (
-                    <SelectItem key={area.id} value={area.id}>
-                      {area.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Area (Optional) */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Area/Section (Optional)
+                  </Label>
+                  <Select value={areaId} onValueChange={setAreaId} disabled={!floorId || areas.length === 0}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={!floorId ? 'Select floor first' : areas.length === 0 ? 'No areas defined' : 'Select area...'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
 
             {/* Check Items */}
             {checkType === 'training' && (

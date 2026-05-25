@@ -155,6 +155,20 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
           c.recurrenceWeekday === 6
             ? c.recurrenceWeekday
             : undefined,
+        trainingDetails: c.trainingDetails
+          ? {
+              ...c.trainingDetails,
+              assignedDate: c.trainingDetails.assignedDate
+                ? new Date(c.trainingDetails.assignedDate as string | number | Date)
+                : undefined,
+              lastOutcomeAt: c.trainingDetails.lastOutcomeAt
+                ? new Date(c.trainingDetails.lastOutcomeAt as string | number | Date)
+                : undefined,
+              followUpDate: c.trainingDetails.followUpDate
+                ? new Date(c.trainingDetails.followUpDate as string | number | Date)
+                : undefined,
+            }
+          : undefined,
       })),
     };
   } catch {

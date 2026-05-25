@@ -147,6 +147,18 @@ export interface ComplianceCheck {
   reminderDaysBefore?: number; // Days before due date to send reminder
   lastMissedDueAt?: Date; // Last due date that was logged as missed
   lastMissedNotificationAt?: Date; // Last missed due date that triggered notifications
+  trainingDetails?: {
+    participantId: string;
+    participantName: string;
+    certificateType: string;
+    certificateLabel: string;
+    level: string;
+    assignedDate?: Date;
+    lastOutcomeStatus?: 'pass' | 'fail' | 'partial' | 'not_done' | 'cancelled';
+    lastOutcomeAt?: Date;
+    lastOutcomeReason?: string;
+    followUpDate?: Date;
+  };
 }
 
 export interface SafetyCheckItem {
