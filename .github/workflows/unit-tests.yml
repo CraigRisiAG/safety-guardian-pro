@@ -27,7 +27,7 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Run unit tests with coverage
+      - name: Run unit tests with coverage gate (80% thresholds)
         run: npm run test:coverage
 
       - name: Upload coverage artifact
