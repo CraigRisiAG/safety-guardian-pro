@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
+import { AdminAccountSecurity } from '@/components/admin/AdminAccountSecurity';
 import { HealthOfficialsCoverageSettings } from '@/components/admin/HealthOfficialsCoverageSettings';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
 import { ComplianceScoringSettingsPanel } from '@/components/admin/ComplianceScoringSettings';
@@ -199,6 +200,7 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
+            <AdminAccountSecurity />
             <HealthOfficialsCoverageSettings
               requiredDays={adminSettings.settings.healthOfficialsRequiredDays}
               onChange={adminSettings.updateHealthOfficialsRequiredDays}

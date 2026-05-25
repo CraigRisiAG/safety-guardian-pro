@@ -12,6 +12,7 @@ import { useDrillStatus } from "@/hooks/useDrillStatus";
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
+  const isDevMode = import.meta.env.DEV;
   const { activeDrill, isCheckInEnabled } = useDrillStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -146,13 +147,21 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
-            <p className="text-xs text-slate-300 mb-2">
-              <span className="font-semibold">Default system accounts:</span>
-            </p>
-            <p className="text-xs text-slate-400">Admin: admin@safeguard.local / Admin@123</p>
-            <p className="text-xs text-slate-400">User: safety.officer@safeguard.local / User@123</p>
-          </div>
+          {isDevMode ? (
+            <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
+              <p className="text-xs text-slate-300 mb-2">
+                <span className="font-semibold">Development mode only: default system accounts</span>
+              </p>
+              <p className="text-xs text-slate-400">Admin: admin@safeguard.local / Admin@123</p>
+              <p className="text-xs text-slate-400">User: safety.officer@safeguard.local / User@123</p>
+            </div>
+          ) : (
+            <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600">
+              <p className="text-xs text-slate-300">
+                Production mode: default system accounts are disabled. Contact your system administrator for account support.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
