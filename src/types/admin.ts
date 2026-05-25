@@ -183,7 +183,36 @@ export interface AdminSettings {
   complianceCategories: ComplianceCategory[];
   customIncidentFields: CustomIncidentField[];
   checkTypeFields?: import('./compliance').CheckTypeField[];
+  complianceScoring?: ComplianceScoringSettings;
 }
+
+export interface ComplianceScoringWeights {
+  checksQuality: number;
+  officialCoverage: number;
+  drillSuccess: number;
+  areaReportCoverage: number;
+}
+
+export interface ComplianceScoringSettings {
+  weights: ComplianceScoringWeights;
+  checksPartialCredit: number;
+  overduePenaltyPerCheck: number;
+  drillFailureThresholdPercent: number;
+  areaReportPeriod: 'monthly' | 'quarterly';
+}
+
+export const DEFAULT_COMPLIANCE_SCORING_SETTINGS: ComplianceScoringSettings = {
+  weights: {
+    checksQuality: 40,
+    officialCoverage: 20,
+    drillSuccess: 30,
+    areaReportCoverage: 10,
+  },
+  checksPartialCredit: 0.5,
+  overduePenaltyPerCheck: 0.5,
+  drillFailureThresholdPercent: 50,
+  areaReportPeriod: 'monthly',
+};
 
 export const DEFAULT_COMPLIANCE_CATEGORIES: ComplianceCategory[] = [
   { id: 'fire-safety', name: 'Fire Safety', color: 'hsl(0, 84%, 60%)' },

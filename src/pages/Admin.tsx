@@ -21,6 +21,7 @@ import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
 import { HealthOfficialsCoverageSettings } from '@/components/admin/HealthOfficialsCoverageSettings';
 import { ComplianceManager } from '@/components/admin/ComplianceManager';
+import { ComplianceScoringSettingsPanel } from '@/components/admin/ComplianceScoringSettings';
 import { IncidentFieldsManager } from '@/components/admin/IncidentFieldsManager';
 import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManager';
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
@@ -29,6 +30,7 @@ import { SystemLogsViewer } from '@/components/admin/SystemLogsViewer';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { findCurrentUserPermission } from '@/lib/personnelAccess';
+import { DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
 
 const adminSections = [
   { 
@@ -217,6 +219,10 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="compliance" className="space-y-6">
+            <ComplianceScoringSettingsPanel
+              settings={adminSettings.settings.complianceScoring ?? DEFAULT_COMPLIANCE_SCORING_SETTINGS}
+              onChange={adminSettings.updateComplianceScoring}
+            />
             <ComplianceManager 
               checks={adminSettings.settings.complianceChecks}
               items={adminSettings.settings.safetyCheckItems}

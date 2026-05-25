@@ -29,6 +29,7 @@ import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage'
 import { useAuth } from '@/contexts/AuthContext';
 import { canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
+import { DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
 
 const drillTypeLabels: Record<DrillType, string> = {
   fire: 'Fire Drill',
@@ -55,7 +56,6 @@ const statusConfig = {
   cancelled: { icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Cancelled' },
 };
 
-const DRILL_FAILURE_MIN_CHECKIN_RATE = 50;
 
 const isMissedDrill = (drill: Drill) =>
   drill.status === 'scheduled' &&
@@ -116,8 +116,8 @@ const getCheckInRate = (record: DrillRecord): number => {
   return (checkedIn / total) * 100;
 };
 
-const isFailedDrillRecord = (record: DrillRecord): boolean => {
-  return getCheckInRate(record) < DRILL_FAILURE_MIN_CHECKIN_RATE;
+const isFailedDrillRecord = (record: DrillRecord, thresholdPercent: number): boolean => {
+  return getCheckInRate(record) < thresholdPercent;
 };
 
 export default function Drills() {
@@ -143,6 +143,9 @@ export default function Drills() {
     () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
     [currentPermission, settings.buildings],
   );
+  const drillFailureThresholdPercent =
+    settings.complianceScoring?.drillFailureThresholdPercent
+    ?? DEFAULT_COMPLIANCE_SCORING_SETTINGS.drillFailureThresholdPercent;
 
   useEffect(() => {
     const now = new Date();
@@ -352,10 +355,10 @@ export default function Drills() {
   const failedDrillIds = useMemo(() => {
     return new Set(
       normalizedHistoryRecords
-        .filter((record) => isFailedDrillRecord(record))
+        .filter((record) => isFailedDrillRecord(record, drillFailureThresholdPercent))
         .map((record) => record.drillId),
     );
-  }, [normalizedHistoryRecords]);
+  }, [normalizedHistoryRecords, drillFailureThresholdPercent]);
 
   const filteredDrills = scopedDrills.filter((drill) => {
     if (activeTab === 'all') return true;
@@ -628,7 +631,7 @@ export default function Drills() {
                 Showing {filteredHistoryRecords.length} of {normalizedHistoryRecords.length} drill record(s)
               </div>
               <div className="text-xs text-muted-foreground">
-                Failed drill criteria: accounted-for percentage below 50% of uploaded personnel.
+                Failed drill criteria: accounted-for percentage below {drillFailureThresholdPercent}% of uploaded personnel.
               </div>
 
               {filteredHistoryRecords.length === 0 ? (
@@ -643,7 +646,7 @@ export default function Drills() {
                     key={record.id}
                     className={cn(
                       'bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all',
-                      isFailedDrillRecord(record) && 'border-emergency/40 bg-emergency-muted/20',
+                      isFailedDrillRecord(record, drillFailureThresholdPercent) && 'border-emergency/40 bg-emergency-muted/20',
                     )}
                     onClick={() => setSelectedRecord(record)}
                   >
@@ -675,10 +678,10 @@ export default function Drills() {
                         variant="secondary"
                         className={cn(
                           'text-xs',
-                          isFailedDrillRecord(record) && 'bg-emergency-muted text-emergency border border-emergency/30',
+                          isFailedDrillRecord(record, drillFailureThresholdPercent) && 'bg-emergency-muted text-emergency border border-emergency/30',
                         )}
                       >
-                        {isFailedDrillRecord(record) ? 'Failed' : 'Completed'}
+                          {isFailedDrillRecord(record, drillFailureThresholdPercent) ? 'Failed' : 'Completed'}
                       </Badge>
                     </div>
 
@@ -755,7 +758,7 @@ export default function Drills() {
                 ) : (
                   filteredDrills.map((drill) => {
                     const matchingRecord = normalizedHistoryRecords.find((record) => record.drillId === drill.id);
-                    const isFailedCompletedDrill = drill.status === 'completed' && !!matchingRecord && isFailedDrillRecord(matchingRecord);
+                    const isFailedCompletedDrill = drill.status === 'completed' && !!matchingRecord && isFailedDrillRecord(matchingRecord, drillFailureThresholdPercent);
                     const statusKey = isMissedDrill(drill) ? 'missed' : isFailedCompletedDrill ? 'failed' : drill.status;
                     const status = statusConfig[statusKey as keyof typeof statusConfig];
                     const StatusIcon = status.icon;

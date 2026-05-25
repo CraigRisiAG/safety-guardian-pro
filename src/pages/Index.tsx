@@ -15,7 +15,7 @@ import { useOfficeAttendance } from '@/hooks/useOfficeAttendance';
 import { useDrillStatus } from '@/hooks/useDrillStatus';
 import { AlertTriangle, Siren, ShieldCheck, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ComplianceCheck, UserPermission } from '@/types/admin';
+import { ComplianceCheck, UserPermission, DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
 import { Drill, Incident, IncidentSeverity, IncidentStatus, DrillType } from '@/types/safety';
 import { toast } from 'sonner';
 import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incidentsStorage';
@@ -55,6 +55,14 @@ const Index = () => {
 
   // Unified Safety Compliance score (shared with Compliance Overview widget)
   const complianceBreakdown = computeSafetyComplianceBreakdown(settings);
+  const scoringConfig = {
+    ...DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+    ...(settings.complianceScoring ?? {}),
+    weights: {
+      ...DEFAULT_COMPLIANCE_SCORING_SETTINGS.weights,
+      ...(settings.complianceScoring?.weights ?? {}),
+    },
+  };
 
   const complianceScoreVariant: 'safe' | 'warning' | 'emergency' =
     complianceBreakdown.score >= 85 ? 'safe' : complianceBreakdown.score >= 60 ? 'warning' : 'emergency';
@@ -420,32 +428,63 @@ const Index = () => {
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold text-foreground">How this is calculated</h4>
                 <p className="text-sm text-muted-foreground">
-                  The score combines the quality of completed compliance checks (70%) with coverage of required health & safety officials across areas and work days (30%). It matches the score shown in the Compliance Overview widget.
+                  The score combines checks quality, officials coverage, drill success, and area report coverage using configurable weights from Admin settings.
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
                   <li><span className="text-safe font-medium">Pass</span> = 1.0 point</li>
-                  <li><span className="text-warning font-medium">Partial</span> = 0.5 points</li>
+                  <li><span className="text-warning font-medium">Partial</span> = configurable partial credit</li>
                   <li><span className="text-emergency font-medium">Fail</span> = 0 points</li>
-                  <li>Each <span className="text-emergency font-medium">overdue</span> scheduled check subtracts 0.5 points and adds to the total.</li>
+                  <li>Each <span className="text-emergency font-medium">overdue</span> scheduled check subtracts a configurable penalty and adds to the total.</li>
                   <li>Officials coverage = (required − missing) ÷ required across all areas, days and safety roles.</li>
+                  <li>Drill success = percentage of completed drills at or above the configurable accounted-for threshold.</li>
+                  <li>Area report coverage = percentage of areas with at least one compliance report in the selected monthly/quarterly window.</li>
                 </ul>
                 <p className="text-xs text-muted-foreground pt-1">
-                  Formula: <code className="bg-muted px-1 rounded">checks × 0.7 + officials coverage × 0.3</code>
+                  Formula: weighted blend using Admin-configured component weights (auto-normalized).
                 </p>
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="bg-muted/50 rounded-lg p-3 text-center">
                     <div className="text-lg font-bold text-foreground">{complianceBreakdown.checksScore}%</div>
-                    <div className="text-xs text-muted-foreground">Checks Quality (70%)</div>
+                    <div className="text-xs text-muted-foreground">Checks Quality ({complianceBreakdown.weightsApplied.checksQuality}%)</div>
                   </div>
                   <div className="bg-muted/50 rounded-lg p-3 text-center">
                     <div className="text-lg font-bold text-foreground">{complianceBreakdown.officialCoverageScore}%</div>
                     <div className="text-xs text-muted-foreground">
-                      Officials Coverage (30%)
+                      Officials Coverage ({complianceBreakdown.weightsApplied.officialCoverage}%)
                       {complianceBreakdown.requiredOfficialsTotal > 0 && (
                         <> · {complianceBreakdown.missingOfficialsTotal} gaps</>
                       )}
                     </div>
                   </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-foreground">{complianceBreakdown.drillSuccessScore}%</div>
+                    <div className="text-xs text-muted-foreground">
+                      Drill Success ({complianceBreakdown.weightsApplied.drillSuccess}%) · {complianceBreakdown.successfulDrills}/{complianceBreakdown.totalDrills}
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-foreground">{complianceBreakdown.areaReportCoverageScore}%</div>
+                    <div className="text-xs text-muted-foreground">
+                      Area Reports ({complianceBreakdown.weightsApplied.areaReportCoverage}%) · {complianceBreakdown.coveredAreasInPeriod}/{complianceBreakdown.totalAreas} {complianceBreakdown.areaReportPeriod}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 border border-border rounded-lg p-3 bg-muted/30">
+                <h4 className="text-sm font-semibold text-foreground">Current Scoring Configuration</h4>
+                <p className="text-xs text-muted-foreground">
+                  Read-only summary for all users. Admins can change these values in Admin under Compliance settings.
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div>Checks Weight: <span className="font-medium text-foreground">{scoringConfig.weights.checksQuality}%</span></div>
+                  <div>Officials Weight: <span className="font-medium text-foreground">{scoringConfig.weights.officialCoverage}%</span></div>
+                  <div>Drills Weight: <span className="font-medium text-foreground">{scoringConfig.weights.drillSuccess}%</span></div>
+                  <div>Area Reports Weight: <span className="font-medium text-foreground">{scoringConfig.weights.areaReportCoverage}%</span></div>
+                  <div>Partial Credit: <span className="font-medium text-foreground">{scoringConfig.checksPartialCredit}</span></div>
+                  <div>Overdue Penalty: <span className="font-medium text-foreground">{scoringConfig.overduePenaltyPerCheck}</span></div>
+                  <div>Drill Fail Threshold: <span className="font-medium text-foreground">{scoringConfig.drillFailureThresholdPercent}%</span></div>
+                  <div>Area Report Period: <span className="font-medium text-foreground">{scoringConfig.areaReportPeriod}</span></div>
                 </div>
               </div>
 

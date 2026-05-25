@@ -3,6 +3,8 @@ import {
   AdminSettings,
   ALL_WORK_DAYS,
   CustomBuilding,
+  ComplianceScoringSettings,
+  DEFAULT_COMPLIANCE_SCORING_SETTINGS,
   UserPermission,
   WorkDay,
   ComplianceCheck,
@@ -81,13 +83,31 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
     const parsed = JSON.parse(stored) as {
       checkTypeFields?: unknown;
       healthOfficialsRequiredDays?: unknown;
+      complianceScoring?: Partial<ComplianceScoringSettings> & {
+        weights?: Partial<ComplianceScoringSettings['weights']>;
+      };
       buildings: Array<Record<string, unknown>>;
       userPermissions: Array<Record<string, unknown>>;
       complianceChecks: Array<Record<string, unknown>>;
     };
+    const parsedScoring = parsed.complianceScoring;
+    const complianceScoring: ComplianceScoringSettings = {
+      ...DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+      ...parsedScoring,
+      weights: {
+        ...DEFAULT_COMPLIANCE_SCORING_SETTINGS.weights,
+        ...(parsedScoring?.weights ?? {}),
+      },
+      areaReportPeriod:
+        parsedScoring?.areaReportPeriod === 'quarterly'
+          ? 'quarterly'
+          : 'monthly',
+    };
+
     return {
       ...parsed,
       checkTypeFields: Array.isArray(parsed.checkTypeFields) ? parsed.checkTypeFields : [],
+      complianceScoring,
       healthOfficialsRequiredDays: normalizeRequiredCoverageDays(parsed.healthOfficialsRequiredDays),
       buildings: parsed.buildings.map((b) => ({
         ...b,
@@ -168,6 +188,7 @@ const getDefaultSettings = (): AdminSettings => ({
     { id: 'injury-reported', name: 'injury_reported', label: 'Injury Reported', type: 'checkbox', required: false, order: 3, enabled: true },
   ],
   checkTypeFields: [],
+  complianceScoring: DEFAULT_COMPLIANCE_SCORING_SETTINGS,
 });
 
 export function useAdminSettings() {
@@ -515,6 +536,27 @@ export function useAdminSettings() {
     });
   }, [logSettingsAction]);
 
+  const updateComplianceScoring = useCallback((updates: Partial<ComplianceScoringSettings>) => {
+    setSettings((prev) => ({
+      ...prev,
+      complianceScoring: {
+        ...DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+        ...(prev.complianceScoring ?? {}),
+        ...updates,
+        weights: {
+          ...DEFAULT_COMPLIANCE_SCORING_SETTINGS.weights,
+          ...(prev.complianceScoring?.weights ?? {}),
+          ...(updates.weights ?? {}),
+        },
+      },
+    }));
+
+    logSettingsAction({
+      action: 'update_compliance_scoring',
+      description: 'Updated compliance scoring settings',
+    });
+  }, [logSettingsAction]);
+
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
     const newCheck: ComplianceCheck = {
@@ -763,6 +805,7 @@ export function useAdminSettings() {
     upsertUserPermissionByIdentity,
     deleteUserPermission,
     updateHealthOfficialsRequiredDays,
+    updateComplianceScoring,
     // Compliance checks
     addComplianceCheck,
     updateComplianceCheck,

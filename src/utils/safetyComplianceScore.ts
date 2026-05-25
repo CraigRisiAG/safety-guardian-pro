@@ -1,24 +1,40 @@
-import { parseISO, isBefore } from 'date-fns';
+import { parseISO, isBefore, subMonths } from 'date-fns';
 import {
   AdminSettings,
   ALL_SAFETY_ROLES,
   ALL_WORK_DAYS,
+  DEFAULT_COMPLIANCE_SCORING_SETTINGS,
 } from '@/types/admin';
 import { CompletedCheckRecord } from '@/types/compliance';
+import { DrillRecord } from '@/types/safety';
 
 const COMPLETED_CHECKS_STORAGE_KEY = 'safeguard_completed_checks';
+const DRILL_RECORDS_STORAGE_KEY = 'drill_records';
 
 export interface SafetyComplianceBreakdown {
   score: number;
   checksScore: number;
   officialCoverageScore: number;
+  drillSuccessScore: number;
+  areaReportCoverageScore: number;
   passCount: number;
   partialCount: number;
   failCount: number;
   totalCompleted: number;
+  totalDrills: number;
+  successfulDrills: number;
+  totalAreas: number;
+  coveredAreasInPeriod: number;
+  areaReportPeriod: 'monthly' | 'quarterly';
   overdueCount: number;
   requiredOfficialsTotal: number;
   missingOfficialsTotal: number;
+  weightsApplied: {
+    checksQuality: number;
+    officialCoverage: number;
+    drillSuccess: number;
+    areaReportCoverage: number;
+  };
 }
 
 const loadCompletedRecords = (): CompletedCheckRecord[] => {
@@ -42,6 +58,41 @@ const loadCompletedRecords = (): CompletedCheckRecord[] => {
   }
 };
 
+const loadDrillRecords = (): DrillRecord[] => {
+  try {
+    const stored = localStorage.getItem(DRILL_RECORDS_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => {
+        const record = item as Partial<DrillRecord> & {
+          completedAt?: string | Date;
+          startedAt?: string | Date;
+        };
+        if (!record.id || !record.drillId) {
+          return null;
+        }
+
+        return {
+          ...record,
+          startedAt:
+            typeof record.startedAt === 'string'
+              ? parseISO(record.startedAt)
+              : new Date(record.startedAt ?? new Date()),
+          completedAt:
+            typeof record.completedAt === 'string'
+              ? parseISO(record.completedAt)
+              : new Date(record.completedAt ?? new Date()),
+        } as DrillRecord;
+      })
+      .filter((record): record is DrillRecord => record !== null);
+  } catch {
+    return [];
+  }
+};
+
 /**
  * Unified Safety Compliance score that combines:
  *  - quality of completed compliance checks (pass / partial / fail)
@@ -55,6 +106,15 @@ export function computeSafetyComplianceBreakdown(
   settings: AdminSettings,
 ): SafetyComplianceBreakdown {
   const records = loadCompletedRecords();
+  const drillRecords = loadDrillRecords();
+  const scoring = {
+    ...DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+    ...(settings.complianceScoring ?? {}),
+    weights: {
+      ...DEFAULT_COMPLIANCE_SCORING_SETTINGS.weights,
+      ...(settings.complianceScoring?.weights ?? {}),
+    },
+  };
 
   const passCount = records.filter((r) => r.status === 'pass').length;
   const partialCount = records.filter((r) => r.status === 'partial').length;
@@ -69,8 +129,8 @@ export function computeSafetyComplianceBreakdown(
   const overdueCount = overdueChecks.length;
 
   // Checks score: weighted pass-rate with overdue penalty
-  const weightedScore = passCount * 1 + partialCount * 0.5;
-  const overduePenalty = overdueCount * 0.5;
+  const weightedScore = passCount * 1 + partialCount * scoring.checksPartialCredit;
+  const overduePenalty = overdueCount * scoring.overduePenaltyPerCheck;
   const denominator = totalCompleted + overdueCount;
   const checksScore =
     denominator > 0
@@ -82,6 +142,35 @@ export function computeSafetyComplianceBreakdown(
           ),
         )
       : 100;
+
+  const totalDrills = drillRecords.length;
+  const successfulDrills = drillRecords.filter((record) => {
+    const total = record.checkInStats?.total ?? 0;
+    if (total <= 0) {
+      return true;
+    }
+
+    const accounted = Math.max(0, total - (record.checkInStats?.pending ?? 0));
+    const accountedPercent = (accounted / total) * 100;
+    return accountedPercent >= scoring.drillFailureThresholdPercent;
+  }).length;
+  const drillSuccessScore =
+    totalDrills > 0 ? Math.round((successfulDrills / totalDrills) * 100) : 100;
+
+  const totalAreas = settings.buildings.reduce(
+    (sum, building) => sum + building.floors.reduce((floorSum, floor) => floorSum + floor.areas.length, 0),
+    0,
+  );
+  const periodStart = subMonths(new Date(), scoring.areaReportPeriod === 'quarterly' ? 3 : 1);
+  const coveredAreas = new Set(
+    records
+      .filter((record) => record.completedAt >= periodStart)
+      .map((record) => record.areaId)
+      .filter((areaId): areaId is string => typeof areaId === 'string' && areaId.length > 0),
+  );
+  const coveredAreasInPeriod = coveredAreas.size;
+  const areaReportCoverageScore =
+    totalAreas > 0 ? Math.round((coveredAreasInPeriod / totalAreas) * 100) : 100;
 
   // Health & safety official coverage
   const areaDefinitions = settings.buildings.flatMap((building) =>
@@ -131,20 +220,49 @@ export function computeSafetyComplianceBreakdown(
         )
       : 100;
 
-  // Combined: 70% checks quality, 30% officials coverage — matches the
-  // existing Compliance Overview widget weighting.
-  const score = Math.round(checksScore * 0.7 + officialCoverageScore * 0.3);
+  const rawWeightTotal =
+    scoring.weights.checksQuality +
+    scoring.weights.officialCoverage +
+    scoring.weights.drillSuccess +
+    scoring.weights.areaReportCoverage;
+  const effectiveWeightTotal = rawWeightTotal > 0 ? rawWeightTotal : 1;
+  const normalizedWeights = {
+    checksQuality: scoring.weights.checksQuality / effectiveWeightTotal,
+    officialCoverage: scoring.weights.officialCoverage / effectiveWeightTotal,
+    drillSuccess: scoring.weights.drillSuccess / effectiveWeightTotal,
+    areaReportCoverage: scoring.weights.areaReportCoverage / effectiveWeightTotal,
+  };
+
+  const score = Math.round(
+    checksScore * normalizedWeights.checksQuality +
+    officialCoverageScore * normalizedWeights.officialCoverage +
+    drillSuccessScore * normalizedWeights.drillSuccess +
+    areaReportCoverageScore * normalizedWeights.areaReportCoverage,
+  );
 
   return {
     score,
     checksScore,
     officialCoverageScore,
+    drillSuccessScore,
+    areaReportCoverageScore,
     passCount,
     partialCount,
     failCount,
     totalCompleted,
+    totalDrills,
+    successfulDrills,
+    totalAreas,
+    coveredAreasInPeriod,
+    areaReportPeriod: scoring.areaReportPeriod,
     overdueCount,
     requiredOfficialsTotal,
     missingOfficialsTotal,
+    weightsApplied: {
+      checksQuality: scoring.weights.checksQuality,
+      officialCoverage: scoring.weights.officialCoverage,
+      drillSuccess: scoring.weights.drillSuccess,
+      areaReportCoverage: scoring.weights.areaReportCoverage,
+    },
   };
 }

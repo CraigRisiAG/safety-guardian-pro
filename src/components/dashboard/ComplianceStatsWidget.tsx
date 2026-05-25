@@ -175,6 +175,8 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
     const breakdown = computeSafetyComplianceBreakdown(settings);
     const officialCoverageScore = breakdown.officialCoverageScore;
     const safetyComplianceScore = breakdown.score;
+    const drillSuccessScore = breakdown.drillSuccessScore;
+    const areaReportCoverageScore = breakdown.areaReportCoverageScore;
 
     return {
       thisWeek: thisWeekRecords.length,
@@ -191,6 +193,8 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
       missingOfficialsTotal,
       officialCoverageScore,
       safetyComplianceScore,
+      drillSuccessScore,
+      areaReportCoverageScore,
     };
   }, [settings, currentUserPermission, isAdmin]);
 
@@ -254,6 +258,14 @@ export function ComplianceStatsWidget({ onStartCheck }: ComplianceStatsWidgetPro
               <Badge variant="outline" className="bg-info-muted text-info">
                 <AlertTriangle className="w-3 h-3 mr-1" />
                 Officials {stats.officialCoverageScore}%
+              </Badge>
+              <Badge variant="outline" className="bg-warning-muted text-warning">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                Drills {stats.drillSuccessScore}%
+              </Badge>
+              <Badge variant="outline" className="bg-primary/10 text-primary">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Areas {stats.areaReportCoverageScore}%
               </Badge>
             </div>
           </div>
