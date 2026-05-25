@@ -383,10 +383,13 @@ export function ComplianceCheckForm({
         );
 
         if (normalizedType) {
+          const participantUserId = participant?.id || details?.participantId;
+          const participantEmail = participant?.email || '';
+
           upsertCertificateForTrainingPass({
-            userId: participant?.id || completingPermission?.id || details?.participantId || completedByUserId,
+            userId: participantUserId || completingPermission?.id || completedByUserId,
             userName: participant?.userName || details?.participantName || completingUser.userName,
-            email: participant?.email || completingPermission?.email || completingUser.email,
+            email: participantEmail || completingPermission?.email || completingUser.email,
             certificateType: normalizedType,
             certificationDate: options?.certificationDate || completionDate,
           });
