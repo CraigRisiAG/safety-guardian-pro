@@ -29,6 +29,7 @@ import { loadDrillsFromStorage, saveDrillsToStorage } from '@/lib/drillsStorage'
 import { useAuth } from '@/contexts/AuthContext';
 import { canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
+import { notifyDrillStarted } from '@/lib/notifications';
 import { DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
 
 const drillTypeLabels: Record<DrillType, string> = {
@@ -247,8 +248,19 @@ export default function Drills() {
       },
     });
     startDrill(newDrill);
+
+    const summary = notifyDrillStarted({
+      drill: newDrill,
+      userPermissions: settings.userPermissions,
+    });
+
     setIsStartDialogOpen(false);
     toast.success(`${drillTypeLabels[data.type]} started!`);
+    if (summary.total > 0) {
+      toast.info(
+        `Notifications processed: ${summary.sent} sent, ${summary.queued} queued, ${summary.skipped} skipped.`,
+      );
+    }
   };
 
   const handleScheduleDrill = (data: {

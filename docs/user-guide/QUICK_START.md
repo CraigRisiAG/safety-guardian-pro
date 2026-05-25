@@ -42,3 +42,9 @@ See the full guide with screenshots at:
 - [Staff manual](./roles/STAFF_MANUAL.md)
 - [Annotated screenshots](./annotated/README.md)
 - [PDF print guide](./print/PDF_PRINT_GUIDE.md)
+
+## 6. Notification integration APIs
+
+- [Notification integrations API guide](../NOTIFICATION_INTEGRATIONS_API.md)
+- [OpenAPI contract (backend-ready)](../NOTIFICATION_INTEGRATIONS_OPENAPI_CONTRACT.yaml)
+- [OpenAPI contract (JSON)](../NOTIFICATION_INTEGRATIONS_OPENAPI_CONTRACT.json)

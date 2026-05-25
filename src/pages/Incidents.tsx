@@ -37,6 +37,7 @@ import { loadIncidentsFromStorage, saveIncidentsToStorage } from '@/lib/incident
 import { useAuth } from '@/contexts/AuthContext';
 import { canResolveIncidentsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
+import { notifyIncidentReported } from '@/lib/notifications';
 
 const severityStyles = {
   low: 'bg-info-muted text-info border-info/20',
@@ -529,8 +530,20 @@ export default function Incidents() {
         severity: newIncident.severity,
       },
     });
+
+    const summary = notifyIncidentReported({
+      incident: newIncident,
+      userPermissions: settings.userPermissions,
+      buildings: settings.buildings,
+    });
+
     setIsDialogOpen(false);
     toast.success('Incident reported successfully');
+    if (summary.total > 0) {
+      toast.info(
+        `Area notifications processed: ${summary.sent} sent, ${summary.queued} queued, ${summary.skipped} skipped.`,
+      );
+    }
   };
 
   const handleEditSave = (

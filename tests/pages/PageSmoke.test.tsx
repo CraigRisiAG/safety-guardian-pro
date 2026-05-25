@@ -95,6 +95,18 @@ vi.mock('@/components/admin/SystemLogsViewer', () => ({
   SystemLogsViewer: () => <div>System logs viewer</div>,
 }));
 
+vi.mock('@/components/admin/NotificationDeliverySettings', () => ({
+  NotificationDeliverySettings: () => <div>Notification delivery settings</div>,
+}));
+
+vi.mock('@/components/admin/NotificationCenter', () => ({
+  NotificationCenter: () => <div>Notification center</div>,
+}));
+
+vi.mock('@/components/admin/NotificationIntegrationPortal', () => ({
+  NotificationIntegrationPortal: () => <div>Notification integration portal</div>,
+}));
+
 vi.mock('@/components/checkin/SafetyCheckInCard', () => ({
   SafetyCheckInCard: () => <div>Safety check-in card</div>,
 }));

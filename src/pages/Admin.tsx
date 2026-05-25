@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Award,
   ClipboardList,
-  Activity
+  Activity,
+  Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,9 @@ import { CheckTypeFieldsManager } from '@/components/admin/CheckTypeFieldsManage
 import { SafetyRoleCoverageReport } from '@/components/admin/SafetyRoleCoverageReport';
 import { CertificateManager } from '@/components/admin/CertificateManager';
 import { SystemLogsViewer } from '@/components/admin/SystemLogsViewer';
+import { NotificationDeliverySettings } from '@/components/admin/NotificationDeliverySettings';
+import { NotificationCenter } from '@/components/admin/NotificationCenter';
+import { NotificationIntegrationPortal } from '@/components/admin/NotificationIntegrationPortal';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { findCurrentUserPermission } from '@/lib/personnelAccess';
@@ -75,6 +79,12 @@ const adminSections = [
     name: 'System Logs',
     icon: Activity,
     description: 'View system audit activity by access scope',
+  },
+  {
+    id: 'notifications',
+    name: 'Notifications',
+    icon: Bell,
+    description: 'Configure drill and incident notification channels',
   },
 ];
 
@@ -177,7 +187,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-7 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-8 h-auto p-1">
             {adminSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -267,6 +277,12 @@ export default function Admin() {
               permission={currentPermission}
               buildings={adminSettings.settings.buildings}
             />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationIntegrationPortal />
+            <NotificationDeliverySettings />
+            <NotificationCenter />
           </TabsContent>
         </Tabs>
       </div>

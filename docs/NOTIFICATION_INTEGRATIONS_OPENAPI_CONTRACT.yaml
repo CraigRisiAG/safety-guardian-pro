@@ -1,0 +1,573 @@
+openapi: 3.0.3
+info:
+  title: Safety Guardian Notification Integrations API
+  version: 1.0.0
+  description: |
+    Backend-ready contract for notification integrations used by Safety Guardian Pro.
+    This contract is intended for cloud implementation teams and supports:
+    - Provider configuration management (Email, SMS, Teams, WhatsApp, Slack)
+    - Provider connection tests
+    - Notification dispatch execution
+    - Delivery history retrieval
+servers:
+  - url: https://api.safeguard.example.com
+    description: Production
+  - url: https://staging-api.safeguard.example.com
+    description: Staging
+security:
+  - bearerAuth: []
+tags:
+  - name: IntegrationConfig
+  - name: ConnectionTest
+  - name: NotificationDispatch
+  - name: NotificationHistory
+paths:
+  /api/integrations/notifications/config:
+    get:
+      tags: [IntegrationConfig]
+      summary: Get masked notification provider configuration
+      operationId: getNotificationProviderConfig
+      responses:
+        '200':
+          description: Masked provider settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationProviderSettingsMasked'
+              examples:
+                default:
+                  value:
+                    email:
+                      enabled: true
+                      host: smtp.company.com
+                      port: 587
+                      secure: false
+                      username: smtp-user
+                      password: '***'
+                      fromAddress: alerts@company.com
+                      fromName: Safety Guardian Alerts
+                    sms:
+                      enabled: true
+                      provider: twilio
+                      apiBaseUrl: https://api.twilio.com
+                      accountId: ACxxxx
+                      authToken: '***'
+                      fromNumber: '+15551234567'
+                    teams:
+                      enabled: true
+                      webhookUrl: https://outlook.office.com/webhook/...
+                    whatsapp:
+                      enabled: false
+                      apiBaseUrl: https://graph.facebook.com
+                      accessToken: '***'
+                      phoneNumberId: '123456'
+                    slack:
+                      enabled: true
+                      webhookUrl: https://hooks.slack.com/services/...
+                      botToken: '***'
+                      channel: '#safety-alerts'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [IntegrationConfig]
+      summary: Save notification provider configuration
+      operationId: saveNotificationProviderConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationProviderSettings'
+      responses:
+        '200':
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveConfigResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/integrations/notifications/test:
+    post:
+      tags: [ConnectionTest]
+      summary: Test provider connection using supplied or saved config
+      operationId: testNotificationProviderConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestConnectionRequest'
+            examples:
+              email:
+                value:
+                  provider: email
+                  useSavedConfig: true
+              slack:
+                value:
+                  provider: slack
+                  useSavedConfig: false
+                  payload:
+                    webhookUrl: https://hooks.slack.com/services/...
+                    channel: '#safety-alerts'
+      responses:
+        '200':
+          description: Test executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestConnectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/notifications/send:
+    post:
+      tags: [NotificationDispatch]
+      summary: Send notifications for a runtime event
+      operationId: sendNotificationEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotificationRequest'
+      responses:
+        '200':
+          description: Dispatch result summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/notifications/history:
+    get:
+      tags: [NotificationHistory]
+      summary: Get paginated delivery history
+      operationId: getNotificationHistory
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/NotificationDeliveryStatus'
+        - in: query
+          name: channel
+          schema:
+            $ref: '#/components/schemas/NotificationChannel'
+        - in: query
+          name: eventType
+          schema:
+            $ref: '#/components/schemas/NotificationEventType'
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Delivery history page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Invalid request payload or query
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [ok, code, message]
+      properties:
+        ok:
+          type: boolean
+          example: false
+        code:
+          type: string
+          example: validation_error
+        message:
+          type: string
+          example: "Missing required field: email.host"
+        details:
+          type: object
+          additionalProperties: true
+
+    NotificationChannel:
+      type: string
+      enum: [in_app, email, sms, teams, whatsapp, slack]
+
+    NotificationEventType:
+      type: string
+      enum: [drill_started, incident_reported, check_overdue]
+
+    NotificationDeliveryStatus:
+      type: string
+      enum: [sent, queued, failed, skipped]
+
+    EmailProviderSettings:
+      type: object
+      required: [enabled, host, port, secure, username, password, fromAddress, fromName]
+      properties:
+        enabled:
+          type: boolean
+        host:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        secure:
+          type: boolean
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        fromAddress:
+          type: string
+          format: email
+        fromName:
+          type: string
+
+    SmsProviderSettings:
+      type: object
+      required: [enabled, provider, apiBaseUrl, accountId, authToken, fromNumber]
+      properties:
+        enabled:
+          type: boolean
+        provider:
+          type: string
+          enum: [twilio, vonage, custom]
+        apiBaseUrl:
+          type: string
+          format: uri
+        accountId:
+          type: string
+        authToken:
+          type: string
+          format: password
+        fromNumber:
+          type: string
+
+    TeamsIntegrationSettings:
+      type: object
+      required: [enabled, webhookUrl]
+      properties:
+        enabled:
+          type: boolean
+        webhookUrl:
+          type: string
+          format: uri
+
+    WhatsAppIntegrationSettings:
+      type: object
+      required: [enabled, apiBaseUrl, accessToken, phoneNumberId]
+      properties:
+        enabled:
+          type: boolean
+        apiBaseUrl:
+          type: string
+          format: uri
+        accessToken:
+          type: string
+          format: password
+        phoneNumberId:
+          type: string
+
+    SlackIntegrationSettings:
+      type: object
+      required: [enabled, webhookUrl, botToken, channel]
+      properties:
+        enabled:
+          type: boolean
+        webhookUrl:
+          type: string
+          format: uri
+        botToken:
+          type: string
+          format: password
+        channel:
+          type: string
+
+    NotificationProviderSettings:
+      type: object
+      required: [email, sms, teams, whatsapp, slack]
+      properties:
+        email:
+          $ref: '#/components/schemas/EmailProviderSettings'
+        sms:
+          $ref: '#/components/schemas/SmsProviderSettings'
+        teams:
+          $ref: '#/components/schemas/TeamsIntegrationSettings'
+        whatsapp:
+          $ref: '#/components/schemas/WhatsAppIntegrationSettings'
+        slack:
+          $ref: '#/components/schemas/SlackIntegrationSettings'
+
+    EmailProviderSettingsMasked:
+      allOf:
+        - $ref: '#/components/schemas/EmailProviderSettings'
+      properties:
+        password:
+          type: string
+          example: '***'
+
+    SmsProviderSettingsMasked:
+      allOf:
+        - $ref: '#/components/schemas/SmsProviderSettings'
+      properties:
+        authToken:
+          type: string
+          example: '***'
+
+    WhatsAppIntegrationSettingsMasked:
+      allOf:
+        - $ref: '#/components/schemas/WhatsAppIntegrationSettings'
+      properties:
+        accessToken:
+          type: string
+          example: '***'
+
+    SlackIntegrationSettingsMasked:
+      allOf:
+        - $ref: '#/components/schemas/SlackIntegrationSettings'
+      properties:
+        botToken:
+          type: string
+          example: '***'
+
+    NotificationProviderSettingsMasked:
+      type: object
+      required: [email, sms, teams, whatsapp, slack]
+      properties:
+        email:
+          $ref: '#/components/schemas/EmailProviderSettingsMasked'
+        sms:
+          $ref: '#/components/schemas/SmsProviderSettingsMasked'
+        teams:
+          $ref: '#/components/schemas/TeamsIntegrationSettings'
+        whatsapp:
+          $ref: '#/components/schemas/WhatsAppIntegrationSettingsMasked'
+        slack:
+          $ref: '#/components/schemas/SlackIntegrationSettingsMasked'
+
+    SaveConfigResponse:
+      type: object
+      required: [ok, message, masked]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Notification integration settings saved
+        masked:
+          $ref: '#/components/schemas/NotificationProviderSettingsMasked'
+
+    TestConnectionRequest:
+      type: object
+      required: [provider, useSavedConfig]
+      properties:
+        provider:
+          type: string
+          enum: [email, sms, teams, whatsapp, slack]
+        useSavedConfig:
+          type: boolean
+        payload:
+          type: object
+          description: Optional provider-specific override payload for testing only.
+          additionalProperties: true
+
+    TestConnectionResponse:
+      type: object
+      required: [ok, provider, status, message]
+      properties:
+        ok:
+          type: boolean
+        provider:
+          type: string
+          enum: [email, sms, teams, whatsapp, slack]
+        status:
+          type: string
+          enum: [connected, failed]
+        message:
+          type: string
+          example: SMTP authentication succeeded
+
+    NotificationRecipient:
+      type: object
+      required: [userId, name]
+      properties:
+        userId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+
+    NotificationScope:
+      type: object
+      required: [buildingId]
+      properties:
+        buildingId:
+          type: string
+        floorId:
+          type: string
+        areaId:
+          type: string
+
+    SendNotificationRequest:
+      type: object
+      required: [eventType, message, channels, recipients]
+      properties:
+        eventType:
+          $ref: '#/components/schemas/NotificationEventType'
+        message:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationChannel'
+        scope:
+          $ref: '#/components/schemas/NotificationScope'
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationRecipient'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DeliveryResult:
+      type: object
+      required: [channel, status]
+      properties:
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        status:
+          $ref: '#/components/schemas/NotificationDeliveryStatus'
+        reason:
+          type: string
+
+    SendNotificationSummary:
+      type: object
+      required: [total, sent, queued, failed, skipped]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        sent:
+          type: integer
+          minimum: 0
+        queued:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        skipped:
+          type: integer
+          minimum: 0
+
+    SendNotificationResponse:
+      type: object
+      required: [ok, summary, deliveryResults]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        summary:
+          $ref: '#/components/schemas/SendNotificationSummary'
+        deliveryResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryResult'
+
+    NotificationHistoryItem:
+      type: object
+      required: [id, eventType, channel, status, recipient, message, createdAt]
+      properties:
+        id:
+          type: string
+        eventType:
+          $ref: '#/components/schemas/NotificationEventType'
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        status:
+          $ref: '#/components/schemas/NotificationDeliveryStatus'
+        recipient:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        deliveryNote:
+          type: string
+
+    NotificationHistoryResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationHistoryItem'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
