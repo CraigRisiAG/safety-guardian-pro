@@ -1,6 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { getLatestMfaCodeForUser } from '@/lib/mfaTooling';
 
 vi.mock('@/lib/auditLog', () => ({
   logAuditEvent: vi.fn(),
@@ -237,5 +238,59 @@ describe('AuthContext negative flows and account types', () => {
       () => auth.current!.resetUserPassword('missing-user', 'Valid123'),
       'Target user not found',
     );
+  });
+
+  it('supports users enabling and disabling their own MFA setting', async () => {
+    const auth = renderAuthHarness();
+    await waitFor(() => expect(auth.current?.isLoading).toBe(false));
+
+    await act(async () => {
+      await auth.current!.login('safety.officer@safeguard.local', 'User@123');
+    });
+
+    await waitFor(() => expect(auth.current?.isAuthenticated).toBe(true));
+
+    await act(async () => {
+      await auth.current!.setCurrentUserMfaEnabled(true);
+    });
+
+    expect(auth.current?.user?.mfaEnabled).toBe(true);
+
+    await act(async () => {
+      await auth.current!.setCurrentUserMfaEnabled(false);
+    });
+
+    expect(auth.current?.user?.mfaEnabled).toBe(false);
+  });
+
+  it('requires MFA code at login when MFA is enabled by admin', async () => {
+    const auth = renderAuthHarness();
+    await waitFor(() => expect(auth.current?.isLoading).toBe(false));
+
+    await act(async () => {
+      await auth.current!.login('admin@safeguard.local', 'Admin@123');
+    });
+
+    await waitFor(() => expect(auth.current?.isAuthenticated).toBe(true));
+
+    await act(async () => {
+      await auth.current!.setUserMfaEnabled('user-1', true);
+      auth.current!.logout();
+    });
+
+    await expectAuthError(
+      () => auth.current!.login('safety.officer@safeguard.local', 'User@123'),
+      'MFA code required',
+    );
+
+    const issuedCode = getLatestMfaCodeForUser('user-1');
+    expect(issuedCode).toBeTruthy();
+
+    await act(async () => {
+      await auth.current!.login('safety.officer@safeguard.local', 'User@123', issuedCode as string);
+    });
+
+    expect(auth.current?.isAuthenticated).toBe(true);
+    expect(auth.current?.user?.id).toBe('user-1');
   });
 });

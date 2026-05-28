@@ -16,6 +16,8 @@ const Login: React.FC = () => {
   const { activeDrill, isCheckInEnabled } = useDrillStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [requiresMfa, setRequiresMfa] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,10 +26,19 @@ const Login: React.FC = () => {
     setError("");
 
     try {
-      await login(email, password);
+      await login(email, password, requiresMfa ? mfaCode : undefined);
+      setRequiresMfa(false);
+      setMfaCode("");
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const message = err instanceof Error ? err.message : "Login failed";
+      if (message === "MFA code required") {
+        setRequiresMfa(true);
+        setError("MFA code required. Enter the code from your MFA tooling.");
+        return;
+      }
+
+      setError(message);
     }
   };
 
@@ -87,6 +98,25 @@ const Login: React.FC = () => {
               </div>
             </div>
 
+            {requiresMfa && (
+              <div className="space-y-2">
+                <Label htmlFor="mfa-code" className="text-slate-200">
+                  MFA Code
+                </Label>
+                <Input
+                  id="mfa-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="Enter 6-digit code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  disabled={isLoading}
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               disabled={isLoading}
@@ -98,7 +128,7 @@ const Login: React.FC = () => {
                   Signing in...
                 </>
               ) : (
-                "Sign In"
+                requiresMfa ? "Verify MFA & Sign In" : "Sign In"
               )}
             </Button>
 

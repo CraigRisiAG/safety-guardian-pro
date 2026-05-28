@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { logAuditEvent } from "@/lib/auditLog";
+import {
+  clearMfaChallengeForUser,
+  issueMfaChallenge,
+  verifyMfaChallenge,
+} from "@/lib/mfaTooling";
 
 export interface User {
   id: string;
   email: string;
   name: string;
   role: "user" | "admin";
+  mfaEnabled?: boolean;
   isImpersonating?: boolean;
   impersonatedByName?: string;
 }
@@ -17,11 +23,13 @@ interface AuthContextType {
   isImpersonating: boolean;
   canAdministerUsers: boolean;
   systemUsers: User[];
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<User>;
   logout: () => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<void>;
+  setCurrentUserMfaEnabled: (enabled: boolean) => Promise<void>;
+  setUserMfaEnabled: (userId: string, enabled: boolean) => Promise<void>;
   impersonateUser: (userId: string) => void;
   stopImpersonation: () => void;
 }
@@ -31,6 +39,7 @@ interface AuthAccount {
   email: string;
   name: string;
   role: "user" | "admin";
+  mfaEnabled: boolean;
   passwordHash: string;
   createdAt: string;
   updatedAt: string;
@@ -115,7 +124,12 @@ const parseAccounts = (raw: string | null): AuthAccount[] => {
       return [];
     }
 
-    return parsed.filter((entry) => entry?.id && entry?.email && entry?.passwordHash);
+    return parsed
+      .filter((entry) => entry?.id && entry?.email && entry?.passwordHash)
+      .map((entry) => ({
+        ...entry,
+        mfaEnabled: !!entry.mfaEnabled,
+      }));
   } catch {
     return [];
   }
@@ -145,6 +159,7 @@ const toPublicUser = (account: AuthAccount): User => ({
   email: account.email,
   name: account.name,
   role: account.role,
+  mfaEnabled: account.mfaEnabled,
 });
 
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -192,6 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: seed.email,
             name: seed.name,
             role: seed.role,
+            mfaEnabled: false,
             passwordHash: await hashPassword(seed.password),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -262,7 +278,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const systemUsers = useMemo(() => accounts.map(toPublicUser), [accounts]);
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = async (email: string, password: string, mfaCode?: string): Promise<void> => {
     setIsLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -283,6 +299,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const incomingHash = await hashPassword(password);
       if (incomingHash !== target.passwordHash) {
         throw new Error("Invalid email or password");
+      }
+
+      if (target.mfaEnabled) {
+        if (!mfaCode?.trim()) {
+          issueMfaChallenge(target.id);
+          throw new Error("MFA code required");
+        }
+
+        const isValidMfaCode = verifyMfaChallenge(target.id, mfaCode);
+        if (!isValidMfaCode) {
+          throw new Error("Invalid MFA code");
+        }
+
+        clearMfaChallengeForUser(target.id);
       }
 
       setSession({ currentUserId: target.id });
@@ -331,6 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: normalizedEmail,
         name: normalizedName,
         role: "user",
+        mfaEnabled: false,
         passwordHash: await hashPassword(password),
         createdAt: now,
         updatedAt: now,
@@ -465,6 +496,95 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const setCurrentUserMfaEnabled = async (enabled: boolean): Promise<void> => {
+    if (!session || !user) {
+      throw new Error("Not authenticated");
+    }
+
+    if (session.impersonatorUserId) {
+      throw new Error("Stop impersonation before updating MFA settings");
+    }
+
+    const currentAccount = accounts.find((entry) => entry.id === user.id);
+    if (!currentAccount) {
+      throw new Error("Account not found");
+    }
+
+    const updated = accounts.map((entry) =>
+      entry.id === currentAccount.id
+        ? {
+            ...entry,
+            mfaEnabled: enabled,
+            updatedAt: new Date().toISOString(),
+          }
+        : entry,
+    );
+
+    if (!enabled) {
+      clearMfaChallengeForUser(currentAccount.id);
+    }
+
+    setAccounts(updated);
+    writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+
+    logAuditEvent({
+      module: "auth",
+      action: enabled ? "enable_mfa" : "disable_mfa",
+      description: `${currentAccount.name} ${enabled ? "enabled" : "disabled"} MFA`,
+      actor: {
+        id: currentAccount.id,
+        name: currentAccount.name,
+        email: currentAccount.email,
+      },
+    });
+  };
+
+  const setUserMfaEnabled = async (userId: string, enabled: boolean): Promise<void> => {
+    if (!session) {
+      throw new Error("Not authenticated");
+    }
+
+    const adminReferenceId = session.impersonatorUserId ?? session.currentUserId;
+    const adminAccount = accounts.find((entry) => entry.id === adminReferenceId);
+
+    if (!adminAccount || adminAccount.role !== "admin") {
+      throw new Error("Only system admins can update MFA settings");
+    }
+
+    const targetUser = accounts.find((entry) => entry.id === userId);
+    if (!targetUser) {
+      throw new Error("Target user not found");
+    }
+
+    const updated = accounts.map((entry) =>
+      entry.id === targetUser.id
+        ? {
+            ...entry,
+            mfaEnabled: enabled,
+            updatedAt: new Date().toISOString(),
+          }
+        : entry,
+    );
+
+    if (!enabled) {
+      clearMfaChallengeForUser(targetUser.id);
+    }
+
+    setAccounts(updated);
+    writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+
+    logAuditEvent({
+      module: "auth",
+      action: enabled ? "admin_enable_mfa" : "admin_disable_mfa",
+      description: `${adminAccount.name} ${enabled ? "enabled" : "disabled"} MFA for ${targetUser.name}`,
+      actor: {
+        id: adminAccount.id,
+        name: adminAccount.name,
+        email: adminAccount.email,
+      },
+    });
+  };
+
   const impersonateUser = (userId: string) => {
     if (!session) {
       throw new Error("Not authenticated");
@@ -561,6 +681,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     changePassword,
     resetUserPassword,
+    setCurrentUserMfaEnabled,
+    setUserMfaEnabled,
     impersonateUser,
     stopImpersonation,
   };

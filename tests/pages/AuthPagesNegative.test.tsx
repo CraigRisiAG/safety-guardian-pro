@@ -116,6 +116,29 @@ describe('Auth page UI negative states', () => {
     expect(await screen.findByText('Login failed')).toBeInTheDocument();
   });
 
+  it('prompts for MFA code when auth requires second factor and retries login with code', async () => {
+    const login = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('MFA code required'))
+      .mockResolvedValueOnce(undefined);
+
+    mockUseAuth.mockReturnValue({ login, isLoading: false });
+
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'admin@safeguard.local' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'Admin@123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(await screen.findByLabelText('MFA Code')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('MFA Code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify MFA & Sign In' }));
+
+    expect(login).toHaveBeenNthCalledWith(1, 'admin@safeguard.local', 'Admin@123', undefined);
+    expect(login).toHaveBeenNthCalledWith(2, 'admin@safeguard.local', 'Admin@123', '123456');
+  });
+
   it('shows register validation messages for required name, email, and password', () => {
     renderRegister();
 

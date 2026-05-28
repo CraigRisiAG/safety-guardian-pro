@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LogOut, KeyRound, UserCog, UserCheck, UserX } from "lucide-react";
+import { LogOut, KeyRound, UserCog, UserCheck, UserX, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ export const UserMenu: React.FC = () => {
     systemUsers,
     changePassword,
     resetUserPassword,
+    setCurrentUserMfaEnabled,
     impersonateUser,
     stopImpersonation,
   } = useAuth();
@@ -57,6 +58,7 @@ export const UserMenu: React.FC = () => {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   const [impersonateUserId, setImpersonateUserId] = useState("");
+  const [isUpdatingMfa, setIsUpdatingMfa] = useState(false);
 
   const manageableUsers = useMemo(
     () => (user ? systemUsers.filter((entry) => entry.id !== user.id) : []),
@@ -144,6 +146,18 @@ export const UserMenu: React.FC = () => {
     toast.success("Returned to admin session");
   };
 
+  const handleToggleMfa = async () => {
+    try {
+      setIsUpdatingMfa(true);
+      await setCurrentUserMfaEnabled(!user.mfaEnabled);
+      toast.success(user.mfaEnabled ? "MFA disabled for your account" : "MFA enabled for your account");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update MFA settings");
+    } finally {
+      setIsUpdatingMfa(false);
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -177,6 +191,11 @@ export const UserMenu: React.FC = () => {
           <DropdownMenuItem onClick={() => setChangeOpen(true)}>
             <KeyRound className="mr-2 h-4 w-4" />
             <span>Change Password</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleToggleMfa} disabled={isUpdatingMfa}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            <span>{user.mfaEnabled ? "Disable MFA" : "Enable MFA"}</span>
           </DropdownMenuItem>
 
           {canAdministerUsers && (
