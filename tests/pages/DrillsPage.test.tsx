@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Drills from '@/pages/Drills';
 
@@ -10,6 +10,8 @@ const mockSaveDrillsToStorage = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockToastInfo = vi.fn();
+const mockUpdateDrillOperationTypes = vi.fn();
+const mockUpdateDrillSuccessCriteria = vi.fn();
 
 vi.mock('@/components/layout/AppLayout', () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -55,11 +57,15 @@ describe('Drills page', () => {
       endDrill: vi.fn(),
       drillRecords: [],
     });
+    mockUpdateDrillOperationTypes.mockReset();
+    mockUpdateDrillSuccessCriteria.mockReset();
     mockUseAdminSettings.mockReturnValue({
       settings: {
         buildings: [],
         userPermissions: [],
       },
+      updateDrillOperationTypes: mockUpdateDrillOperationTypes,
+      updateDrillSuccessCriteria: mockUpdateDrillSuccessCriteria,
     });
     mockUseAuth.mockReturnValue({
       user: null,
@@ -539,6 +545,8 @@ describe('Drills page', () => {
           },
         ],
       },
+      updateDrillOperationTypes: mockUpdateDrillOperationTypes,
+      updateDrillSuccessCriteria: mockUpdateDrillSuccessCriteria,
     });
 
     mockLoadDrillsFromStorage.mockReturnValue([
@@ -569,5 +577,257 @@ describe('Drills page', () => {
     expect(screen.getByRole('button', { name: /Start Drill/i })).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Start Now/i })).not.toBeInTheDocument();
     expect(startDrillMock).not.toHaveBeenCalled();
+  });
+
+  it('allows admins to add and remove operation types from operation settings', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'Safety Lead',
+        role: 'admin',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'Safety Lead',
+            email: 'user@example.com',
+            role: 'super_admin',
+            buildingAccess: [],
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: true,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+        drillOperationTypes: [
+          { id: 'fire', name: 'Fire Drill', category: 'drill', enabled: true },
+          { id: 'evacuation', name: 'Evacuation Drill', category: 'drill', enabled: true },
+        ],
+      },
+      updateDrillOperationTypes: mockUpdateDrillOperationTypes,
+      updateDrillSuccessCriteria: mockUpdateDrillSuccessCriteria,
+    });
+
+    render(<Drills />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Operation Settings/i }));
+
+    fireEvent.change(screen.getByPlaceholderText(/Chemical Spill Emergency/i), {
+      target: { value: 'Medical Surge Drill' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect(mockUpdateDrillOperationTypes).toHaveBeenCalledWith([
+      { id: 'fire', name: 'Fire Drill', category: 'drill', enabled: true },
+      { id: 'evacuation', name: 'Evacuation Drill', category: 'drill', enabled: true },
+      { id: 'medical_surge_drill', name: 'Medical Surge Drill', category: 'drill', enabled: true },
+    ]);
+
+    const evacuationLabel = screen.getByText('Evacuation Drill');
+    const evacuationRow = evacuationLabel.closest('div')?.parentElement;
+    expect(evacuationRow).not.toBeNull();
+    fireEvent.click(within(evacuationRow as HTMLDivElement).getByRole('button'));
+
+    expect(mockUpdateDrillOperationTypes).toHaveBeenCalledWith([
+      { id: 'fire', name: 'Fire Drill', category: 'drill', enabled: true },
+    ]);
+  });
+
+  it('dispatches drill success criteria updates from operation settings inputs', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'Safety Lead',
+        role: 'admin',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'Safety Lead',
+            email: 'user@example.com',
+            role: 'super_admin',
+            buildingAccess: [],
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: true,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+        drillSuccessCriteria: {
+          drillPassThresholdPercent: 70,
+          drillPassThresholdMinutes: 15,
+        },
+      },
+      updateDrillOperationTypes: mockUpdateDrillOperationTypes,
+      updateDrillSuccessCriteria: mockUpdateDrillSuccessCriteria,
+    });
+
+    render(<Drills />);
+    fireEvent.click(screen.getByRole('button', { name: /Operation Settings/i }));
+
+    const numberInputs = screen.getAllByRole('spinbutton');
+    expect(numberInputs.length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.change(numberInputs[0], { target: { value: '82' } });
+    fireEvent.change(numberInputs[1], { target: { value: '9' } });
+
+    expect(mockUpdateDrillSuccessCriteria).toHaveBeenCalledWith({ drillPassThresholdPercent: 82 });
+    expect(mockUpdateDrillSuccessCriteria).toHaveBeenCalledWith({ drillPassThresholdMinutes: 9 });
+  });
+
+  it('treats emergency reports as resolved and excludes them from failed drill tab', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'Safety Lead',
+        role: 'admin',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [
+          {
+            id: 'building-1',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'floor-1',
+                name: 'Ground Floor',
+                areas: [{ id: 'area-1', name: 'Reception' }],
+              },
+            ],
+          },
+        ],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'Safety Lead',
+            email: 'user@example.com',
+            role: 'super_admin',
+            buildingAccess: ['building-1'],
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: true,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+        drillSuccessCriteria: {
+          drillPassThresholdPercent: 80,
+          drillPassThresholdMinutes: 15,
+        },
+      },
+      updateDrillOperationTypes: mockUpdateDrillOperationTypes,
+      updateDrillSuccessCriteria: mockUpdateDrillSuccessCriteria,
+    });
+
+    mockLoadDrillsFromStorage.mockReturnValue([
+      {
+        id: 'drill-failed-1',
+        type: 'fire',
+        operationKind: 'drill',
+        operationLabel: 'Fire Drill',
+        status: 'completed',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        startedAt: new Date('2026-05-01T08:00:00.000Z'),
+        completedAt: new Date('2026-05-01T08:25:00.000Z'),
+        initiatedBy: 'Safety Lead',
+      },
+      {
+        id: 'emergency-1',
+        type: 'chemical_spill',
+        operationKind: 'emergency',
+        operationLabel: 'Chemical Spill Emergency',
+        status: 'completed',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        startedAt: new Date('2026-05-03T08:00:00.000Z'),
+        completedAt: new Date('2026-05-03T08:50:00.000Z'),
+        initiatedBy: 'Safety Lead',
+      },
+    ]);
+
+    mockUseDrillStatus.mockReturnValue({
+      startDrill: vi.fn(),
+      endDrill: vi.fn(),
+      drillRecords: [
+        {
+          id: 'record-failed-1',
+          drillId: 'drill-failed-1',
+          type: 'fire',
+          operationKind: 'drill',
+          operationLabel: 'Fire Drill',
+          buildingId: 'building-1',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-1', name: 'Ground Floor' }],
+          startedAt: new Date('2026-05-01T08:00:00.000Z'),
+          completedAt: new Date('2026-05-01T08:30:00.000Z'),
+          durationMinutes: 30,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 10, safe: 3, needsAssistance: 1, pending: 6 },
+          floorStats: [],
+        },
+        {
+          id: 'record-emergency-1',
+          drillId: 'emergency-1',
+          type: 'chemical_spill',
+          operationKind: 'emergency',
+          operationLabel: 'Chemical Spill Emergency',
+          buildingId: 'building-1',
+          buildingName: 'Main Office',
+          floors: [{ id: 'floor-1', name: 'Ground Floor' }],
+          startedAt: new Date('2026-05-03T08:00:00.000Z'),
+          completedAt: new Date('2026-05-03T08:50:00.000Z'),
+          durationMinutes: 50,
+          initiatedBy: 'Safety Lead',
+          checkInStats: { total: 10, safe: 1, needsAssistance: 2, pending: 7 },
+          floorStats: [],
+        },
+      ],
+    });
+
+    render(<Drills />);
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Emergency Reports/i }), { button: 0, ctrlKey: false });
+    expect(screen.getByText('Chemical Spill Emergency')).toBeInTheDocument();
+    expect(screen.getByText('Resolved')).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Failed' }), { button: 0, ctrlKey: false });
+    expect(screen.getByText('Fire Drill')).toBeInTheDocument();
+    expect(screen.queryByText('Chemical Spill Emergency')).not.toBeInTheDocument();
   });
 });

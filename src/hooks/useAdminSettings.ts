@@ -5,6 +5,10 @@ import {
   CustomBuilding,
   ComplianceScoringSettings,
   DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+  DEFAULT_DRILL_OPERATION_TYPES,
+  DEFAULT_DRILL_SUCCESS_CRITERIA,
+  DrillOperationType,
+  DrillSuccessCriteria,
   UserPermission,
   WorkDay,
   ComplianceCheck,
@@ -111,6 +115,18 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
       ...parsed,
       checkTypeFields: Array.isArray(parsed.checkTypeFields) ? parsed.checkTypeFields : [],
       complianceScoring,
+      drillOperationTypes: Array.isArray((parsed as { drillOperationTypes?: unknown }).drillOperationTypes)
+        ? ((parsed as { drillOperationTypes?: DrillOperationType[] }).drillOperationTypes ?? []).map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            category: entry.category === 'emergency' ? 'emergency' : 'drill',
+            enabled: entry.enabled !== false,
+          }))
+        : DEFAULT_DRILL_OPERATION_TYPES,
+      drillSuccessCriteria: {
+        ...DEFAULT_DRILL_SUCCESS_CRITERIA,
+        ...((parsed as { drillSuccessCriteria?: Partial<DrillSuccessCriteria> }).drillSuccessCriteria ?? {}),
+      },
       healthOfficialsRequiredDays: normalizeRequiredCoverageDays(parsed.healthOfficialsRequiredDays),
       buildings: parsed.buildings.map((b) => ({
         ...b,
@@ -230,6 +246,8 @@ const getDefaultSettings = (): AdminSettings => ({
   ],
   checkTypeFields: [],
   complianceScoring: DEFAULT_COMPLIANCE_SCORING_SETTINGS,
+  drillOperationTypes: DEFAULT_DRILL_OPERATION_TYPES,
+  drillSuccessCriteria: DEFAULT_DRILL_SUCCESS_CRITERIA,
 });
 
 export function useAdminSettings() {
@@ -611,6 +629,35 @@ export function useAdminSettings() {
     });
   }, [logSettingsAction]);
 
+  const updateDrillOperationTypes = useCallback((operationTypes: DrillOperationType[]) => {
+    setSettings((prev) => ({
+      ...prev,
+      drillOperationTypes: operationTypes,
+    }));
+
+    logSettingsAction({
+      action: 'update_drill_operation_types',
+      description: 'Updated drill and emergency operation type settings',
+      metadata: { count: operationTypes.length },
+    });
+  }, [logSettingsAction]);
+
+  const updateDrillSuccessCriteria = useCallback((updates: Partial<DrillSuccessCriteria>) => {
+    setSettings((prev) => ({
+      ...prev,
+      drillSuccessCriteria: {
+        ...DEFAULT_DRILL_SUCCESS_CRITERIA,
+        ...(prev.drillSuccessCriteria ?? {}),
+        ...updates,
+      },
+    }));
+
+    logSettingsAction({
+      action: 'update_drill_success_criteria',
+      description: 'Updated drill success criteria thresholds',
+    });
+  }, [logSettingsAction]);
+
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
     const newCheck: ComplianceCheck = {
@@ -882,6 +929,8 @@ export function useAdminSettings() {
     deleteUserPermission,
     updateHealthOfficialsRequiredDays,
     updateComplianceScoring,
+    updateDrillOperationTypes,
+    updateDrillSuccessCriteria,
     // Compliance checks
     addComplianceCheck,
     updateComplianceCheck,

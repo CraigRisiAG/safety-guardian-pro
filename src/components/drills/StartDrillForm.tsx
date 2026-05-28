@@ -4,15 +4,18 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { DrillType } from '@/types/safety';
-import { CustomBuilding } from '@/types/admin';
+import { CustomBuilding, DEFAULT_DRILL_OPERATION_TYPES, DrillOperationType } from '@/types/admin';
 import { Siren, Flame, Mountain, Lock, Users, Stethoscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StartDrillFormProps {
   buildings: CustomBuilding[];
+  operationTypes?: DrillOperationType[];
   mode?: 'start' | 'schedule';
   onSubmit: (data: {
     type: DrillType;
+    operationCategory: 'drill' | 'emergency';
+    operationLabel: string;
     buildingIds: string[];
     floorIds: string[];
     areaIds: string[];
@@ -21,7 +24,7 @@ interface StartDrillFormProps {
   onCancel?: () => void;
 }
 
-const drillTypes: { type: DrillType; label: string; icon: typeof Flame; color: string }[] = [
+const defaultDrillTypes: { type: DrillType; label: string; icon: typeof Flame; color: string }[] = [
   { type: 'fire', label: 'Fire Drill', icon: Flame, color: 'text-emergency' },
   { type: 'earthquake', label: 'Earthquake', icon: Mountain, color: 'text-warning' },
   { type: 'lockdown', label: 'Lockdown', icon: Lock, color: 'text-primary' },
@@ -29,8 +32,29 @@ const drillTypes: { type: DrillType; label: string; icon: typeof Flame; color: s
   { type: 'medical', label: 'Medical Emergency', icon: Stethoscope, color: 'text-safe' },
 ];
 
-export function StartDrillForm({ buildings, mode = 'start', onSubmit, onCancel }: StartDrillFormProps) {
-  const [drillType, setDrillType] = useState<DrillType>('fire');
+const getOperationVisual = (operationType: DrillOperationType) => {
+  const fromDefault = defaultDrillTypes.find((entry) => entry.type === operationType.id);
+  if (fromDefault) {
+    return fromDefault;
+  }
+
+  return {
+    type: operationType.id,
+    label: operationType.name,
+    icon: operationType.category === 'emergency' ? Siren : Users,
+    color: operationType.category === 'emergency' ? 'text-emergency' : 'text-info',
+  };
+};
+
+export function StartDrillForm({ buildings, operationTypes, mode = 'start', onSubmit, onCancel }: StartDrillFormProps) {
+  const effectiveOperationTypes = useMemo(() => {
+    const configured = operationTypes && operationTypes.length > 0
+      ? operationTypes.filter((entry) => entry.enabled)
+      : DEFAULT_DRILL_OPERATION_TYPES;
+
+    return configured.length > 0 ? configured : DEFAULT_DRILL_OPERATION_TYPES;
+  }, [operationTypes]);
+  const [drillType, setDrillType] = useState<DrillType>(effectiveOperationTypes[0]?.id ?? 'fire');
   const [selectedBuildingIds, setSelectedBuildingIds] = useState<string[]>([]);
   const [selectedFloorKeys, setSelectedFloorKeys] = useState<string[]>([]);
   const [selectedAreaKeys, setSelectedAreaKeys] = useState<string[]>([]);
@@ -64,6 +88,10 @@ export function StartDrillForm({ buildings, mode = 'start', onSubmit, onCancel }
   const availableAreaKeys = useMemo(() => new Set(availableAreas.map((entry) => entry.key)), [availableAreas]);
 
   const isScheduling = mode === 'schedule';
+
+  const selectedOperationType = effectiveOperationTypes.find((entry) => entry.id === drillType)
+    ?? effectiveOperationTypes[0]
+    ?? DEFAULT_DRILL_OPERATION_TYPES[0];
 
   const getBuildingFloorKeys = (building: CustomBuilding) =>
     building.floors.map((floor) => `${building.id}::${floor.id}`);
@@ -224,6 +252,8 @@ export function StartDrillForm({ buildings, mode = 'start', onSubmit, onCancel }
 
     onSubmit({
       type: drillType,
+      operationCategory: selectedOperationType.category,
+      operationLabel: selectedOperationType.name,
       buildingIds: selectedBuildingIds,
       floorIds: selectedFloorIds,
       areaIds: selectedAreaIds,
@@ -246,24 +276,32 @@ export function StartDrillForm({ buildings, mode = 'start', onSubmit, onCancel }
       <div className="space-y-4">
         {!isScheduling && (
           <div className="space-y-3">
-            <Label>Drill Type</Label>
+            <Label>Operation Type</Label>
             <div className="grid grid-cols-5 gap-2">
-              {drillTypes.map(({ type, label, icon: Icon, color }) => (
+              {effectiveOperationTypes.map((entry) => {
+                const visual = getOperationVisual(entry);
+                const Icon = visual.icon;
+
+                return (
                 <button
-                  key={type}
+                  key={entry.id}
                   type="button"
-                  onClick={() => setDrillType(type)}
+                  onClick={() => setDrillType(entry.id)}
                   className={cn(
                     'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
-                    drillType === type
+                    drillType === entry.id
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
                   )}
                 >
-                  <Icon className={cn('w-6 h-6', color)} />
-                  <span className="text-xs font-medium text-center">{label}</span>
+                  <Icon className={cn('w-6 h-6', visual.color)} />
+                  <span className="text-xs font-medium text-center">{entry.name}</span>
+                  <span className="text-[10px] uppercase text-muted-foreground">
+                    {entry.category}
+                  </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

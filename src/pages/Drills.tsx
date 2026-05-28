@@ -15,10 +15,12 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Siren, Play, Clock, CheckCircle2, XCircle, MapPin, Calendar, Timer, Users, BarChart3, Download } from 'lucide-react';
+import { Siren, Play, Clock, CheckCircle2, XCircle, MapPin, Calendar, Timer, Users, BarChart3, Download, Settings2, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow, isBefore } from 'date-fns';
 import { toast } from 'sonner';
@@ -30,22 +32,30 @@ import { useAuth } from '@/contexts/AuthContext';
 import { canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import { logAuditEvent } from '@/lib/auditLog';
 import { notifyDrillStarted } from '@/lib/notifications';
-import { DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
+import {
+  DEFAULT_DRILL_OPERATION_TYPES,
+  DEFAULT_DRILL_SUCCESS_CRITERIA,
+  DrillOperationCategory,
+} from '@/types/admin';
 
-const drillTypeLabels: Record<DrillType, string> = {
-  fire: 'Fire Drill',
-  earthquake: 'Earthquake Drill',
-  lockdown: 'Lockdown Drill',
-  evacuation: 'Evacuation Drill',
-  medical: 'Medical Emergency',
+const toOperationDisplayName = (value: string) =>
+  value
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const getOperationLabel = (operationType: string, operationLabel?: string) => {
+  if (operationLabel && operationLabel.trim().length > 0) {
+    return operationLabel;
+  }
+
+  const fallback = DEFAULT_DRILL_OPERATION_TYPES.find((entry) => entry.id === operationType)?.name;
+  return fallback ?? toOperationDisplayName(operationType);
 };
 
-const drillTypeColors: Record<DrillType, string> = {
-  fire: 'bg-emergency-muted text-emergency',
-  earthquake: 'bg-warning-muted text-warning',
-  lockdown: 'bg-primary/10 text-primary',
-  evacuation: 'bg-info-muted text-info',
-  medical: 'bg-safe-muted text-safe',
+const getOperationColor = (operationKind: 'drill' | 'emergency' = 'drill') => {
+  return operationKind === 'emergency'
+    ? 'bg-emergency-muted text-emergency'
+    : 'bg-info-muted text-info';
 };
 
 const statusConfig = {
@@ -91,6 +101,8 @@ const normalizeDrillRecord = (record: DrillRecord): DrillRecord => {
   return {
     ...record,
     type: record.type || 'fire',
+    operationKind: record.operationKind === 'emergency' ? 'emergency' : 'drill',
+    operationLabel: record.operationLabel,
     buildingName: record.buildingName || 'Unknown',
     initiatedBy: record.initiatedBy || 'Unknown',
     floors,
@@ -117,8 +129,16 @@ const getCheckInRate = (record: DrillRecord): number => {
   return (checkedIn / total) * 100;
 };
 
-const isFailedDrillRecord = (record: DrillRecord, thresholdPercent: number): boolean => {
-  return getCheckInRate(record) < thresholdPercent;
+const isFailedDrillRecord = (
+  record: DrillRecord,
+  criteria: { drillPassThresholdPercent: number; drillPassThresholdMinutes: number },
+): boolean => {
+  if ((record.operationKind ?? 'drill') === 'emergency') {
+    return false;
+  }
+
+  return getCheckInRate(record) < criteria.drillPassThresholdPercent
+    || record.durationMinutes > criteria.drillPassThresholdMinutes;
 };
 
 export default function Drills() {
@@ -130,8 +150,15 @@ export default function Drills() {
   const [historyStartDate, setHistoryStartDate] = useState('');
   const [historyEndDate, setHistoryEndDate] = useState('');
   const [historyDatePreset, setHistoryDatePreset] = useState<'all' | 'week' | 'month' | 'year' | 'custom'>('all');
+  const [isOperationSettingsOpen, setIsOperationSettingsOpen] = useState(false);
+  const [newOperationName, setNewOperationName] = useState('');
+  const [newOperationCategory, setNewOperationCategory] = useState<DrillOperationCategory>('drill');
   const { startDrill, endDrill, drillRecords } = useDrillStatus();
-  const { settings } = useAdminSettings();
+  const {
+    settings,
+    updateDrillOperationTypes,
+    updateDrillSuccessCriteria,
+  } = useAdminSettings();
   const { user } = useAuth();
 
   const currentPermission = useMemo(
@@ -144,9 +171,16 @@ export default function Drills() {
     () => new Set(getScopedAreaIds(currentPermission, settings.buildings)),
     [currentPermission, settings.buildings],
   );
-  const drillFailureThresholdPercent =
-    settings.complianceScoring?.drillFailureThresholdPercent
-    ?? DEFAULT_COMPLIANCE_SCORING_SETTINGS.drillFailureThresholdPercent;
+  const configuredOperationTypes = settings.drillOperationTypes && settings.drillOperationTypes.length > 0
+    ? settings.drillOperationTypes.filter((entry) => entry.enabled)
+    : DEFAULT_DRILL_OPERATION_TYPES;
+  const operationTypes = configuredOperationTypes.length > 0
+    ? configuredOperationTypes
+    : DEFAULT_DRILL_OPERATION_TYPES;
+  const drillSuccessCriteria = {
+    ...DEFAULT_DRILL_SUCCESS_CRITERIA,
+    ...(settings.drillSuccessCriteria ?? {}),
+  };
 
   useEffect(() => {
     const now = new Date();
@@ -208,6 +242,8 @@ export default function Drills() {
 
   const handleStartDrill = (data: {
     type: DrillType;
+    operationCategory: 'drill' | 'emergency';
+    operationLabel: string;
     buildingIds: string[];
     floorIds: string[];
     areaIds: string[];
@@ -224,6 +260,8 @@ export default function Drills() {
     const newDrill: Drill = {
       id: `drill-${Date.now()}`,
       type: data.type,
+      operationKind: data.operationCategory,
+      operationLabel: data.operationLabel,
       status: 'active',
       location: {
         buildingId: primaryBuildingId,
@@ -238,13 +276,14 @@ export default function Drills() {
     logAuditEvent({
       module: 'drills',
       action: 'start_drill',
-      description: `Started ${drillTypeLabels[data.type]}`,
+      description: `Started ${data.operationLabel}`,
       location: {
         buildingId: newDrill.location.buildingId,
         areaIds: newDrill.location.areaIds,
       },
       metadata: {
         type: data.type,
+        operationKind: data.operationCategory,
       },
     });
     startDrill(newDrill);
@@ -255,7 +294,7 @@ export default function Drills() {
     });
 
     setIsStartDialogOpen(false);
-    toast.success(`${drillTypeLabels[data.type]} started!`);
+    toast.success(`${data.operationLabel} started!`);
     if (summary.total > 0) {
       toast.info(
         `Notifications processed: ${summary.sent} sent, ${summary.queued} queued, ${summary.skipped} skipped.`,
@@ -265,6 +304,8 @@ export default function Drills() {
 
   const handleScheduleDrill = (data: {
     type: DrillType;
+    operationCategory: 'drill' | 'emergency';
+    operationLabel: string;
     buildingIds: string[];
     floorIds: string[];
     areaIds: string[];
@@ -282,6 +323,8 @@ export default function Drills() {
     const newDrill: Drill = {
       id: `drill-${Date.now()}`,
       type: data.type,
+      operationKind: data.operationCategory,
+      operationLabel: data.operationLabel,
       status: 'scheduled',
       location: {
         buildingId: primaryBuildingId,
@@ -297,17 +340,18 @@ export default function Drills() {
     logAuditEvent({
       module: 'drills',
       action: 'schedule_drill',
-      description: `Scheduled ${drillTypeLabels[data.type]}`,
+      description: `Scheduled ${data.operationLabel}`,
       location: {
         buildingId: newDrill.location.buildingId,
         areaIds: newDrill.location.areaIds,
       },
       metadata: {
         type: data.type,
+        operationKind: data.operationCategory,
       },
     });
     setIsScheduleDialogOpen(false);
-    toast.success(`${drillTypeLabels[data.type]} scheduled`);
+    toast.success(`${data.operationLabel} scheduled`);
   };
 
   const handleEndDrill = (drillId: string) => {
@@ -323,7 +367,7 @@ export default function Drills() {
       logAuditEvent({
         module: 'drills',
         action: 'end_drill',
-        description: `Ended ${drillTypeLabels[targetDrill.type]}`,
+        description: `Ended ${getOperationLabel(targetDrill.type, targetDrill.operationLabel)}`,
         location: {
           buildingId: targetDrill.location.buildingId,
           areaIds: targetDrill.location.areaIds,
@@ -367,15 +411,16 @@ export default function Drills() {
   const failedDrillIds = useMemo(() => {
     return new Set(
       normalizedHistoryRecords
-        .filter((record) => isFailedDrillRecord(record, drillFailureThresholdPercent))
+        .filter((record) => isFailedDrillRecord(record, drillSuccessCriteria))
         .map((record) => record.drillId),
     );
-  }, [normalizedHistoryRecords, drillFailureThresholdPercent]);
+  }, [normalizedHistoryRecords, drillSuccessCriteria]);
 
   const filteredDrills = scopedDrills.filter((drill) => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'history') return false;
-    if (activeTab === 'failed') return drill.status === 'completed' && failedDrillIds.has(drill.id);
+    if (activeTab === 'history' || activeTab === 'emergency-reports') return false;
+    if (activeTab === 'failed') return (drill.operationKind ?? 'drill') === 'drill' && drill.status === 'completed' && failedDrillIds.has(drill.id);
+    if (activeTab === 'emergency') return (drill.operationKind ?? 'drill') === 'emergency';
     if (activeTab === 'missed') return isMissedDrill(drill);
     if (activeTab === 'scheduled') return drill.status === 'scheduled' && !isMissedDrill(drill);
     return drill.status === activeTab;
@@ -383,6 +428,14 @@ export default function Drills() {
 
   const filteredHistoryRecords = useMemo(() => {
     return normalizedHistoryRecords.filter((record) => {
+      if (activeTab === 'history' && (record.operationKind ?? 'drill') !== 'drill') {
+        return false;
+      }
+
+      if (activeTab === 'emergency-reports' && (record.operationKind ?? 'drill') !== 'emergency') {
+        return false;
+      }
+
       const completedAt = new Date(record.completedAt);
 
       if (historyStartDate) {
@@ -401,7 +454,7 @@ export default function Drills() {
 
       return true;
     });
-  }, [normalizedHistoryRecords, historyStartDate, historyEndDate]);
+  }, [activeTab, normalizedHistoryRecords, historyStartDate, historyEndDate]);
 
   const downloadDrillHistoryCsv = () => {
     if (filteredHistoryRecords.length === 0) {
@@ -413,7 +466,9 @@ export default function Drills() {
     const headers = [
       'Record ID',
       'Drill ID',
+      'Operation Category',
       'Type',
+      'Outcome',
       'Building',
       'Initiated By',
       'Started At',
@@ -441,7 +496,13 @@ export default function Drills() {
       const values = [
         record.id,
         record.drillId,
-        drillTypeLabels[record.type],
+        (record.operationKind ?? 'drill') === 'emergency' ? 'Emergency' : 'Drill',
+        getOperationLabel(record.type, record.operationLabel),
+        (record.operationKind ?? 'drill') === 'emergency'
+          ? 'Resolved'
+          : isFailedDrillRecord(record, drillSuccessCriteria)
+            ? 'Failed'
+            : 'Completed',
         record.buildingName,
         record.initiatedBy,
         new Date(record.startedAt).toISOString(),
@@ -487,6 +548,14 @@ export default function Drills() {
       count: filteredHistoryRecords.length,
       records: filteredHistoryRecords.map((record) => ({
         ...record,
+        operationKind: record.operationKind ?? 'drill',
+        operationLabel: getOperationLabel(record.type, record.operationLabel),
+        outcome:
+          (record.operationKind ?? 'drill') === 'emergency'
+            ? 'resolved'
+            : isFailedDrillRecord(record, drillSuccessCriteria)
+              ? 'failed'
+              : 'completed',
         startedAt: new Date(record.startedAt).toISOString(),
         completedAt: new Date(record.completedAt).toISOString(),
       })),
@@ -517,6 +586,152 @@ export default function Drills() {
             <p className="text-muted-foreground mt-1">Schedule and manage safety drills</p>
           </div>
           <div className="flex items-center gap-2">
+            <Dialog open={isOperationSettingsOpen} onOpenChange={setIsOperationSettingsOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Settings2 className="w-4 h-4" />
+                  Operation Settings
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Drill & Emergency Configuration</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-foreground">Operation Types</h3>
+                    <div className="space-y-2">
+                      {operationTypes.map((operationType) => (
+                        <div key={operationType.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                          <div>
+                            <p className="font-medium text-foreground">{operationType.name}</p>
+                            <p className="text-xs text-muted-foreground uppercase">{operationType.category}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const next = operationTypes.filter((entry) => entry.id !== operationType.id);
+                              if (next.length === 0) {
+                                toast.error('At least one operation type is required');
+                                return;
+                              }
+
+                              updateDrillOperationTypes(next);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-[1fr_180px_auto] md:items-end">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">New type name</label>
+                        <Input
+                          value={newOperationName}
+                          onChange={(event) => setNewOperationName(event.target.value)}
+                          placeholder="e.g., Chemical Spill Emergency"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Category</label>
+                        <Select
+                          value={newOperationCategory}
+                          onValueChange={(value: DrillOperationCategory) => setNewOperationCategory(value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="drill">Drill</SelectItem>
+                            <SelectItem value="emergency">Emergency</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        className="gap-1"
+                        onClick={() => {
+                          const normalizedName = newOperationName.trim();
+                          if (!normalizedName) {
+                            toast.error('Enter an operation type name');
+                            return;
+                          }
+
+                          const nextId = normalizedName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                          if (!nextId) {
+                            toast.error('Operation type name is invalid');
+                            return;
+                          }
+
+                          if (operationTypes.some((entry) => entry.id === nextId)) {
+                            toast.error('An operation type with this name already exists');
+                            return;
+                          }
+
+                          updateDrillOperationTypes([
+                            ...operationTypes,
+                            {
+                              id: nextId,
+                              name: normalizedName,
+                              category: newOperationCategory,
+                              enabled: true,
+                            },
+                          ]);
+                          setNewOperationName('');
+                        }}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-foreground">Drill Success Criteria</h3>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Minimum accounted percentage to pass</label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={drillSuccessCriteria.drillPassThresholdPercent}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            updateDrillSuccessCriteria({
+                              drillPassThresholdPercent: Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Maximum duration (minutes) to pass</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={drillSuccessCriteria.drillPassThresholdMinutes}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            updateDrillSuccessCriteria({
+                              drillPassThresholdMinutes: Number.isFinite(value) ? Math.max(1, value) : 1,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Drill outcomes are marked failed if accounted percentage is below threshold or duration exceeds the time limit. Emergency operations are always reported as resolved and are excluded from pass/fail.
+                    </p>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2" disabled={!canStartDrills}>
@@ -527,6 +742,7 @@ export default function Drills() {
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <StartDrillForm
                   buildings={visibleBuildings}
+                  operationTypes={operationTypes}
                   mode="schedule"
                   onSubmit={handleScheduleDrill}
                   onCancel={() => setIsScheduleDialogOpen(false)}
@@ -544,6 +760,7 @@ export default function Drills() {
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                 <StartDrillForm
                   buildings={visibleBuildings}
+                  operationTypes={operationTypes}
                   onSubmit={handleStartDrill}
                   onCancel={() => setIsStartDialogOpen(false)}
                 />
@@ -556,6 +773,7 @@ export default function Drills() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="all">All Drills</TabsTrigger>
+            <TabsTrigger value="emergency">Emergencies</TabsTrigger>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
             <TabsTrigger value="missed">Missed</TabsTrigger>
@@ -565,10 +783,14 @@ export default function Drills() {
               <BarChart3 className="w-3 h-3" />
               History & Stats
             </TabsTrigger>
+            <TabsTrigger value="emergency-reports" className="gap-1">
+              <BarChart3 className="w-3 h-3" />
+              Emergency Reports
+            </TabsTrigger>
           </TabsList>
 
-          {/* Drill History Tab */}
-          <TabsContent value="history" className="mt-6">
+          {/* Reports Tabs */}
+          <TabsContent value={activeTab === 'emergency-reports' ? 'emergency-reports' : 'history'} className="mt-6">
             <div className="space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                 <div className="flex flex-wrap items-end gap-2">
@@ -640,16 +862,18 @@ export default function Drills() {
               </div>
 
               <div className="text-sm text-muted-foreground">
-                Showing {filteredHistoryRecords.length} of {normalizedHistoryRecords.length} drill record(s)
+                Showing {filteredHistoryRecords.length} of {normalizedHistoryRecords.length} {activeTab === 'emergency-reports' ? 'emergency' : 'drill'} record(s)
               </div>
               <div className="text-xs text-muted-foreground">
-                Failed drill criteria: accounted-for percentage below {drillFailureThresholdPercent}% of uploaded personnel.
+                {activeTab === 'emergency-reports'
+                  ? 'Emergency reports are tracked separately and do not use pass/fail scoring.'
+                  : `Failed drill criteria: accounted percentage under ${drillSuccessCriteria.drillPassThresholdPercent}% or duration over ${drillSuccessCriteria.drillPassThresholdMinutes} minutes.`}
               </div>
 
               {filteredHistoryRecords.length === 0 ? (
                 <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground">
                   <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium">No drill records in selected range</p>
+                  <p className="font-medium">No {activeTab === 'emergency-reports' ? 'emergency' : 'drill'} records in selected range</p>
                   <p className="text-sm mt-1">Adjust the date range or clear filters to view all history</p>
                 </div>
               ) : (
@@ -658,18 +882,18 @@ export default function Drills() {
                     key={record.id}
                     className={cn(
                       'bg-card border border-border rounded-xl p-6 cursor-pointer hover:shadow-md transition-all',
-                      isFailedDrillRecord(record, drillFailureThresholdPercent) && 'border-emergency/40 bg-emergency-muted/20',
+                      isFailedDrillRecord(record, drillSuccessCriteria) && 'border-emergency/40 bg-emergency-muted/20',
                     )}
                     onClick={() => setSelectedRecord(record)}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
-                        <div className={cn('p-3 rounded-lg', drillTypeColors[record.type])}>
+                        <div className={cn('p-3 rounded-lg', getOperationColor(record.operationKind ?? 'drill'))}>
                           <Siren className="w-6 h-6" />
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-foreground">
-                            {drillTypeLabels[record.type]}
+                            {getOperationLabel(record.type, record.operationLabel)}
                           </h3>
                           <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1.5">
@@ -690,10 +914,14 @@ export default function Drills() {
                         variant="secondary"
                         className={cn(
                           'text-xs',
-                          isFailedDrillRecord(record, drillFailureThresholdPercent) && 'bg-emergency-muted text-emergency border border-emergency/30',
+                          isFailedDrillRecord(record, drillSuccessCriteria) && 'bg-emergency-muted text-emergency border border-emergency/30',
                         )}
                       >
-                          {isFailedDrillRecord(record, drillFailureThresholdPercent) ? 'Failed' : 'Completed'}
+                            {(record.operationKind ?? 'drill') === 'emergency'
+                              ? 'Resolved'
+                              : isFailedDrillRecord(record, drillSuccessCriteria)
+                                ? 'Failed'
+                                : 'Completed'}
                       </Badge>
                     </div>
 
@@ -760,7 +988,7 @@ export default function Drills() {
           </TabsContent>
 
           {/* Other tabs */}
-          {['all', 'active', 'scheduled', 'missed', 'completed', 'failed'].map(tab => (
+          {['all', 'emergency', 'active', 'scheduled', 'missed', 'completed', 'failed'].map(tab => (
             <TabsContent key={tab} value={tab} className="mt-6">
               <div className="grid gap-4">
                 {filteredDrills.length === 0 ? (
@@ -770,7 +998,7 @@ export default function Drills() {
                 ) : (
                   filteredDrills.map((drill) => {
                     const matchingRecord = normalizedHistoryRecords.find((record) => record.drillId === drill.id);
-                    const isFailedCompletedDrill = drill.status === 'completed' && !!matchingRecord && isFailedDrillRecord(matchingRecord, drillFailureThresholdPercent);
+                    const isFailedCompletedDrill = drill.status === 'completed' && !!matchingRecord && isFailedDrillRecord(matchingRecord, drillSuccessCriteria);
                     const statusKey = isMissedDrill(drill) ? 'missed' : isFailedCompletedDrill ? 'failed' : drill.status;
                     const status = statusConfig[statusKey as keyof typeof statusConfig];
                     const StatusIcon = status.icon;
@@ -790,14 +1018,17 @@ export default function Drills() {
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
-                            <div className={cn('p-3 rounded-lg', drillTypeColors[drill.type])}>
+                            <div className={cn('p-3 rounded-lg', getOperationColor(drill.operationKind ?? 'drill'))}>
                               <Siren className="w-6 h-6" />
                             </div>
                             <div>
                               <div className="flex items-center gap-3">
                                 <h3 className="text-lg font-semibold text-foreground">
-                                  {drillTypeLabels[drill.type]}
+                                  {getOperationLabel(drill.type, drill.operationLabel)}
                                 </h3>
+                                {(drill.operationKind ?? 'drill') === 'emergency' && (
+                                  <Badge variant="outline" className="text-xs">Emergency</Badge>
+                                )}
                                 <span className={cn(
                                   'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full',
                                   status.bg, status.color
@@ -858,17 +1089,18 @@ export default function Drills() {
                                   logAuditEvent({
                                     module: 'drills',
                                     action: 'start_scheduled_drill',
-                                    description: `Started scheduled ${drillTypeLabels[drill.type]}`,
+                                    description: `Started scheduled ${getOperationLabel(drill.type, drill.operationLabel)}`,
                                     location: {
                                       buildingId: drill.location.buildingId,
                                       areaIds: getSafeAreaIds(drill),
                                     },
                                     metadata: {
                                       type: drill.type,
+                                      operationKind: drill.operationKind ?? 'drill',
                                     },
                                   });
                                   startDrill(activeDrill);
-                                  toast.success(`${drillTypeLabels[drill.type]} started!`);
+                                  toast.success(`${getOperationLabel(drill.type, drill.operationLabel)} started!`);
                                 }}
                               >
                                 <Play className="w-4 h-4 mr-1" />

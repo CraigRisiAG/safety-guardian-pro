@@ -201,6 +201,8 @@ export interface AdminSettings {
   customIncidentFields: CustomIncidentField[];
   checkTypeFields?: import('./compliance').CheckTypeField[];
   complianceScoring?: ComplianceScoringSettings;
+  drillOperationTypes?: DrillOperationType[];
+  drillSuccessCriteria?: DrillSuccessCriteria;
 }
 
 export interface ComplianceScoringWeights {
@@ -218,6 +220,20 @@ export interface ComplianceScoringSettings {
   areaReportPeriod: 'monthly' | 'quarterly';
 }
 
+export type DrillOperationCategory = 'drill' | 'emergency';
+
+export interface DrillOperationType {
+  id: string;
+  name: string;
+  category: DrillOperationCategory;
+  enabled: boolean;
+}
+
+export interface DrillSuccessCriteria {
+  drillPassThresholdPercent: number;
+  drillPassThresholdMinutes: number;
+}
+
 export const DEFAULT_COMPLIANCE_SCORING_SETTINGS: ComplianceScoringSettings = {
   weights: {
     checksQuality: 40,
@@ -229,6 +245,21 @@ export const DEFAULT_COMPLIANCE_SCORING_SETTINGS: ComplianceScoringSettings = {
   overduePenaltyPerCheck: 0.5,
   drillFailureThresholdPercent: 50,
   areaReportPeriod: 'monthly',
+};
+
+export const DEFAULT_DRILL_OPERATION_TYPES: DrillOperationType[] = [
+  { id: 'fire', name: 'Fire Drill', category: 'drill', enabled: true },
+  { id: 'earthquake', name: 'Earthquake Drill', category: 'drill', enabled: true },
+  { id: 'lockdown', name: 'Lockdown Drill', category: 'drill', enabled: true },
+  { id: 'evacuation', name: 'Evacuation Drill', category: 'drill', enabled: true },
+  { id: 'medical', name: 'Medical Drill', category: 'drill', enabled: true },
+  { id: 'fire_emergency', name: 'Fire Emergency', category: 'emergency', enabled: true },
+  { id: 'medical_emergency', name: 'Medical Emergency', category: 'emergency', enabled: true },
+];
+
+export const DEFAULT_DRILL_SUCCESS_CRITERIA: DrillSuccessCriteria = {
+  drillPassThresholdPercent: 90,
+  drillPassThresholdMinutes: 15,
 };
 
 export const DEFAULT_COMPLIANCE_CATEGORIES: ComplianceCategory[] = [

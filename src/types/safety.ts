@@ -40,7 +40,9 @@ export interface Incident {
 
 export interface Drill {
   id: string;
-  type: 'fire' | 'earthquake' | 'lockdown' | 'evacuation' | 'medical';
+  type: string;
+  operationKind?: 'drill' | 'emergency';
+  operationLabel?: string;
   status: 'scheduled' | 'active' | 'completed' | 'cancelled';
   location: {
     buildingId: string;
@@ -77,6 +79,8 @@ export interface DrillRecord {
   id: string;
   drillId: string;
   type: DrillType;
+  operationKind?: 'drill' | 'emergency';
+  operationLabel?: string;
   buildingId: string;
   buildingName: string;
   floors: { id: string; name: string }[];

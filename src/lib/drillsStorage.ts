@@ -38,6 +38,10 @@ function parseDrill(raw: RawDrill): Drill {
   return {
     ...raw,
     status: safeStatus,
+    operationKind: raw.operationKind === 'emergency' ? 'emergency' : 'drill',
+    operationLabel: typeof raw.operationLabel === 'string' && raw.operationLabel.trim().length > 0
+      ? raw.operationLabel
+      : undefined,
     location: safeLocation,
     startedAt: parseDateSafe(raw.startedAt),
     completedAt: parseDateSafe(raw.completedAt),

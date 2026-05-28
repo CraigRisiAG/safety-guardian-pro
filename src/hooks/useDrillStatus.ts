@@ -72,6 +72,10 @@ const parseActiveDrill = (stored: string | null): Drill | null => {
     return {
       id: parsed.id,
       type: parsed.type,
+      operationKind: parsed.operationKind === 'emergency' ? 'emergency' : 'drill',
+      operationLabel: typeof parsed.operationLabel === 'string' && parsed.operationLabel.trim().length > 0
+        ? parsed.operationLabel
+        : undefined,
       status: parsed.status === 'active' || parsed.status === 'scheduled' || parsed.status === 'completed' || parsed.status === 'cancelled'
         ? parsed.status
         : 'active',
@@ -380,6 +384,8 @@ export function useDrillStatus() {
       id: `record-${Date.now()}`,
       drillId: drillToEnd.id,
       type: drillToEnd.type,
+      operationKind: drillToEnd.operationKind === 'emergency' ? 'emergency' : 'drill',
+      operationLabel: drillToEnd.operationLabel,
       buildingId: drillToEnd.location.buildingId,
       buildingName: building?.name || 'Unknown',
       floors: floors.map((floor) => ({ id: floor.id, name: floor.name })),
