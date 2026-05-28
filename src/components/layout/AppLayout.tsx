@@ -6,6 +6,8 @@ import {
   Siren, 
   ShieldCheck,
   Settings,
+  CalendarDays,
+  Activity,
   Bell,
   Menu,
   X
@@ -40,6 +42,8 @@ const NOTIFICATIONS_SEEN_KEY_PREFIX = 'safeguard_notifications_seen';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Compliance Calendar', href: '/compliance-calendar', icon: CalendarDays },
+  { name: 'Health Officials', href: '/health-official-gaps', icon: Activity },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
   { name: 'Drills', href: '/drills', icon: Siren },
   { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck, requiresDrill: true },

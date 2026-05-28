@@ -15,6 +15,7 @@ import { QuickCheckAssignment } from './QuickCheckAssignment';
 import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
 import { loadMissedComplianceRecords } from '@/lib/complianceMonitoring';
 import { getNextComplianceDueDate } from '@/utils/complianceRecurrence';
+import { getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
 import {
   format, 
   startOfMonth, 
@@ -92,9 +93,10 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 
 interface ComplianceCalendarDialogProps {
   onStartCheck?: (check: ComplianceCheck, onBehalfOf?: UserPermission) => void;
+  displayMode?: 'dialog' | 'inline';
 }
 
-export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDialogProps) {
+export function ComplianceCalendarDialog({ onStartCheck, displayMode = 'dialog' }: ComplianceCalendarDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -113,6 +115,58 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   }, [user, settings.userPermissions]);
 
   const isAdmin = currentUserPermission?.role === 'admin' || currentUserPermission?.role === 'super_admin';
+  const isSuperAdmin = isSuperAdminPermission(currentUserPermission);
+
+  const scopedAreaIds = useMemo(() => new Set(getScopedAreaIds(currentUserPermission, settings.buildings)), [
+    currentUserPermission,
+    settings.buildings,
+  ]);
+
+  const isCheckVisible = useCallback((check: ComplianceCheck) => {
+    if (isSuperAdmin) {
+      return true;
+    }
+
+    if (currentUserPermission?.role === 'admin') {
+      if (scopedAreaIds.size === 0) {
+        return true;
+      }
+
+      const checkAreaIds = check.areaIds ?? [];
+      if (checkAreaIds.length > 0) {
+        return checkAreaIds.some((areaId) => scopedAreaIds.has(areaId));
+      }
+
+      const floorAreaIds = settings.buildings
+        .flatMap((building) => building.floors)
+        .filter((floor) => (check.floorIds ?? []).includes(floor.id))
+        .flatMap((floor) => floor.areas.map((area) => area.id));
+
+      if (floorAreaIds.length > 0) {
+        return floorAreaIds.some((areaId) => scopedAreaIds.has(areaId));
+      }
+
+      const buildingAreaIds = settings.buildings
+        .filter((building) => (check.buildingIds ?? []).includes(building.id))
+        .flatMap((building) => building.floors.flatMap((floor) => floor.areas.map((area) => area.id)));
+
+      if (buildingAreaIds.length > 0) {
+        return buildingAreaIds.some((areaId) => scopedAreaIds.has(areaId));
+      }
+
+      return true;
+    }
+
+    if (!currentUserPermission) {
+      return false;
+    }
+
+    return resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings).some(
+      (entry) =>
+        entry.id === currentUserPermission.id ||
+        entry.userId === currentUserPermission.userId,
+    );
+  }, [currentUserPermission, isSuperAdmin, scopedAreaIds, settings.buildings, settings.userPermissions]);
 
   // Load completed checks from localStorage
   const completedChecks = useMemo((): CompletedCheckRecord[] => {
@@ -177,18 +231,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     const now = new Date();
 
     // Filter scheduled checks based on user permissions
-    const visibleChecks = settings.complianceChecks.filter(check => {
-      // Admins and super_admins see all checks
-      if (isAdmin) return true;
-      
-      // Regular users only see their assigned checks
-      if (!currentUserPermission) return false;
-      return resolveCheckAssignedUsers(check, settings.userPermissions, settings.buildings).some(
-        (entry) =>
-          entry.id === currentUserPermission.id ||
-          entry.userId === currentUserPermission.userId,
-      );
-    });
+    const visibleChecks = settings.complianceChecks.filter((check) => isCheckVisible(check));
 
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -261,7 +304,8 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
     // Add completed checks (all users can see their own completed checks)
     const visibleCompletedChecks = completedChecks.filter(record => {
-      if (isAdmin) return true;
+      if (isSuperAdmin) return true;
+      if (currentUserPermission?.role === 'admin') return true;
       if (!currentUserPermission) return false;
       return record.completedBy.userId === currentUserPermission.id || 
              record.completedBy.userId === currentUserPermission.userId;
@@ -282,7 +326,17 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
     const missedRecords = loadMissedComplianceRecords().filter((entry) => entry.status === 'incomplete');
     const visibleMissedRecords = missedRecords.filter((record) => {
-      if (isAdmin) return true;
+      if (isSuperAdmin) return true;
+      if (currentUserPermission?.role === 'admin') {
+        const hasAreaScope = record.areaIds?.length > 0;
+        if (!hasAreaScope) {
+          return true;
+        }
+        if (scopedAreaIds.size === 0) {
+          return true;
+        }
+        return record.areaIds.some((areaId) => scopedAreaIds.has(areaId));
+      }
       if (!currentUserPermission) return false;
       return (
         record.assignedUserIds.includes(currentUserPermission.id) ||
@@ -303,7 +357,16 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
 
     // Add certificate recertification events
     const visibleCerts = certificates.filter(cert => {
-      if (isAdmin) return true;
+      if (isSuperAdmin) return true;
+      if (currentUserPermission?.role === 'admin') {
+        if (scopedAreaIds.size === 0) {
+          return true;
+        }
+        const certPerson = settings.userPermissions.find(
+          (permission) => permission.id === cert.userId || permission.userId === cert.userId,
+        );
+        return !!certPerson?.primaryAreaId && scopedAreaIds.has(certPerson.primaryAreaId);
+      }
       if (!currentUserPermission) return false;
       return cert.userId === currentUserPermission.id || cert.userId === currentUserPermission.userId;
     });
@@ -321,7 +384,25 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     });
 
     return events;
-  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, completedChecks, isAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails]);
+  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, completedChecks, isSuperAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails, isCheckVisible, scopedAreaIds]);
+
+  const upcomingEvents = useMemo(() => {
+    const now = new Date();
+    return calendarEvents
+      .filter((event) => {
+        if (event.type === 'completed') {
+          return false;
+        }
+
+        if (event.status === 'overdue' || event.status === 'recert_overdue' || event.status === 'incomplete') {
+          return true;
+        }
+
+        return event.date >= now;
+      })
+      .sort((left, right) => left.date.getTime() - right.date.getTime())
+      .slice(0, 50);
+  }, [calendarEvents]);
 
   // Get days for the current month view
   const calendarDays = useMemo(() => {
@@ -368,7 +449,9 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
   const handleStartCheck = (event: CalendarEvent) => {
     if (event.checkData && onStartCheck) {
       onStartCheck(event.checkData);
-      setIsOpen(false);
+      if (displayMode === 'dialog') {
+        setIsOpen(false);
+      }
     }
   };
 
@@ -386,6 +469,263 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
     };
   }, [calendarEvents, currentMonth]);
 
+  const calendarDescription =
+    isSuperAdmin
+      ? 'View all scheduled and completed compliance checks across all areas.'
+      : currentUserPermission?.role === 'admin'
+        ? 'View compliance events scoped to your assigned area/floor/building.'
+        : 'View your assigned compliance checks and related recertification events.';
+
+  const calendarPanel = (
+    <>
+      {displayMode === 'dialog' ? (
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-primary" />
+            Compliance Calendar
+          </DialogTitle>
+          <DialogDescription>{calendarDescription}</DialogDescription>
+        </DialogHeader>
+      ) : (
+        <div className="space-y-1.5">
+          <h2 className="text-lg font-semibold leading-none tracking-tight flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-primary" />
+            Compliance Calendar
+          </h2>
+          <p className="text-sm text-muted-foreground">{calendarDescription}</p>
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Calendar Grid */}
+        <div className="flex-1">
+          {/* Month Navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">
+                {format(currentMonth, 'MMMM yyyy')}
+              </h3>
+              <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs">
+                Today
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleAssignCheck}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Assign Check
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAssignTraining}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Assign Training
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+              <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar Days */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map(day => {
+              const dayEvents = getEventsForDay(day);
+              const isCurrentMonth = isSameMonth(day, currentMonth);
+              const isSelected = selectedDate && isSameDay(day, selectedDate);
+              const isTodayDate = isToday(day);
+
+              return (
+                <TooltipProvider key={day.toISOString()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setSelectedDate(day)}
+                        className={`
+                            min-h-[60px] p-1 rounded-lg border transition-colors text-left
+                            ${isCurrentMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground'}
+                            ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border hover:border-primary/50'}
+                            ${isTodayDate ? 'bg-primary/10' : ''}
+                          `}
+                      >
+                        <div className={`text-xs font-medium mb-1 ${isTodayDate ? 'text-primary font-bold' : ''}`}>
+                          {format(day, 'd')}
+                        </div>
+
+                        {dayEvents.length > 0 && (
+                          <div className="flex flex-wrap gap-0.5">
+                            {dayEvents.slice(0, 3).map(event => (
+                              <div
+                                key={event.id}
+                                className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[event.status]}`}
+                              />
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{dayEvents.length - 3}</span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    {dayEvents.length > 0 && (
+                      <TooltipContent side="top" className="max-w-xs">
+                        <div className="space-y-1">
+                          {dayEvents.map(event => (
+                            <div key={event.id} className="flex items-center gap-1.5 text-xs">
+                              <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[event.status]}`} />
+                              <span className="truncate">{event.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-safe" />
+              <span>Passed ({stats.passed})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-emergency" />
+              <span>Failed ({stats.failed})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-warning" />
+              <span>Partial</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-info" />
+              <span>Scheduled ({stats.scheduled})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-emergency/80" />
+              <span>Overdue ({stats.overdue})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-emergency" />
+              <span>Missed ({stats.incomplete})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: Upcoming Events */}
+        <div className="lg:w-80 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-sm">Upcoming Events</h4>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAssignCheck}
+              className="text-xs h-7"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Assign
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[340px] lg:h-[460px]">
+            {upcomingEvents.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4 text-center">
+                No upcoming events in your scope.
+              </div>
+            ) : (
+              <div className="space-y-3 pr-3">
+                {upcomingEvents.map((event) => (
+                  <div
+                    key={`upcoming-${event.id}`}
+                    className={`
+                        p-3 rounded-lg border bg-card transition-colors
+                        ${event.type === 'scheduled' && event.checkData
+                          ? 'hover:bg-accent/50 cursor-pointer hover:border-primary/30'
+                          : ''
+                        }
+                      `}
+                    onClick={() => event.type === 'scheduled' && handleStartCheck(event)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="font-medium text-sm">{event.title}</span>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] px-1.5 py-0 ${STATUS_COLORS[event.status]}`}
+                      >
+                        <span className="flex items-center gap-1">
+                          {STATUS_ICONS[event.status]}
+                          {event.status}
+                        </span>
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <CalendarCheck className="w-3 h-3" />
+                        <span>{format(event.date, 'EEE, dd MMM yyyy h:mm a')}</span>
+                      </div>
+                      {event.building && (
+                        <div className="text-xs">📍 {event.building}</div>
+                      )}
+                      {event.locationDetails && (
+                        <div className="text-xs">{event.locationDetails}</div>
+                      )}
+                    </div>
+
+                    {event.type === 'scheduled' && event.checkData && onStartCheck && (
+                      <Button
+                        size="sm"
+                        variant={event.status === 'overdue' ? 'destructive' : 'default'}
+                        className="w-full mt-2"
+                        onClick={(e) => { e.stopPropagation(); handleStartCheck(event); }}
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Start Check
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      </div>
+
+      {/* Quick Check Assignment Dialog */}
+      <QuickCheckAssignment
+        open={showAssignDialog}
+        onOpenChange={setShowAssignDialog}
+        initialDate={selectedDate || new Date()}
+        assignmentMode={assignDialogMode}
+      />
+    </>
+  );
+
+  if (displayMode === 'inline') {
+    return <div className="space-y-4">{calendarPanel}</div>;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -395,277 +735,7 @@ export function ComplianceCalendarDialog({ onStartCheck }: ComplianceCalendarDia
         </button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-primary" />
-            Compliance Calendar
-          </DialogTitle>
-          <DialogDescription>
-            {isAdmin 
-              ? 'View all scheduled and completed compliance checks. Click on pending checks to start them or complete on behalf of others.'
-              : 'View your assigned compliance checks. Click on pending checks to start them.'
-            }
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Calendar Grid */}
-          <div className="flex-1">
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-4">
-              <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">
-                  {format(currentMonth, 'MMMM yyyy')}
-                </h3>
-                <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs">
-                  Today
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="default" 
-                  size="sm" 
-                  onClick={handleAssignCheck}
-                  className="text-xs"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Assign Check
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAssignTraining}
-                  className="text-xs"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Assign Training
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Day Headers */}
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Days */}
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map(day => {
-                const dayEvents = getEventsForDay(day);
-                const isCurrentMonth = isSameMonth(day, currentMonth);
-                const isSelected = selectedDate && isSameDay(day, selectedDate);
-                const isTodayDate = isToday(day);
-                
-                return (
-                  <TooltipProvider key={day.toISOString()}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setSelectedDate(day)}
-                          className={`
-                            min-h-[60px] p-1 rounded-lg border transition-colors text-left
-                            ${isCurrentMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground'}
-                            ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border hover:border-primary/50'}
-                            ${isTodayDate ? 'bg-primary/10' : ''}
-                          `}
-                        >
-                          <div className={`text-xs font-medium mb-1 ${isTodayDate ? 'text-primary font-bold' : ''}`}>
-                            {format(day, 'd')}
-                          </div>
-                          
-                          {dayEvents.length > 0 && (
-                            <div className="flex flex-wrap gap-0.5">
-                              {dayEvents.slice(0, 3).map(event => (
-                                <div
-                                  key={event.id}
-                                  className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[event.status]}`}
-                                />
-                              ))}
-                              {dayEvents.length > 3 && (
-                                <span className="text-[10px] text-muted-foreground">+{dayEvents.length - 3}</span>
-                              )}
-                            </div>
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      {dayEvents.length > 0 && (
-                        <TooltipContent side="top" className="max-w-xs">
-                          <div className="space-y-1">
-                            {dayEvents.map(event => (
-                              <div key={event.id} className="flex items-center gap-1.5 text-xs">
-                                <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[event.status]}`} />
-                                <span className="truncate">{event.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })}
-            </div>
-
-            {/* Legend */}
-            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t text-xs">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-safe" />
-                <span>Passed ({stats.passed})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emergency" />
-                <span>Failed ({stats.failed})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-warning" />
-                <span>Partial</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-info" />
-                <span>Scheduled ({stats.scheduled})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emergency/80" />
-                <span>Overdue ({stats.overdue})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emergency" />
-                <span>Missed ({stats.incomplete})</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Selected Day Details */}
-          <div className="lg:w-72 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-sm">
-                {selectedDate 
-                  ? format(selectedDate, 'EEEE, MMMM d, yyyy')
-                  : 'Select a day to view details'
-                }
-              </h4>
-              {selectedDate && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAssignCheck}
-                  className="text-xs h-7"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Assign Check
-                </Button>
-              )}
-            </div>
-            
-            {selectedDate && (
-              <ScrollArea className="h-[280px] lg:h-[400px]">
-                {selectedDateEvents.length === 0 ? (
-                  <div className="text-sm text-muted-foreground py-4 text-center">
-                    No compliance events on this day
-                  </div>
-                ) : (
-                  <div className="space-y-3 pr-3">
-                    {selectedDateEvents.map(event => (
-                      <div 
-                        key={event.id} 
-                        className={`
-                          p-3 rounded-lg border bg-card transition-colors
-                          ${event.type === 'scheduled' && event.checkData 
-                            ? 'hover:bg-accent/50 cursor-pointer hover:border-primary/30' 
-                            : ''
-                          }
-                        `}
-                        onClick={() => event.type === 'scheduled' && handleStartCheck(event)}
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="font-medium text-sm">{event.title}</span>
-                          <Badge 
-                            variant="secondary"
-                            className={`text-[10px] px-1.5 py-0 ${STATUS_COLORS[event.status]}`}
-                          >
-                            <span className="flex items-center gap-1">
-                              {STATUS_ICONS[event.status]}
-                              {event.status}
-                            </span>
-                          </Badge>
-                        </div>
-                        
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <CalendarCheck className="w-3 h-3" />
-                            <span>
-                              {event.type === 'completed'
-                                ? 'Completed'
-                                : event.type === 'recertification'
-                                  ? 'Recertification due'
-                                  : event.type === 'missed'
-                                    ? 'Missed and logged incomplete'
-                                    : 'Scheduled'}
-                              {event.type !== 'recertification' && ` at ${format(event.date, 'h:mm a')}`}
-                              {event.type === 'recertification' && ` ${format(event.date, 'dd MMM yyyy')}`}
-                            </span>
-                          </div>
-                          {event.completedByName && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <User className="w-3 h-3" />
-                              <span>By: {event.completedByName}</span>
-                            </div>
-                          )}
-                          {event.building && (
-                            <div className="text-xs">
-                              📍 {event.building}
-                            </div>
-                          )}
-                          {event.locationDetails && (
-                            <div className="text-xs">
-                              {event.locationDetails}
-                            </div>
-                          )}
-                          {event.checkType && (
-                            <div className="text-xs capitalize">
-                              Type: {event.checkType.replace('-', ' ')}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Start Check Button for scheduled checks */}
-                        {event.type === 'scheduled' && event.checkData && onStartCheck && (
-                          <Button 
-                            size="sm" 
-                            variant={event.status === 'overdue' ? 'destructive' : 'default'}
-                            className="w-full mt-2"
-                            onClick={(e) => { e.stopPropagation(); handleStartCheck(event); }}
-                          >
-                            <Play className="w-3 h-3 mr-1" />
-                            Start Check
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Check Assignment Dialog */}
-        <QuickCheckAssignment
-          open={showAssignDialog}
-          onOpenChange={setShowAssignDialog}
-          initialDate={selectedDate || new Date()}
-          assignmentMode={assignDialogMode}
-        />
+        {calendarPanel}
       </DialogContent>
     </Dialog>
   );

@@ -23,7 +23,7 @@ vi.mock('./QuickCheckAssignment', () => ({
 }));
 
 describe('ComplianceCalendarDialog training completion visibility', () => {
-  it('shows passed training as completed and not assigned in calendar day details', async () => {
+  it('shows passed training in calendar stats and does not expose it as a startable assignment', async () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -138,8 +138,9 @@ describe('ComplianceCalendarDialog training completion visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Compliance Calendar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Today' }));
 
-    expect(await screen.findByText(/Completed/)).toBeInTheDocument();
-    expect(screen.getByText('pass')).toBeInTheDocument();
+    expect(await screen.findByText('Upcoming Events')).toBeInTheDocument();
+    expect(screen.getByText('Passed (1)')).toBeInTheDocument();
+    expect(screen.getByText('No upcoming events in your scope.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start Check' })).not.toBeInTheDocument();
   });
 });

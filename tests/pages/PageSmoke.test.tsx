@@ -11,6 +11,7 @@ import Register from '@/pages/Register';
 import NotFound from '@/pages/NotFound';
 import SafetyCheckIn from '@/pages/SafetyCheckIn';
 import HealthOfficialsGaps from '@/pages/HealthOfficialsGaps';
+import ComplianceCalendar from '@/pages/ComplianceCalendar';
 
 const mockUseAuth = vi.fn();
 const mockUseAdminSettings = vi.fn();
@@ -305,5 +306,10 @@ describe('Page smoke coverage', () => {
   it('renders health officials gaps page', () => {
     renderWithRouter(<HealthOfficialsGaps />);
     expect(screen.getByText('Health Officials Coverage Map')).toBeInTheDocument();
+  });
+
+  it('renders compliance calendar page', () => {
+    renderWithRouter(<ComplianceCalendar />);
+    expect(screen.getByText('Compliance Calendar')).toBeInTheDocument();
   });
 });
