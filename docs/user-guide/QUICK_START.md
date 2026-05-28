@@ -74,3 +74,19 @@ See the full guide with screenshots at:
 - Open the Missed Compliance Report card.
 - Filter by date range, safety role, and office area.
 - Export filtered results as CSV or JSON for audit and management reporting.
+
+## 8. Developer verification commands
+
+For local development and pull requests, use this quick check flow:
+
+1. Use the project Node version:
+	- `nvm install`
+	- `nvm use`
+2. Run unit and component tests:
+	- `npm run test`
+3. Run visual regression tests (non-update mode):
+	- `npm run test:visual`
+4. Run both in sequence when needed:
+	- `npm run test:all`
+5. Update visual snapshots only for intentional UI changes:
+	- `npm run test:visual:update`

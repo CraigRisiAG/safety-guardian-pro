@@ -188,18 +188,20 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-8 h-auto p-1">
-            {adminSections.map((section) => (
-              <TabsTrigger
-                key={section.id}
-                value={section.id}
-                className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 px-1 sm:px-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <section.icon className="w-4 h-4 shrink-0" />
-                <span className="hidden md:inline text-xs lg:text-sm truncate">{section.name}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="w-full overflow-x-auto">
+            <TabsList className="h-auto p-1 inline-flex min-w-max">
+              {adminSections.map((section) => (
+                <TabsTrigger
+                  key={section.id}
+                  value={section.id}
+                  className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 px-2 sm:px-3 shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <section.icon className="w-4 h-4 shrink-0" />
+                  <span className="text-xs lg:text-sm whitespace-nowrap">{section.name}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           <TabsContent value="buildings" className="space-y-6">
             <BuildingsManager 

@@ -24,6 +24,28 @@ npm i
 npm run dev
 ```
 
+## Development quality checks
+
+Use Node.js 22.12.0+ to avoid Vite runtime warnings.
+
+```sh
+# Use the pinned Node version for this repo
+nvm install
+nvm use
+
+# Run unit/integration tests
+npm run test
+
+# Run visual regression tests (non-snapshot update mode)
+npm run test:visual
+
+# Run both suites together
+npm run test:all
+
+# Only when UI changes are intentional, refresh snapshots
+npm run test:visual:update
+```
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).

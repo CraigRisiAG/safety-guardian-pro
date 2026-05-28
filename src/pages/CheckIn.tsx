@@ -783,58 +783,60 @@ export default function CheckIn() {
                 {checkIns.length} checked in
               </span>
             </div>
-            <div className="px-6 py-2 border-b border-border bg-muted/30">
-              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <span className="col-span-4">Person</span>
-                <span className="col-span-3">Location</span>
-                <span className="col-span-3">Checked In By</span>
-                <span className="col-span-2 text-right">Checked In</span>
+            <div className="overflow-x-auto">
+              <div className="min-w-[680px] px-6 py-2 border-b border-border bg-muted/30">
+                <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <span className="col-span-4">Person</span>
+                  <span className="col-span-3">Location</span>
+                  <span className="col-span-3">Checked In By</span>
+                  <span className="col-span-2 text-right">Checked In</span>
+                </div>
               </div>
-            </div>
-            <div className="divide-y divide-border max-h-80 overflow-y-auto">
-              {checkIns.map((checkIn) => {
-                const location = getLocationName(checkIn);
-                return (
-                  <div key={checkIn.id} className="px-6 py-3 grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-4 min-w-0 flex items-center gap-2">
-                      <div className={cn(
-                        'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
-                        checkIn.status === 'safe' ? 'bg-safe-muted' : 'bg-warning-muted'
-                      )}>
-                        {checkIn.status === 'safe'
-                          ? <ShieldCheck className="w-4 h-4 text-safe" />
-                          : <AlertCircle className="w-4 h-4 text-warning" />
-                        }
+              <div className="divide-y divide-border max-h-80 overflow-y-auto min-w-[680px]">
+                {checkIns.map((checkIn) => {
+                  const location = getLocationName(checkIn);
+                  return (
+                    <div key={checkIn.id} className="px-6 py-3 grid grid-cols-12 gap-3 items-center">
+                      <div className="col-span-4 min-w-0 flex items-center gap-2">
+                        <div className={cn(
+                          'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
+                          checkIn.status === 'safe' ? 'bg-safe-muted' : 'bg-warning-muted'
+                        )}>
+                          {checkIn.status === 'safe'
+                            ? <ShieldCheck className="w-4 h-4 text-safe" />
+                            : <AlertCircle className="w-4 h-4 text-warning" />
+                          }
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{checkIn.personName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{checkIn.staffCode || 'No staff code'}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{checkIn.personName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{checkIn.staffCode || 'No staff code'}</p>
+
+                      <div className="col-span-3 min-w-0">
+                        <p className="text-sm text-foreground truncate flex items-center gap-1">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          {location.area || 'Unknown area'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{location.floor || 'Unknown floor'}</p>
+                      </div>
+
+                      <div className="col-span-3 min-w-0">
+                        <p className="text-sm text-foreground truncate">
+                          {checkIn.checkedInByName || checkIn.personName}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {checkIn.isSelfCheckIn ? 'Self check-in' : 'Colleague check-in'}
+                        </p>
+                      </div>
+
+                      <div className="col-span-2 text-right text-xs text-muted-foreground">
+                        {checkIn.checkedInAt ? formatDistanceToNow(checkIn.checkedInAt, { addSuffix: true }) : '-'}
                       </div>
                     </div>
-
-                    <div className="col-span-3 min-w-0">
-                      <p className="text-sm text-foreground truncate flex items-center gap-1">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        {location.area || 'Unknown area'}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">{location.floor || 'Unknown floor'}</p>
-                    </div>
-
-                    <div className="col-span-3 min-w-0">
-                      <p className="text-sm text-foreground truncate">
-                        {checkIn.checkedInByName || checkIn.personName}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {checkIn.isSelfCheckIn ? 'Self check-in' : 'Colleague check-in'}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2 text-right text-xs text-muted-foreground">
-                      {checkIn.checkedInAt ? formatDistanceToNow(checkIn.checkedInAt, { addSuffix: true }) : '-'}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

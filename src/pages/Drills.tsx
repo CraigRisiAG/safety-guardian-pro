@@ -580,12 +580,12 @@ export default function Drills() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Drill Management</h1>
             <p className="text-muted-foreground mt-1">Schedule and manage safety drills</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <Dialog open={isOperationSettingsOpen} onOpenChange={setIsOperationSettingsOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2">
@@ -771,23 +771,25 @@ export default function Drills() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All Drills</TabsTrigger>
-            <TabsTrigger value="emergency">Emergencies</TabsTrigger>
-            <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="missed">Missed</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-            <TabsTrigger value="failed">Failed</TabsTrigger>
-            <TabsTrigger value="history" className="gap-1">
-              <BarChart3 className="w-3 h-3" />
-              History & Stats
-            </TabsTrigger>
-            <TabsTrigger value="emergency-reports" className="gap-1">
-              <BarChart3 className="w-3 h-3" />
-              Emergency Reports
-            </TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto">
+            <TabsList className="inline-flex min-w-max">
+              <TabsTrigger value="all" className="shrink-0">All Drills</TabsTrigger>
+              <TabsTrigger value="emergency" className="shrink-0">Emergencies</TabsTrigger>
+              <TabsTrigger value="active" className="shrink-0">Active</TabsTrigger>
+              <TabsTrigger value="scheduled" className="shrink-0">Scheduled</TabsTrigger>
+              <TabsTrigger value="missed" className="shrink-0">Missed</TabsTrigger>
+              <TabsTrigger value="completed" className="shrink-0">Completed</TabsTrigger>
+              <TabsTrigger value="failed" className="shrink-0">Failed</TabsTrigger>
+              <TabsTrigger value="history" className="gap-1 shrink-0">
+                <BarChart3 className="w-3 h-3" />
+                History & Stats
+              </TabsTrigger>
+              <TabsTrigger value="emergency-reports" className="gap-1 shrink-0">
+                <BarChart3 className="w-3 h-3" />
+                Emergency Reports
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Reports Tabs */}
           <TabsContent value={activeTab === 'emergency-reports' ? 'emergency-reports' : 'history'} className="mt-6">
