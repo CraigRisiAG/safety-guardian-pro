@@ -9,7 +9,7 @@ on:
 
 jobs:
   visual-regression:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -24,8 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browser + system deps
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browser
+        run: npx playwright install chromium
 
       - name: Run visual regression tests (non-snapshot update mode)
         run: npm run test:visual
