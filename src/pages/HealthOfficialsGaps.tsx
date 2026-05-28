@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -186,159 +187,260 @@ export default function HealthOfficialsGaps() {
     };
   }, [areaRows]);
 
+  const visibleSafetyOfficials = useMemo(() => {
+    return settings.userPermissions
+      .filter((person) => person.safetyRoles.length > 0)
+      .filter((person) => {
+        if (isSuperAdmin) {
+          return true;
+        }
+
+        if (!person.primaryAreaId) {
+          return false;
+        }
+
+        return scopedAreaIds.has(person.primaryAreaId);
+      })
+      .sort((left, right) => left.userName.localeCompare(right.userName));
+  }, [isSuperAdmin, scopedAreaIds, settings.userPermissions]);
+
+  const getAreaDisplay = (person: UserPermission) => {
+    if (!person.primaryAreaId) {
+      return 'Not set';
+    }
+
+    for (const building of settings.buildings) {
+      for (const floor of building.floors) {
+        const area = floor.areas.find((entry) => entry.id === person.primaryAreaId);
+        if (area) {
+          return `${building.name} - ${floor.name} / ${area.name}`;
+        }
+      }
+    }
+
+    return 'Unknown area';
+  };
+
+  const getContactDisplay = (person: UserPermission) => {
+    const phone = person.contactDetails?.phone;
+    const mobile = person.contactDetails?.mobile;
+
+    if (!phone && !mobile) {
+      return 'Not provided';
+    }
+
+    if (phone && mobile) {
+      return `${phone} / ${mobile}`;
+    }
+
+    return phone ?? mobile ?? 'Not provided';
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Health Officials Coverage Map</h1>
-          <p className="text-muted-foreground mt-1">
-            Areas are listed vertically, days run horizontally, and each role/day cell shows coverage in green (covered) or red (gap).
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Required days: {requiredDays.map((day) => WORK_DAY_LABELS[day]).join(', ')}
-          </p>
+          <p className="text-muted-foreground mt-1">Review coverage gaps and switch tabs to view the officials contact directory.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Areas in scope</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-foreground">{summary.totalAreas}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Covered role/day cells</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-safe">{summary.coveredCells}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Total official gaps</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-emergency">{summary.totalGapCount}</p>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="coverage-map" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="coverage-map">Coverage Map</TabsTrigger>
+            <TabsTrigger value="officials-contact-list">Officials Contact List</TabsTrigger>
+          </TabsList>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-block w-3 h-3 rounded-sm bg-safe-muted border border-safe/30" /> Covered
-          <span className="inline-block w-3 h-3 rounded-sm bg-emergency-muted border border-emergency/30 ml-4" /> Gap detected
-          <span className="inline-block w-3 h-3 rounded-sm bg-muted border border-border ml-4" /> Not required day
-        </div>
+          <TabsContent value="coverage-map" className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Required days: {requiredDays.map((day) => WORK_DAY_LABELS[day]).join(', ')}
+            </p>
 
-        {areaRows.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-sm text-muted-foreground">
-              No area data available for your current scope.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {areaRows.map((area) => (
-              <Card key={area.areaId}>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      className="text-left"
-                      onClick={() => {
-                        const people = settings.userPermissions.filter((person) => person.primaryAreaId === area.areaId);
-                        setSelectedArea({
-                          areaName: area.areaName,
-                          floorName: area.floorName,
-                          buildingName: area.buildingName,
-                          people,
-                        });
-                      }}
-                    >
-                      <CardTitle className="text-base hover:underline">{area.areaName}</CardTitle>
-                    </button>
-                    <span className="text-sm text-muted-foreground">
-                      {area.floorName}, {area.buildingName}
-                    </span>
-                    {typeof area.expectedHeadcount === 'number' && (
-                      <Badge variant="outline">Headcount {area.expectedHeadcount}</Badge>
-                    )}
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Areas in scope</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Role</th>
-                          {ALL_WORK_DAYS.map((day) => (
-                            <th key={day} className="text-center py-2 px-2 font-medium text-muted-foreground">
-                              {WORK_DAY_LABELS[day]}
-                            </th>
-                          ))}
-                          <th className="text-center py-2 pl-3 font-medium text-muted-foreground">Total Gaps</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {area.roleRows.map((row) => (
-                          <tr key={row.roleKey} className="border-b border-border/60 last:border-b-0">
-                            <td className="py-2 pr-3 font-medium text-foreground whitespace-nowrap">
-                              {SAFETY_ROLE_LABELS[row.roleKey]}
-                            </td>
-                            {row.cells.map((cell) => {
-                              const hasGap = cell.gapCount > 0;
-                              const hasPeopleInArea = cell.peopleInArea.length > 0;
-                              const isNotRequired = !cell.isRequired;
-                              return (
-                                <td key={`${row.roleKey}-${cell.day}`} className="py-2 px-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSelectedCell({
-                                        areaName: area.areaName,
-                                        floorName: area.floorName,
-                                        buildingName: area.buildingName,
-                                        roleKey: row.roleKey,
-                                        cell,
-                                      })
-                                    }
-                                    className={`w-full rounded-md border px-2 py-1 text-center text-xs font-medium transition-colors ${
-                                      isNotRequired
-                                        ? 'bg-muted text-muted-foreground border-border'
-                                        : hasGap
-                                          ? 'bg-emergency-muted text-emergency border-emergency/30'
-                                          : hasPeopleInArea
-                                            ? 'bg-safe-muted text-safe border-safe/30'
-                                            : 'bg-muted text-muted-foreground border-border'
-                                    }`}
-                                    title={
-                                      isNotRequired
-                                        ? 'Not required on this day'
-                                        : `Required ${cell.requiredCount}, Assigned ${cell.assignedCount}, Gap ${cell.gapCount}`
-                                    }
-                                  >
-                                    {isNotRequired ? 'N/A' : hasGap ? `Gap ${cell.gapCount}` : 'Covered'}
-                                  </button>
-                                </td>
-                              );
-                            })}
-                            <td className="py-2 pl-3 text-center">
-                              <Badge variant="outline" className={row.totalGap > 0 ? 'bg-emergency-muted text-emergency' : 'bg-safe-muted text-safe'}>
-                                {row.totalGap}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <p className="text-2xl font-bold text-foreground">{summary.totalAreas}</p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Covered role/day cells</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-safe">{summary.coveredCells}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Total official gaps</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-emergency">{summary.totalGapCount}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-block w-3 h-3 rounded-sm bg-safe-muted border border-safe/30" /> Covered
+              <span className="inline-block w-3 h-3 rounded-sm bg-emergency-muted border border-emergency/30 ml-4" /> Gap detected
+              <span className="inline-block w-3 h-3 rounded-sm bg-muted border border-border ml-4" /> Not required day
+            </div>
+
+            {areaRows.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-sm text-muted-foreground">
+                  No area data available for your current scope.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {areaRows.map((area) => (
+                  <Card key={area.areaId}>
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="text-left"
+                          onClick={() => {
+                            const people = settings.userPermissions.filter((person) => person.primaryAreaId === area.areaId);
+                            setSelectedArea({
+                              areaName: area.areaName,
+                              floorName: area.floorName,
+                              buildingName: area.buildingName,
+                              people,
+                            });
+                          }}
+                        >
+                          <CardTitle className="text-base hover:underline">{area.areaName}</CardTitle>
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {area.floorName}, {area.buildingName}
+                        </span>
+                        {typeof area.expectedHeadcount === 'number' && (
+                          <Badge variant="outline">Headcount {area.expectedHeadcount}</Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b border-border">
+                              <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Role</th>
+                              {ALL_WORK_DAYS.map((day) => (
+                                <th key={day} className="text-center py-2 px-2 font-medium text-muted-foreground">
+                                  {WORK_DAY_LABELS[day]}
+                                </th>
+                              ))}
+                              <th className="text-center py-2 pl-3 font-medium text-muted-foreground">Total Gaps</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {area.roleRows.map((row) => (
+                              <tr key={row.roleKey} className="border-b border-border/60 last:border-b-0">
+                                <td className="py-2 pr-3 font-medium text-foreground whitespace-nowrap">
+                                  {SAFETY_ROLE_LABELS[row.roleKey]}
+                                </td>
+                                {row.cells.map((cell) => {
+                                  const hasGap = cell.gapCount > 0;
+                                  const hasPeopleInArea = cell.peopleInArea.length > 0;
+                                  const isNotRequired = !cell.isRequired;
+                                  return (
+                                    <td key={`${row.roleKey}-${cell.day}`} className="py-2 px-2">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedCell({
+                                            areaName: area.areaName,
+                                            floorName: area.floorName,
+                                            buildingName: area.buildingName,
+                                            roleKey: row.roleKey,
+                                            cell,
+                                          })
+                                        }
+                                        className={`w-full rounded-md border px-2 py-1 text-center text-xs font-medium transition-colors ${
+                                          isNotRequired
+                                            ? 'bg-muted text-muted-foreground border-border'
+                                            : hasGap
+                                              ? 'bg-emergency-muted text-emergency border-emergency/30'
+                                              : hasPeopleInArea
+                                                ? 'bg-safe-muted text-safe border-safe/30'
+                                                : 'bg-muted text-muted-foreground border-border'
+                                        }`}
+                                        title={
+                                          isNotRequired
+                                            ? 'Not required on this day'
+                                            : `Required ${cell.requiredCount}, Assigned ${cell.assignedCount}, Gap ${cell.gapCount}`
+                                        }
+                                      >
+                                        {isNotRequired ? 'N/A' : hasGap ? `Gap ${cell.gapCount}` : 'Covered'}
+                                      </button>
+                                    </td>
+                                  );
+                                })}
+                                <td className="py-2 pl-3 text-center">
+                                  <Badge variant="outline" className={row.totalGap > 0 ? 'bg-emergency-muted text-emergency' : 'bg-safe-muted text-safe'}>
+                                    {row.totalGap}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="officials-contact-list">
+            <Card>
+              <CardHeader>
+                <CardTitle>Officials Contact List</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {visibleSafetyOfficials.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No safety officials are available for your current scope.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleSafetyOfficials.map((person) => (
+                      <div key={person.id} className="rounded-md border p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-medium text-foreground">{person.userName}</p>
+                            <p className="text-sm text-muted-foreground">{person.email}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {person.safetyRoles.map((role) => (
+                              <Badge key={`${person.id}-${role}`} variant="secondary">
+                                {SAFETY_ROLE_LABELS[role]}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Assigned Area</p>
+                            <p className="text-foreground">{getAreaDisplay(person)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Contact Details</p>
+                            <p className="text-foreground">{getContactDisplay(person)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={!!selectedCell} onOpenChange={(open) => !open && setSelectedCell(null)}>

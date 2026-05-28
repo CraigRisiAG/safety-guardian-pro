@@ -215,6 +215,8 @@ export default function Admin() {
             <HealthOfficialsCoverageSettings
               requiredDays={adminSettings.settings.healthOfficialsRequiredDays}
               onChange={adminSettings.updateHealthOfficialsRequiredDays}
+              permissions={adminSettings.settings.userPermissions}
+              buildings={adminSettings.settings.buildings}
             />
             <UserPermissionsManager 
               permissions={adminSettings.settings.userPermissions}

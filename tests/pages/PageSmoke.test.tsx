@@ -307,6 +307,7 @@ describe('Page smoke coverage', () => {
   it('renders health officials gaps page', () => {
     renderWithRouter(<HealthOfficialsGaps />);
     expect(screen.getByText('Health Officials Coverage Map')).toBeInTheDocument();
+    expect(screen.getByText('Officials Contact List')).toBeInTheDocument();
   });
 
   it('renders compliance calendar page', () => {
