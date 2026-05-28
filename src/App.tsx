@@ -19,6 +19,7 @@ import SafetyCheckIn from "./pages/SafetyCheckIn";
 import Admin from "./pages/Admin";
 import HealthOfficialsGaps from "./pages/HealthOfficialsGaps";
 import ComplianceCalendar from "./pages/ComplianceCalendar";
+import EmergencyChat from "./pages/EmergencyChat";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <HealthOfficialsGaps />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <EmergencyChat />
           </ProtectedRoute>
         }
       />

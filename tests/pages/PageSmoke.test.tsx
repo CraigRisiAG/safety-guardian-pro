@@ -12,6 +12,7 @@ import NotFound from '@/pages/NotFound';
 import SafetyCheckIn from '@/pages/SafetyCheckIn';
 import HealthOfficialsGaps from '@/pages/HealthOfficialsGaps';
 import ComplianceCalendar from '@/pages/ComplianceCalendar';
+import EmergencyChat from '@/pages/EmergencyChat';
 
 const mockUseAuth = vi.fn();
 const mockUseAdminSettings = vi.fn();
@@ -311,5 +312,10 @@ describe('Page smoke coverage', () => {
   it('renders compliance calendar page', () => {
     renderWithRouter(<ComplianceCalendar />);
     expect(screen.getByText('Compliance Calendar')).toBeInTheDocument();
+  });
+
+  it('renders emergency chat page', () => {
+    renderWithRouter(<EmergencyChat />);
+    expect(screen.getByText('Emergency Chat')).toBeInTheDocument();
   });
 });

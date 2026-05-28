@@ -10,6 +10,7 @@ Use one of the default accounts:
 ## 2. Learn the main areas
 
 - Dashboard: overview and quick actions
+- Emergency Chat: direct, emergency-wide, and active-drill coordination chat
 - Incidents: incident lifecycle and analytics
 - Drills: schedule/start/end drills and export history
 - Safety Check-In: personnel accountability during drills
@@ -18,9 +19,10 @@ Use one of the default accounts:
 ## 3. Run a basic drill scenario
 
 1. Open Drills and start a drill.
-2. Open Safety Check-In and record several personnel statuses.
-3. End the drill.
-4. Return to Drills > History and Stats and export the report.
+2. Open Emergency Chat and share urgent status updates in Drill Channel.
+3. Open Safety Check-In and record several personnel statuses.
+4. End the drill.
+5. Return to Drills > History and Stats and export the report.
 
 ## 4. Use screenshots while onboarding
 

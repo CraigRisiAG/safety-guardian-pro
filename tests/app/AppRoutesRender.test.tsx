@@ -54,6 +54,10 @@ vi.mock('@/pages/ComplianceCalendar', () => ({
   default: () => <div>COMPLIANCE_CALENDAR_PAGE</div>,
 }));
 
+vi.mock('@/pages/EmergencyChat', () => ({
+  default: () => <div>EMERGENCY_CHAT_PAGE</div>,
+}));
+
 vi.mock('@/pages/NotFound', () => ({
   default: () => <div>NOT_FOUND_PAGE</div>,
 }));
@@ -123,6 +127,7 @@ describe('App route rendering', () => {
     ['/incidents', 'INCIDENTS_PAGE'],
     ['/drills', 'DRILLS_PAGE'],
     ['/check-in', 'CHECK_IN_PAGE'],
+    ['/chat', 'EMERGENCY_CHAT_PAGE'],
     ['/compliance-calendar', 'COMPLIANCE_CALENDAR_PAGE'],
     ['/health-official-gaps', 'HEALTH_GAPS_PAGE'],
     ['/admin', 'ADMIN_PAGE'],

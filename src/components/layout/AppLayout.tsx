@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Activity,
   Bell,
+  MessageSquare,
   Menu,
   X
 } from 'lucide-react';
@@ -42,6 +43,7 @@ const NOTIFICATIONS_SEEN_KEY_PREFIX = 'safeguard_notifications_seen';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Emergency Chat', href: '/chat', icon: MessageSquare },
   { name: 'Compliance Calendar', href: '/compliance-calendar', icon: CalendarDays },
   { name: 'Health Officials', href: '/health-official-gaps', icon: Activity },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
