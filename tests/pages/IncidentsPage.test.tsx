@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import Incidents from '@/pages/Incidents';
 
 const mockUseAdminSettings = vi.fn();
@@ -128,6 +128,9 @@ vi.mock('recharts', () => {
 
 describe('Incidents page', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+
     mockLogAuditEvent.mockReset();
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
@@ -196,6 +199,10 @@ describe('Incidents page', () => {
         },
       },
     ]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders key incident management sections and data', () => {

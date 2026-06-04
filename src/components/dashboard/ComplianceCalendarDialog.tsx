@@ -384,7 +384,7 @@ export function ComplianceCalendarDialog({ onStartCheck, displayMode = 'dialog' 
     });
 
     return events;
-  }, [settings.complianceChecks, settings.userPermissions, settings.buildings, completedChecks, isSuperAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails, isCheckVisible, scopedAreaIds]);
+  }, [settings.complianceChecks, settings.userPermissions, completedChecks, isSuperAdmin, currentUserPermission, currentMonth, certificates, getBuildingName, getLocationDetails, isCheckVisible, scopedAreaIds]);
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();

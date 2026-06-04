@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import ComplianceCalendar from '@/pages/ComplianceCalendar';
 
 const mockUseAuth = vi.fn();
@@ -29,6 +29,8 @@ vi.mock('@/components/dashboard/QuickCheckAssignment', () => ({
 describe('ComplianceCalendar page', () => {
   it('renders inline calendar content and upcoming panel', async () => {
     const now = new Date('2026-05-28T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
 
     mockUseAuth.mockReturnValue({
       user: {
@@ -115,5 +117,9 @@ describe('ComplianceCalendar page', () => {
     const hasEventCard = !!screen.queryByText('Reception Weekly Safety Check');
     const hasEmptyState = !!screen.queryByText('No upcoming events in your scope.');
     expect(hasEventCard || hasEmptyState).toBe(true);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 });

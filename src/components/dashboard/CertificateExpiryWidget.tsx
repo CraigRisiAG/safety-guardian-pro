@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Award, AlertTriangle, XCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,9 +30,9 @@ export function CertificateExpiryWidget() {
   const { user } = useAuth();
   const [isCertificatesDialogOpen, setIsCertificatesDialogOpen] = useState(false);
   const [selectedTrainingStat, setSelectedTrainingStat] = useState<TrainingStatKey | null>(null);
-  const complianceChecks = settings.complianceChecks || [];
-  const userPermissions = settings.userPermissions || [];
-  const buildings = settings.buildings || [];
+  const complianceChecks = useMemo(() => settings.complianceChecks ?? [], [settings.complianceChecks]);
+  const userPermissions = useMemo(() => settings.userPermissions ?? [], [settings.userPermissions]);
+  const buildings = useMemo(() => settings.buildings ?? [], [settings.buildings]);
 
   const validCount = useMemo(() =>
     certificates.filter(c => {
@@ -81,7 +81,7 @@ export function CertificateExpiryWidget() {
     return Object.fromEntries(entries) as Record<string, string>;
   }, [buildings]);
 
-  const resolveParticipant = (participantId?: string, participantName?: string) => {
+  const resolveParticipant = useCallback((participantId?: string, participantName?: string) => {
     if (!participantId && !participantName) {
       return null;
     }
@@ -91,7 +91,7 @@ export function CertificateExpiryWidget() {
       permission.userId === participantId ||
       (!!participantName && permission.userName === participantName),
     ) ?? null;
-  };
+  }, [userPermissions]);
 
   const visibleTrainingAssignments = useMemo(() => {
     if (!canViewTrainingPeople) {
@@ -119,7 +119,7 @@ export function CertificateExpiryWidget() {
 
       return (check.floorIds || []).includes(floorScopeId);
     });
-  }, [canViewTrainingPeople, isSuperAdmin, currentUserPermission?.primaryFloorId, trainingAssignments, userPermissions]);
+  }, [canViewTrainingPeople, isSuperAdmin, currentUserPermission?.primaryFloorId, trainingAssignments, resolveParticipant]);
 
   const trainingStatPeople = useMemo<Record<TrainingStatKey, TrainingStatPerson[]>>(() => {
     const now = new Date();
@@ -153,7 +153,7 @@ export function CertificateExpiryWidget() {
       failed: personRows.filter((row) => row.lastOutcomeStatus === 'fail'),
       follow_up: personRows.filter((row) => row.lastOutcomeStatus === 'cancelled'),
     };
-  }, [visibleTrainingAssignments, floorNameById, areaNameById, userPermissions]);
+  }, [visibleTrainingAssignments, floorNameById, areaNameById, resolveParticipant]);
 
   const trainingStats = useMemo(() => {
     return {

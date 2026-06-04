@@ -177,10 +177,10 @@ export default function Drills() {
   const operationTypes = configuredOperationTypes.length > 0
     ? configuredOperationTypes
     : DEFAULT_DRILL_OPERATION_TYPES;
-  const drillSuccessCriteria = {
+  const drillSuccessCriteria = useMemo(() => ({
     ...DEFAULT_DRILL_SUCCESS_CRITERIA,
     ...(settings.drillSuccessCriteria ?? {}),
-  };
+  }), [settings.drillSuccessCriteria]);
 
   useEffect(() => {
     const now = new Date();
