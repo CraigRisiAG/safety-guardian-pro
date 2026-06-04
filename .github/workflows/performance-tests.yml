@@ -1,0 +1,74 @@
+name: Performance Smoke Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  k6-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app for preview
+        run: npm run build:dev
+
+      - name: Start preview server
+        run: npm run preview -- --host 127.0.0.1 --port 4173 &
+
+      - name: Wait for preview server
+        run: |
+          for i in {1..45}; do
+            if curl -fsS http://127.0.0.1:4173/login > /dev/null; then
+              echo "Preview server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Preview server did not start in time"
+          exit 1
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 smoke test
+        run: |
+          mkdir -p test-results
+          k6 run \
+            --env BASE_URL=http://127.0.0.1:4173 \
+            --summary-export test-results/k6-smoke-summary.json \
+            tests/performance/k6-smoke.js
+
+      - name: Compare against stored k6 baseline
+        run: node tests/performance/compare-k6-baseline.mjs
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: k6-smoke-summary
+          path: test-results/k6-smoke-summary.json
+          if-no-files-found: ignore
+
+      - name: Upload k6 baseline used
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: k6-smoke-baseline
+          path: tests/performance/baselines/k6-smoke-baseline.json
+          if-no-files-found: ignore

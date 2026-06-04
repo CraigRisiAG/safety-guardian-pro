@@ -42,6 +42,19 @@ npm run test:visual
 # Run both suites together
 npm run test:all
 
+# Run quick k6 performance smoke gate (requires k6 installed)
+npm run perf:smoke
+
+# Run deeper k6 load profile
+npm run perf:load
+
+# Generate smoke summary then compare against stored baseline
+npm run perf:smoke:summary
+npm run perf:baseline:compare
+
+# Refresh baseline after intentional performance shifts
+npm run perf:baseline:update
+
 # Only when UI changes are intentional, refresh snapshots
 npm run test:visual:update
 ```

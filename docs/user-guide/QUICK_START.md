@@ -88,5 +88,14 @@ For local development and pull requests, use this quick check flow:
 	- `npm run test:visual`
 4. Run both in sequence when needed:
 	- `npm run test:all`
-5. Update visual snapshots only for intentional UI changes:
+5. Run quick k6 performance smoke gate (requires k6 installed):
+	- `npm run perf:smoke`
+6. Run deeper k6 load profile when investigating performance:
+	- `npm run perf:load`
+7. Run smoke summary and baseline comparison for regression checks:
+	- `npm run perf:smoke:summary`
+	- `npm run perf:baseline:compare`
+8. Refresh the baseline only when changes are intentional and validated:
+	- `npm run perf:baseline:update`
+9. Update visual snapshots only for intentional UI changes:
 	- `npm run test:visual:update`

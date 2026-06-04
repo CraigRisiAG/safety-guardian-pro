@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-06-04T09:09:51.682Z",
+  "source": "test-results/k6-smoke-summary.json",
+  "metrics": {
+    "global": {
+      "p95": 17.33714,
+      "p99": 31.378090000000093,
+      "failedRate": 0,
+      "checkRate": 1
+    },
+    "routes": {
+      "login": {
+        "p95": 13.01822
+      },
+      "dashboard": {
+        "p95": 11.424899999999997
+      },
+      "incidents": {
+        "p95": 21.251869999999997
+      },
+      "drills": {
+        "p95": 17.411754999999992
+      }
+    }
+  }
+}
