@@ -21,6 +21,7 @@ interface UserImportPayload {
   role: string;
   staffCode?: string;
   buildingAccess: string[] | string;
+  requiresAdditionalAssistance?: boolean;
   canStartDrills?: boolean;
   canResolveIncidents?: boolean;
   canManageUsers?: boolean;
@@ -132,6 +133,7 @@ export const simulateBulkImport = async (
       userId: `usr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userName: user.name.trim(),
       email: user.email.trim().toLowerCase(),
+      requiresAdditionalAssistance: user.requiresAdditionalAssistance === true,
       role: validRole!,
       buildingAccess,
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -173,6 +175,7 @@ export const getApiDocumentation = () => ({
         role: 'reporter | responder | admin | super_admin',
         staffCode: '1234',
         buildingAccess: ['Building A', 'Building B'],
+        requiresAdditionalAssistance: false,
         canStartDrills: false,
         canResolveIncidents: false,
         canManageUsers: false
@@ -206,6 +209,7 @@ export const getApiDocumentation = () => ({
       "role": "reporter",
       "staffCode": "1234",
       "buildingAccess": ["Building 1"],
+      "requiresAdditionalAssistance": false,
       "canStartDrills": false,
       "canResolveIncidents": false,
       "canManageUsers": false

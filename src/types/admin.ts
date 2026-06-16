@@ -89,6 +89,7 @@ export interface UserPermission {
   staffCode?: string; // Unique staff code (max 8 characters)
   userName: string;
   email: string;
+  requiresAdditionalAssistance?: boolean; // Indicates the person may need extra support during emergencies
   role: UserRole;
   buildingAccess: string[]; // building IDs
   primaryFloorId?: string; // Which floor they typically work on

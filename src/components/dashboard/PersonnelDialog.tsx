@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,6 +35,7 @@ interface ParsedUser {
   userName: string;
   email: string;
   staffCode?: string;
+  requiresAdditionalAssistance: boolean;
   role: UserRole;
   buildingAccess: string[];
   primaryFloorId?: string;
@@ -53,6 +55,7 @@ interface NewPersonnelForm {
   buildingId: string;
   primaryFloorId: string;
   primaryAreaId: string;
+  requiresAdditionalAssistance: boolean;
   workDays: WorkDay[];
   phone: string;
   mobile: string;
@@ -91,6 +94,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     buildingId: '',
     primaryFloorId: '',
     primaryAreaId: '',
+    requiresAdditionalAssistance: false,
     workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     phone: '',
     mobile: '',
@@ -111,6 +115,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       buildingId: '',
       primaryFloorId: '',
       primaryAreaId: '',
+      requiresAdditionalAssistance: false,
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       phone: '',
       mobile: '',
@@ -167,6 +172,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       buildingAccess: newPersonnel.buildingId ? [newPersonnel.buildingId] : [],
       primaryFloorId: newPersonnel.primaryFloorId || undefined,
       primaryAreaId: newPersonnel.primaryAreaId || undefined,
+      requiresAdditionalAssistance: newPersonnel.requiresAdditionalAssistance,
       workDays: newPersonnel.workDays,
       safetyRoles: [] as SafetyRole[],
       contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
@@ -261,6 +267,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     const buildingAccessValue = (row['Building']?.toString() || row['Building Access']?.toString() || '');
     const floorValue = (row['Floor']?.toString() || row['Primary Floor']?.toString() || '');
     const workDaysValue = (row['Work Days']?.toString() || '');
+    const requiresAdditionalAssistanceValue = row['Requires Additional Assistance']?.toString() || '';
 
     if (!userName) errors.push('Name is required');
     if (!email) errors.push('Email is required');
@@ -274,6 +281,9 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     const buildingAccess = parseBuildingAccess(buildingAccessValue);
     const primaryFloorId = parseFloorId(floorValue);
     const workDays = parseWorkDays(workDaysValue);
+    const requiresAdditionalAssistance = ['yes', 'true', '1', 'y'].includes(
+      requiresAdditionalAssistanceValue.toLowerCase().trim(),
+    );
 
     const contactDetails: ContactDetails = {};
     if (row['Phone']?.toString().trim()) contactDetails.phone = row['Phone'].toString().trim();
@@ -293,6 +303,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       userName,
       email,
       staffCode: staffCode || undefined,
+      requiresAdditionalAssistance,
       role: 'viewer',
       buildingAccess,
       primaryFloorId,
@@ -349,6 +360,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Staff Code': 'JS001',
         'Building': 'Main Office Building',
         'Floor': 'Ground Floor',
+        'Requires Additional Assistance': 'No',
         'Work Days': 'Mon, Tue, Wed, Thu, Fri',
         'Phone': '020 1234 5678',
         'Mobile': '07700 900123',
@@ -365,6 +377,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
         'Staff Code': 'JD002',
         'Building': 'Research Center',
         'Floor': 'First Floor',
+        'Requires Additional Assistance': 'Yes',
         'Work Days': 'Mon, Tue, Wed',
         'Phone': '020 2345 6789',
         'Mobile': '07700 900234',
@@ -383,7 +396,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
     
     ws['!cols'] = [
       { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 25 },
-      { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 18 },
+      { wch: 15 }, { wch: 30 }, { wch: 25 }, { wch: 18 }, { wch: 18 },
       { wch: 20 }, { wch: 25 }, { wch: 18 },
       { wch: 20 }, { wch: 18 }, { wch: 18 },
     ];
@@ -418,6 +431,7 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
       userName: u.userName,
       email: u.email,
       staffCode: u.staffCode,
+      requiresAdditionalAssistance: u.requiresAdditionalAssistance,
       role: u.role,
       buildingAccess: u.buildingAccess,
       primaryFloorId: u.primaryFloorId,
@@ -752,6 +766,21 @@ export function PersonnelDialog({ personnel, buildings, onUpdate, onBulkAdd, onD
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Additional Assistance</Label>
+                <div className="flex items-center space-x-2 rounded-md border p-2">
+                  <Checkbox
+                    id="new-personnel-assistance"
+                    checked={newPersonnel.requiresAdditionalAssistance}
+                    onCheckedChange={(checked) =>
+                      setNewPersonnel((prev) => ({ ...prev, requiresAdditionalAssistance: !!checked }))
+                    }
+                  />
+                  <label htmlFor="new-personnel-assistance" className="text-sm cursor-pointer">
+                    This person may need additional assistance in emergencies
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -1167,6 +1196,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
     staffCode: person.staffCode || '',
     primaryFloorId: person.primaryFloorId || '',
     primaryAreaId: person.primaryAreaId || '',
+    requiresAdditionalAssistance: person.requiresAdditionalAssistance ?? false,
     workDays: person.workDays || [],
     buildingAccess: person.buildingAccess || [],
     contactPhone: person.contactDetails?.phone || '',
@@ -1232,6 +1262,7 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       staffCode: editData.staffCode.trim() || undefined,
       primaryFloorId: editData.primaryFloorId || undefined,
       primaryAreaId: editData.primaryAreaId || undefined,
+      requiresAdditionalAssistance: editData.requiresAdditionalAssistance,
       workDays: editData.workDays,
       buildingAccess: editData.buildingAccess,
       contactDetails: Object.keys(contactDetails).length > 0 ? contactDetails : undefined,
@@ -1448,6 +1479,22 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
                 ))}
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label>Additional Assistance</Label>
+              <div className="flex items-center space-x-2 rounded-md border p-2">
+                <Checkbox
+                  id={`edit-assistance-${person.id}`}
+                  checked={editData.requiresAdditionalAssistance}
+                  onCheckedChange={(checked) =>
+                    setEditData((prev) => ({ ...prev, requiresAdditionalAssistance: !!checked }))
+                  }
+                />
+                <label htmlFor={`edit-assistance-${person.id}`} className="text-sm cursor-pointer">
+                  This person may need additional assistance in emergencies
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         <DialogFooter className="px-6 py-4 border-t">
@@ -1470,7 +1517,14 @@ function PersonnelRow({ person, buildings, allPersonnel, isEditing, onEdit, onSa
       {editDialog}
       <TableCell>
         <div>
-          <p className="font-medium">{person.firstName} {person.surname}</p>
+          <p className="font-medium flex items-center gap-2">
+            <span>{person.firstName} {person.surname}</span>
+            {person.requiresAdditionalAssistance && (
+              <Badge variant="outline" className="text-[10px] bg-warning-muted text-warning border-warning/40">
+                Needs Assistance
+              </Badge>
+            )}
+          </p>
           <p className="text-sm text-muted-foreground">{person.email}</p>
         </div>
       </TableCell>

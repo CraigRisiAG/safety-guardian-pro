@@ -288,4 +288,85 @@ describe('CheckIn page', () => {
 
     expect(mockToastError).toHaveBeenCalledWith('Select floor and section');
   });
+
+  it('highlights unaccounted people who need additional assistance', () => {
+    mockUseDrillStatus.mockReturnValue({
+      activeDrill: {
+        id: 'drill-2',
+        type: 'fire',
+        status: 'active',
+        location: {
+          buildingId: 'building-1',
+          buildingIds: ['building-1'],
+          floorIds: ['floor-1'],
+          areaIds: ['area-1'],
+        },
+        startedAt: new Date('2026-05-23T10:00:00.000Z'),
+        initiatedBy: 'Safety Lead',
+      },
+    });
+
+    mockUseAdminSettings.mockReturnValue({
+      settings: {
+        buildings: [
+          {
+            id: 'building-1',
+            name: 'Main Office',
+            floors: [
+              {
+                id: 'floor-1',
+                name: 'Ground Floor',
+                areas: [{ id: 'area-1', name: 'Reception' }],
+              },
+            ],
+          },
+        ],
+        userPermissions: [
+          {
+            id: 'perm-1',
+            userId: 'user-1',
+            userName: 'User One',
+            email: 'user@example.com',
+            role: 'responder',
+            buildingAccess: ['building-1'],
+            primaryFloorId: 'floor-1',
+            primaryAreaId: 'area-1',
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: true,
+            canResolveIncidents: true,
+            canManageUsers: false,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+          {
+            id: 'perm-2',
+            userId: 'colleague-2',
+            userName: 'Needs Help Colleague',
+            email: 'needs-help@example.com',
+            requiresAdditionalAssistance: true,
+            role: 'viewer',
+            buildingAccess: ['building-1'],
+            primaryFloorId: 'floor-1',
+            primaryAreaId: 'area-1',
+            workDays: ['monday'],
+            safetyRoles: [],
+            canStartDrills: false,
+            canResolveIncidents: false,
+            canManageUsers: false,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+      },
+    });
+
+    mockLoadCheckInsForDrill.mockReturnValue([]);
+
+    render(<CheckIn />);
+
+    expect(screen.getByText('Unaccounted personnel (2)')).toBeInTheDocument();
+    expect(screen.getByText('Needs Help Colleague')).toBeInTheDocument();
+    expect(screen.getByText('Needs Additional Assistance')).toBeInTheDocument();
+  });
 });

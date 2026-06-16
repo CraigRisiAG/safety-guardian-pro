@@ -40,6 +40,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
   const [formData, setFormData] = useState({
     userName: '',
     email: '',
+    requiresAdditionalAssistance: false,
     role: 'viewer' as UserRole,
     buildingAccess: [] as string[],
     primaryFloorId: '',
@@ -70,6 +71,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     setFormData({
       userName: '',
       email: '',
+      requiresAdditionalAssistance: false,
       role: 'viewer',
       buildingAccess: [],
       primaryFloorId: '',
@@ -94,6 +96,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
       userId: generatedUserId,
       userName: formData.userName.trim(),
       email: formData.email.trim(),
+      requiresAdditionalAssistance: formData.requiresAdditionalAssistance,
       role: formData.role,
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
@@ -132,6 +135,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     onUpdate(editingUser.id, {
       userName: formData.userName,
       email: formData.email,
+      requiresAdditionalAssistance: formData.requiresAdditionalAssistance,
       role: formData.role,
       buildingAccess: formData.buildingAccess,
       primaryFloorId: formData.primaryFloorId || undefined,
@@ -185,6 +189,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
     setFormData({
       userName: user.userName,
       email: user.email,
+      requiresAdditionalAssistance: user.requiresAdditionalAssistance ?? false,
       role: user.role,
       buildingAccess: user.buildingAccess,
       primaryFloorId: user.primaryFloorId || '',
@@ -288,6 +293,16 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="requires-additional-assistance"
+          checked={formData.requiresAdditionalAssistance}
+          onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requiresAdditionalAssistance: !!checked }))}
+        />
+        <label htmlFor="requires-additional-assistance" className="text-sm cursor-pointer">
+          Employee may need additional assistance in emergencies
+        </label>
       </div>
       <div className="space-y-2">
         <Label>Building Access</Label>
@@ -540,6 +555,7 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead className="hidden sm:table-cell">Assistance Flag</TableHead>
                 <TableHead className="hidden sm:table-cell">Primary Floor</TableHead>
                 <TableHead className="hidden md:table-cell">Work Days</TableHead>
                 <TableHead className="hidden lg:table-cell">Safety Roles</TableHead>
@@ -562,6 +578,15 @@ export function UserPermissionsManager({ permissions, buildings, onAdd, onBulkAd
                     <Badge className={roleColors[permission.role]}>
                       {ROLE_LABELS[permission.role]}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {permission.requiresAdditionalAssistance ? (
+                      <Badge variant="outline" className="bg-warning-muted text-warning border-warning/40">
+                        Needs Assistance
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {primaryFloor ? (

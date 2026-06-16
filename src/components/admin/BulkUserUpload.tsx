@@ -25,6 +25,7 @@ interface ParsedUser {
   email: string;
   role: UserRole;
   staffCode?: string;
+  requiresAdditionalAssistance: boolean;
   buildingAccess: string[];
   canStartDrills: boolean;
   canResolveIncidents: boolean;
@@ -56,6 +57,7 @@ const API_EXAMPLE_JSON = `[
     "role": "reporter",
     "staffCode": "1234",
     "buildingAccess": ["Building 1", "Building 2"],
+    "requiresAdditionalAssistance": false,
     "canStartDrills": false,
     "canResolveIncidents": false,
     "canManageUsers": false
@@ -66,6 +68,7 @@ const API_EXAMPLE_JSON = `[
     "role": "admin",
     "staffCode": "5678",
     "buildingAccess": ["all"],
+    "requiresAdditionalAssistance": true,
     "canStartDrills": true,
     "canResolveIncidents": true,
     "canManageUsers": true
@@ -91,6 +94,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
         'Email': 'john@example.com',
         'Role': 'reporter',
         'Staff Code': '1234',
+        'Requires Additional Assistance': 'No',
         'Building Access': 'Building 1, Building 2',
         'Can Start Drills': 'Yes',
         'Can Resolve Incidents': 'No',
@@ -101,6 +105,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
         'Email': 'jane@example.com',
         'Role': 'admin',
         'Staff Code': '5678',
+        'Requires Additional Assistance': 'Yes',
         'Building Access': 'All',
         'Can Start Drills': 'Yes',
         'Can Resolve Incidents': 'Yes',
@@ -118,6 +123,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
       { wch: 25 }, // Email
       { wch: 12 }, // Role
       { wch: 12 }, // Staff Code
+      { wch: 30 }, // Requires Additional Assistance
       { wch: 30 }, // Building Access
       { wch: 15 }, // Can Start Drills
       { wch: 18 }, // Can Resolve Incidents
@@ -174,6 +180,9 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
     const staffCode = isJsonFormat 
       ? (row.staffCode?.toString().trim() || '') 
       : (row['Staff Code']?.toString().trim() || '');
+    const requiresAdditionalAssistance = isJsonFormat
+      ? parseBoolean(row.requiresAdditionalAssistance)
+      : parseBoolean(row['Requires Additional Assistance']);
     const buildingAccessValue = isJsonFormat 
       ? row.buildingAccess 
       : (row['Building Access']?.toString() || '');
@@ -209,6 +218,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
       email,
       role: role || 'reporter',
       staffCode: staffCode || undefined,
+      requiresAdditionalAssistance,
       buildingAccess,
       canStartDrills,
       canResolveIncidents,
@@ -300,6 +310,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
         email: user.email,
         role: user.role,
         staffCode: undefined,
+        requiresAdditionalAssistance: user.requiresAdditionalAssistance === true,
         buildingAccess: user.buildingAccess,
         canStartDrills: user.canStartDrills,
         canResolveIncidents: user.canResolveIncidents,
@@ -314,6 +325,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
           userName: '',
           email: err.email,
           role: 'viewer',
+          requiresAdditionalAssistance: false,
           buildingAccess: [],
           canStartDrills: false,
           canResolveIncidents: false,
@@ -369,6 +381,7 @@ export function BulkUserUpload({ buildings, onBulkAdd }: BulkUserUploadProps) {
       email: u.email,
       role: u.role,
       staffCode: u.staffCode,
+      requiresAdditionalAssistance: u.requiresAdditionalAssistance,
       buildingAccess: u.buildingAccess,
       workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday')[],
       safetyRoles: [] as ('fire_marshall' | 'evacuation_warden' | 'first_aider' | 'health_safety_officer')[],

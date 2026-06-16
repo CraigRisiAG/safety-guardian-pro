@@ -218,6 +218,11 @@ export default function CheckIn() {
     return expectedPersonnel.filter((person) => !checkedInIds.has(person.id));
   }, [expectedPersonnel, drillCheckIns]);
 
+  const priorityAssistanceUnaccountedCount = useMemo(
+    () => unaccountedPersonnel.filter((person) => person.requiresAdditionalAssistance).length,
+    [unaccountedPersonnel],
+  );
+
   const guestCheckInCount = useMemo(
     () => drillCheckIns.filter((entry) => !entry.personnelId).length,
     [drillCheckIns],
@@ -544,6 +549,9 @@ export default function CheckIn() {
                           >
                             <span className="font-medium">{person.userName}</span>
                             <span className="text-xs text-muted-foreground ml-2">{person.staffCode || 'No staff code'}</span>
+                            {person.requiresAdditionalAssistance && (
+                              <span className="text-[10px] text-warning ml-2 font-medium">Needs Assistance</span>
+                            )}
                           </button>
                         ))
                       )}
@@ -681,7 +689,7 @@ export default function CheckIn() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-4 border-b border-border">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 px-6 py-4 border-b border-border">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-foreground">{expectedPersonnel.length}</p>
                   <p className="text-xs text-muted-foreground">Expected Staff</p>
@@ -693,6 +701,10 @@ export default function CheckIn() {
                 <div className="text-center">
                   <p className="text-2xl font-bold text-emergency">{unaccountedPersonnel.length}</p>
                   <p className="text-xs text-muted-foreground">Unaccounted</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-warning">{priorityAssistanceUnaccountedCount}</p>
+                  <p className="text-xs text-muted-foreground">Priority Assist</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-info">{guestCheckInCount}</p>
@@ -767,6 +779,11 @@ export default function CheckIn() {
                             {person.email ? ` · ${person.email}` : ''}
                           </p>
                         </div>
+                        {person.requiresAdditionalAssistance && (
+                          <span className="text-[10px] px-2 py-1 rounded border border-warning/40 bg-warning-muted text-warning font-medium">
+                            Needs Additional Assistance
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>

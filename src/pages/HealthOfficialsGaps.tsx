@@ -415,6 +415,11 @@ export default function HealthOfficialsGaps() {
                             <p className="text-sm text-muted-foreground">{person.email}</p>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
+                            {person.requiresAdditionalAssistance && (
+                              <Badge variant="outline" className="bg-warning-muted text-warning border-warning/40">
+                                Needs Additional Assistance
+                              </Badge>
+                            )}
                             {person.safetyRoles.map((role) => (
                               <Badge key={`${person.id}-${role}`} variant="secondary">
                                 {SAFETY_ROLE_LABELS[role]}
@@ -474,8 +479,13 @@ export default function HealthOfficialsGaps() {
                 ) : (
                   <ul className="space-y-1">
                     {selectedCell.cell.peopleInArea.map((person) => (
-                      <li key={person.id} className="text-sm text-foreground">
-                        {person.userName}
+                      <li key={person.id} className="text-sm text-foreground flex items-center gap-2">
+                        <span>{person.userName}</span>
+                        {person.requiresAdditionalAssistance && (
+                          <Badge variant="outline" className="text-[10px] bg-warning-muted text-warning border-warning/40">
+                            Assist
+                          </Badge>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -491,8 +501,13 @@ export default function HealthOfficialsGaps() {
                 ) : (
                   <ul className="space-y-1">
                     {selectedCell.cell.roleAssignees.map((person) => (
-                      <li key={person.id} className="text-sm text-foreground">
-                        {person.userName}
+                      <li key={person.id} className="text-sm text-foreground flex items-center gap-2">
+                        <span>{person.userName}</span>
+                        {person.requiresAdditionalAssistance && (
+                          <Badge variant="outline" className="text-[10px] bg-warning-muted text-warning border-warning/40">
+                            Assist
+                          </Badge>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -521,8 +536,13 @@ export default function HealthOfficialsGaps() {
               ) : (
                 <ul className="space-y-1">
                   {selectedArea.people.map((person) => (
-                    <li key={person.id} className="text-sm text-foreground">
-                      {person.userName}
+                    <li key={person.id} className="text-sm text-foreground flex items-center gap-2">
+                      <span>{person.userName}</span>
+                      {person.requiresAdditionalAssistance && (
+                        <Badge variant="outline" className="text-[10px] bg-warning-muted text-warning border-warning/40">
+                          Needs Additional Assistance
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ul>
