@@ -93,7 +93,9 @@ export type SystemLanguage =
   | 'hindi'
   | 'arabic'
   | 'italian'
-  | 'swahili';
+  | 'swahili'
+  | 'isizulu'
+  | 'isixhosa';
 
 export const SYSTEM_LANGUAGE_LABELS: Record<SystemLanguage, string> = {
   english: 'English',
@@ -106,6 +108,8 @@ export const SYSTEM_LANGUAGE_LABELS: Record<SystemLanguage, string> = {
   arabic: 'Arabic',
   italian: 'Italian',
   swahili: 'Swahili',
+  isizulu: 'isiZulu',
+  isixhosa: 'isiXhosa',
 };
 
 export const DEFAULT_SUPPORTED_LANGUAGES: SystemLanguage[] = [
@@ -119,6 +123,8 @@ export const DEFAULT_SUPPORTED_LANGUAGES: SystemLanguage[] = [
   'arabic',
   'italian',
   'swahili',
+  'isizulu',
+  'isixhosa',
 ];
 
 export interface UserPermission {
