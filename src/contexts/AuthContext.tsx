@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { logAuditEvent } from "@/lib/auditLog";
+import { DEFAULT_SUPPORTED_LANGUAGES, SystemLanguage } from "@/types/admin";
 import {
   clearMfaChallengeForUser,
   issueMfaChallenge,
@@ -11,6 +12,7 @@ export interface User {
   email: string;
   name: string;
   role: "user" | "admin";
+  preferredLanguage?: SystemLanguage;
   mfaEnabled?: boolean;
   isImpersonating?: boolean;
   impersonatedByName?: string;
@@ -30,6 +32,7 @@ interface AuthContextType {
   resetUserPassword: (userId: string, newPassword: string) => Promise<void>;
   setCurrentUserMfaEnabled: (enabled: boolean) => Promise<void>;
   setUserMfaEnabled: (userId: string, enabled: boolean) => Promise<void>;
+  setCurrentUserLanguagePreference: (language: SystemLanguage) => Promise<void>;
   impersonateUser: (userId: string) => void;
   stopImpersonation: () => void;
 }
@@ -39,6 +42,7 @@ interface AuthAccount {
   email: string;
   name: string;
   role: "user" | "admin";
+  preferredLanguage: SystemLanguage;
   mfaEnabled: boolean;
   passwordHash: string;
   createdAt: string;
@@ -56,6 +60,15 @@ const ACCOUNTS_STORAGE_KEY = "auth_accounts";
 const SESSION_STORAGE_KEY = "auth_session";
 const USER_STORAGE_KEY = "auth_user";
 const TOKEN_STORAGE_KEY = "auth_token";
+const VALID_LANGUAGES = new Set<SystemLanguage>(DEFAULT_SUPPORTED_LANGUAGES);
+
+const normalizeLanguage = (value: unknown): SystemLanguage => {
+  if (typeof value === "string" && VALID_LANGUAGES.has(value as SystemLanguage)) {
+    return value as SystemLanguage;
+  }
+
+  return "english";
+};
 
 const DEFAULT_ACCOUNTS_SEED = [
   {
@@ -128,6 +141,7 @@ const parseAccounts = (raw: string | null): AuthAccount[] => {
       .filter((entry) => entry?.id && entry?.email && entry?.passwordHash)
       .map((entry) => ({
         ...entry,
+        preferredLanguage: normalizeLanguage((entry as { preferredLanguage?: unknown }).preferredLanguage),
         mfaEnabled: !!entry.mfaEnabled,
       }));
   } catch {
@@ -159,6 +173,7 @@ const toPublicUser = (account: AuthAccount): User => ({
   email: account.email,
   name: account.name,
   role: account.role,
+  preferredLanguage: account.preferredLanguage,
   mfaEnabled: account.mfaEnabled,
 });
 
@@ -207,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: seed.email,
             name: seed.name,
             role: seed.role,
+            preferredLanguage: "english",
             mfaEnabled: false,
             passwordHash: await hashPassword(seed.password),
             createdAt: new Date().toISOString(),
@@ -361,6 +377,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: normalizedEmail,
         name: normalizedName,
         role: "user",
+        preferredLanguage: "english",
         mfaEnabled: false,
         passwordHash: await hashPassword(password),
         createdAt: now,
@@ -585,6 +602,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const setCurrentUserLanguagePreference = async (language: SystemLanguage): Promise<void> => {
+    if (!session || !user) {
+      throw new Error("Not authenticated");
+    }
+
+    if (!VALID_LANGUAGES.has(language)) {
+      throw new Error("Unsupported language");
+    }
+
+    const currentAccount = accounts.find((entry) => entry.id === user.id);
+    if (!currentAccount) {
+      throw new Error("Account not found");
+    }
+
+    const updated = accounts.map((entry) =>
+      entry.id === currentAccount.id
+        ? {
+            ...entry,
+            preferredLanguage: language,
+            updatedAt: new Date().toISOString(),
+          }
+        : entry,
+    );
+
+    setAccounts(updated);
+    writeStorage(ACCOUNTS_STORAGE_KEY, JSON.stringify(updated));
+
+    logAuditEvent({
+      module: "auth",
+      action: "update_language_preference",
+      description: `${currentAccount.name} changed language preference to ${language}`,
+      actor: {
+        id: currentAccount.id,
+        name: currentAccount.name,
+        email: currentAccount.email,
+      },
+      metadata: { language },
+    });
+  };
+
   const impersonateUser = (userId: string) => {
     if (!session) {
       throw new Error("Not authenticated");
@@ -683,6 +740,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetUserPassword,
     setCurrentUserMfaEnabled,
     setUserMfaEnabled,
+    setCurrentUserLanguagePreference,
     impersonateUser,
     stopImpersonation,
   };

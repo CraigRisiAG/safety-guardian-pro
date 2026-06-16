@@ -15,7 +15,9 @@ import {
   SafetyCheckItem,
   ComplianceCategory,
   CustomIncidentField,
+  SystemLanguage,
   DEFAULT_COMPLIANCE_CATEGORIES,
+  DEFAULT_SUPPORTED_LANGUAGES,
   DEFAULT_SAFETY_CHECK_ITEMS,
 } from '@/types/admin';
 import { CheckTypeField } from '@/types/compliance';
@@ -47,6 +49,8 @@ const VALID_WORK_DAYS = new Set<WorkDay>([
   'sunday',
 ]);
 
+const VALID_SYSTEM_LANGUAGES = new Set<SystemLanguage>(DEFAULT_SUPPORTED_LANGUAGES);
+
 const normalizeWorkDays = (value: unknown): WorkDay[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -62,6 +66,34 @@ const normalizeRequiredCoverageDays = (value: unknown): WorkDay[] => {
   }
 
   return ALL_WORK_DAYS.filter((day) => normalized.includes(day));
+};
+
+const normalizeSupportedLanguages = (value: unknown): SystemLanguage[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_SUPPORTED_LANGUAGES;
+  }
+
+  const normalized = value.filter(
+    (language): language is SystemLanguage =>
+      typeof language === 'string' && VALID_SYSTEM_LANGUAGES.has(language as SystemLanguage),
+  );
+
+  if (normalized.length === 0) {
+    return DEFAULT_SUPPORTED_LANGUAGES;
+  }
+
+  return DEFAULT_SUPPORTED_LANGUAGES.filter((language) => normalized.includes(language));
+};
+
+const normalizeDefaultLanguage = (value: unknown, supportedLanguages: SystemLanguage[]): SystemLanguage => {
+  if (typeof value === 'string' && VALID_SYSTEM_LANGUAGES.has(value as SystemLanguage)) {
+    const candidate = value as SystemLanguage;
+    if (supportedLanguages.includes(candidate)) {
+      return candidate;
+    }
+  }
+
+  return supportedLanguages[0] ?? 'english';
 };
 
 const parseAuthAccounts = (raw: string | null): AuthAccountRecord[] => {
@@ -127,6 +159,11 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
         ...DEFAULT_DRILL_SUCCESS_CRITERIA,
         ...((parsed as { drillSuccessCriteria?: Partial<DrillSuccessCriteria> }).drillSuccessCriteria ?? {}),
       },
+      supportedLanguages: normalizeSupportedLanguages((parsed as { supportedLanguages?: unknown }).supportedLanguages),
+      defaultLanguage: normalizeDefaultLanguage(
+        (parsed as { defaultLanguage?: unknown }).defaultLanguage,
+        normalizeSupportedLanguages((parsed as { supportedLanguages?: unknown }).supportedLanguages),
+      ),
       healthOfficialsRequiredDays: normalizeRequiredCoverageDays(parsed.healthOfficialsRequiredDays),
       buildings: parsed.buildings.map((b) => ({
         ...b,
@@ -236,6 +273,8 @@ const getDefaultSettings = (): AdminSettings => ({
       updatedAt: new Date(),
     },
   ],
+  defaultLanguage: 'english',
+  supportedLanguages: DEFAULT_SUPPORTED_LANGUAGES,
   healthOfficialsRequiredDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   complianceChecks: [],
   safetyCheckItems: DEFAULT_SAFETY_CHECK_ITEMS,
@@ -660,6 +699,34 @@ export function useAdminSettings() {
     });
   }, [logSettingsAction]);
 
+  const updateSupportedLanguages = useCallback((languages: SystemLanguage[]) => {
+    const normalized = normalizeSupportedLanguages(languages);
+
+    setSettings((prev) => ({
+      ...prev,
+      supportedLanguages: normalized,
+      defaultLanguage: normalizeDefaultLanguage(prev.defaultLanguage, normalized),
+    }));
+
+    logSettingsAction({
+      action: 'update_supported_languages',
+      description: 'Updated supported system languages',
+      metadata: { count: normalized.length },
+    });
+  }, [logSettingsAction]);
+
+  const updateDefaultLanguage = useCallback((language: SystemLanguage) => {
+    setSettings((prev) => ({
+      ...prev,
+      defaultLanguage: normalizeDefaultLanguage(language, prev.supportedLanguages),
+    }));
+
+    logSettingsAction({
+      action: 'update_default_language',
+      description: `Updated default system language to ${language}`,
+    });
+  }, [logSettingsAction]);
+
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
     const newCheck: ComplianceCheck = {
@@ -933,6 +1000,8 @@ export function useAdminSettings() {
     updateComplianceScoring,
     updateDrillOperationTypes,
     updateDrillSuccessCriteria,
+    updateSupportedLanguages,
+    updateDefaultLanguage,
     // Compliance checks
     addComplianceCheck,
     updateComplianceCheck,

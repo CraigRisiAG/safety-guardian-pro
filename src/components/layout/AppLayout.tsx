@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserMenu } from '@/components/UserMenu';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { canManageUsersForUser, canStartDrillsForUser, findCurrentUserPermission, getScopedAreaIds, isSuperAdminPermission } from '@/lib/personnelAccess';
+import { t, TranslationKey } from '@/lib/i18n';
 import { resolveCheckAssignedUsers } from '@/utils/complianceAssignments';
 import { INCIDENTS_UPDATED_EVENT, loadIncidentsFromStorage } from '@/lib/incidentsStorage';
 import { loadCheckInsForDrill } from '@/lib/checkInsStorage';
@@ -41,15 +42,15 @@ interface AppLayoutProps {
 
 const NOTIFICATIONS_SEEN_KEY_PREFIX = 'safeguard_notifications_seen';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Emergency Chat', href: '/chat', icon: MessageSquare },
-  { name: 'Compliance Calendar', href: '/compliance-calendar', icon: CalendarDays },
-  { name: 'Health Officials', href: '/health-official-gaps', icon: Activity },
-  { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
-  { name: 'Drills', href: '/drills', icon: Siren },
-  { name: 'Safety Check-In', href: '/check-in', icon: ShieldCheck, requiresDrill: true },
-  { name: 'Admin', href: '/admin', icon: Settings },
+const navigation: Array<{ key: TranslationKey; href: string; icon: typeof LayoutDashboard; requiresDrill?: boolean }> = [
+  { key: 'nav_dashboard', href: '/', icon: LayoutDashboard },
+  { key: 'nav_emergency_chat', href: '/chat', icon: MessageSquare },
+  { key: 'nav_compliance_calendar', href: '/compliance-calendar', icon: CalendarDays },
+  { key: 'nav_health_officials', href: '/health-official-gaps', icon: Activity },
+  { key: 'nav_incidents', href: '/incidents', icon: AlertTriangle },
+  { key: 'nav_drills', href: '/drills', icon: Siren },
+  { key: 'nav_safety_checkin', href: '/check-in', icon: ShieldCheck, requiresDrill: true },
+  { key: 'nav_admin', href: '/admin', icon: Settings },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -57,6 +58,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { isCheckInEnabled } = useDrillStatus();
   const { user } = useAuth();
   const { settings } = useAdminSettings();
+  const activeLanguage = user?.preferredLanguage ?? settings.defaultLanguage;
   const currentPermission = findCurrentUserPermission(user, settings.userPermissions);
   const canManageUsers = canManageUsersForUser(currentPermission);
   const availableNavigation = navigation.filter((item) => item.href !== '/admin' || canManageUsers);
@@ -70,7 +72,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div>
           <h1 className="text-lg font-semibold text-sidebar-foreground">Safety Guardian</h1>
-          <p className="text-xs text-sidebar-foreground/60">Health & Safety</p>
+          <p className="text-xs text-sidebar-foreground/60">{t(activeLanguage, 'brand_subtitle')}</p>
         </div>
       </div>
 
@@ -83,13 +85,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             
             if (isDisabled) {
               return (
-                <Tooltip key={item.name}>
+                <Tooltip key={item.key}>
                   <TooltipTrigger asChild>
                     <div
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/30 cursor-not-allowed"
                     >
                       <item.icon className="w-5 h-5" />
-                      {item.name}
+                      {t(activeLanguage, item.key)}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="right">
@@ -101,7 +103,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
             return (
               <Link
-                key={item.name}
+                key={item.key}
                 to={item.href}
                 onClick={onNavigate}
                 className={cn(
@@ -112,7 +114,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 )}
               >
                 <item.icon className="w-5 h-5" />
-                {item.name}
+                {t(activeLanguage, item.key)}
               </Link>
             );
           })}

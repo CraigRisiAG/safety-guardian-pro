@@ -136,4 +136,31 @@ describe('AuthContext persistence', () => {
       expect(auth.current?.user?.email).toBe('rehydrated.user@example.com');
     });
   });
+
+  it('persists current user language preference updates to account and user storage', async () => {
+    const auth = renderAuthHarness();
+    await waitFor(() => expect(auth.current?.isLoading).toBe(false));
+
+    await act(async () => {
+      await auth.current!.login('admin@safeguard.local', 'Admin@123');
+    });
+
+    await act(async () => {
+      await auth.current!.setCurrentUserLanguagePreference('spanish');
+    });
+
+    await waitFor(() => expect(auth.current?.user?.preferredLanguage).toBe('spanish'));
+
+    const storedAccounts = JSON.parse(localStorage.getItem(ACCOUNTS_STORAGE_KEY) as string) as Array<{
+      id: string;
+      preferredLanguage?: string;
+    }>;
+    const adminAccount = storedAccounts.find((entry) => entry.id === 'admin-1');
+    expect(adminAccount?.preferredLanguage).toBe('spanish');
+
+    const storedUser = JSON.parse(localStorage.getItem(USER_STORAGE_KEY) as string) as {
+      preferredLanguage?: string;
+    };
+    expect(storedUser.preferredLanguage).toBe('spanish');
+  });
 });

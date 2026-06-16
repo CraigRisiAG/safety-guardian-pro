@@ -83,6 +83,44 @@ export interface NextOfKin {
   phone?: string;
 }
 
+export type SystemLanguage =
+  | 'english'
+  | 'afrikaans'
+  | 'spanish'
+  | 'french'
+  | 'portuguese'
+  | 'mandarin'
+  | 'hindi'
+  | 'arabic'
+  | 'italian'
+  | 'swahili';
+
+export const SYSTEM_LANGUAGE_LABELS: Record<SystemLanguage, string> = {
+  english: 'English',
+  afrikaans: 'Afrikaans',
+  spanish: 'Spanish',
+  french: 'French',
+  portuguese: 'Portuguese',
+  mandarin: 'Mandarin',
+  hindi: 'Hindi',
+  arabic: 'Arabic',
+  italian: 'Italian',
+  swahili: 'Swahili',
+};
+
+export const DEFAULT_SUPPORTED_LANGUAGES: SystemLanguage[] = [
+  'english',
+  'afrikaans',
+  'spanish',
+  'french',
+  'portuguese',
+  'mandarin',
+  'hindi',
+  'arabic',
+  'italian',
+  'swahili',
+];
+
 export interface UserPermission {
   id: string;
   userId: string;
@@ -195,6 +233,8 @@ export interface CustomIncidentField {
 export interface AdminSettings {
   buildings: CustomBuilding[];
   userPermissions: UserPermission[];
+  defaultLanguage: SystemLanguage;
+  supportedLanguages: SystemLanguage[];
   healthOfficialsRequiredDays: WorkDay[];
   complianceChecks: ComplianceCheck[];
   safetyCheckItems: SafetyCheckItem[];

@@ -29,6 +29,9 @@ import {
 } from "@/components/ui/select";
 import { LogOut, KeyRound, UserCog, UserCheck, UserX, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminSettings } from "@/hooks/useAdminSettings";
+import { t } from "@/lib/i18n";
+import { SYSTEM_LANGUAGE_LABELS, SystemLanguage } from "@/types/admin";
 import { toast } from "sonner";
 
 export const UserMenu: React.FC = () => {
@@ -42,13 +45,16 @@ export const UserMenu: React.FC = () => {
     changePassword,
     resetUserPassword,
     setCurrentUserMfaEnabled,
+    setCurrentUserLanguagePreference,
     impersonateUser,
     stopImpersonation,
   } = useAuth();
+  const { settings } = useAdminSettings();
 
   const [changeOpen, setChangeOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [impersonateOpen, setImpersonateOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -58,6 +64,9 @@ export const UserMenu: React.FC = () => {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   const [impersonateUserId, setImpersonateUserId] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState<SystemLanguage>(
+    user.preferredLanguage ?? settings.defaultLanguage,
+  );
   const [isUpdatingMfa, setIsUpdatingMfa] = useState(false);
 
   const manageableUsers = useMemo(
@@ -146,6 +155,16 @@ export const UserMenu: React.FC = () => {
     toast.success("Returned to admin session");
   };
 
+  const handleUpdateLanguagePreference = async () => {
+    try {
+      await setCurrentUserLanguagePreference(selectedLanguage);
+      toast.success("Language preference updated");
+      setLanguageOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update language preference");
+    }
+  };
+
   const handleToggleMfa = async () => {
     try {
       setIsUpdatingMfa(true);
@@ -196,6 +215,16 @@ export const UserMenu: React.FC = () => {
           <DropdownMenuItem onClick={handleToggleMfa} disabled={isUpdatingMfa}>
             <ShieldCheck className="mr-2 h-4 w-4" />
             <span>{user.mfaEnabled ? "Disable MFA" : "Enable MFA"}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              setSelectedLanguage(user.preferredLanguage ?? settings.defaultLanguage);
+              setLanguageOpen(true);
+            }}
+          >
+            <UserCheck className="mr-2 h-4 w-4" />
+            <span>{t(user.preferredLanguage ?? settings.defaultLanguage, 'menu_language_preference')}</span>
           </DropdownMenuItem>
 
           {canAdministerUsers && (
@@ -336,6 +365,40 @@ export const UserMenu: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setImpersonateOpen(false)}>Cancel</Button>
             <Button onClick={handleImpersonate}>Impersonate</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={languageOpen} onOpenChange={setLanguageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t(user.preferredLanguage ?? settings.defaultLanguage, 'language_dialog_title')}</DialogTitle>
+            <DialogDescription>
+              {t(user.preferredLanguage ?? settings.defaultLanguage, 'language_dialog_description')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label>{t(user.preferredLanguage ?? settings.defaultLanguage, 'menu_language')}</Label>
+            <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as SystemLanguage)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent>
+                {settings.supportedLanguages.map((language) => (
+                  <SelectItem key={language} value={language}>
+                    {SYSTEM_LANGUAGE_LABELS[language]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLanguageOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateLanguagePreference}>
+              {t(user.preferredLanguage ?? settings.defaultLanguage, 'language_dialog_save')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

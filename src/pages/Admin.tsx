@@ -12,7 +12,8 @@ import {
   Award,
   ClipboardList,
   Activity,
-  Bell
+  Bell,
+  Languages
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ import { SystemLogsViewer } from '@/components/admin/SystemLogsViewer';
 import { NotificationDeliverySettings } from '@/components/admin/NotificationDeliverySettings';
 import { NotificationCenter } from '@/components/admin/NotificationCenter';
 import { NotificationIntegrationPortal } from '@/components/admin/NotificationIntegrationPortal';
+import { LanguageSettings } from '@/components/admin/LanguageSettings';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { findCurrentUserPermission } from '@/lib/personnelAccess';
@@ -86,6 +88,12 @@ const adminSections = [
     name: 'Notifications',
     icon: Bell,
     description: 'Configure drill and incident notification channels',
+  },
+  {
+    id: 'languages',
+    name: 'Languages',
+    icon: Languages,
+    description: 'Configure supported system languages',
   },
 ];
 
@@ -292,6 +300,15 @@ export default function Admin() {
             <NotificationIntegrationPortal />
             <NotificationDeliverySettings />
             <NotificationCenter />
+          </TabsContent>
+
+          <TabsContent value="languages" className="space-y-6">
+            <LanguageSettings
+              supportedLanguages={adminSettings.settings.supportedLanguages}
+              defaultLanguage={adminSettings.settings.defaultLanguage}
+              onSupportedLanguagesChange={adminSettings.updateSupportedLanguages}
+              onDefaultLanguageChange={adminSettings.updateDefaultLanguage}
+            />
           </TabsContent>
         </Tabs>
       </div>
