@@ -20,6 +20,8 @@ import Admin from "./pages/Admin";
 import HealthOfficialsGaps from "./pages/HealthOfficialsGaps";
 import ComplianceCalendar from "./pages/ComplianceCalendar";
 import EmergencyChat from "./pages/EmergencyChat";
+import HelpGuide from "./pages/HelpGuide";
+import { GlobalActionHints } from "./components/help/GlobalActionHints";
 
 const queryClient = new QueryClient();
 
@@ -94,6 +96,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/help"
+        element={
+          <ProtectedRoute>
+            <HelpGuide />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin"
         element={
           <ProtectedRoute>
@@ -109,6 +119,7 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <GlobalActionHints />
       <TooltipProvider>
         <Toaster />
         <Sonner />

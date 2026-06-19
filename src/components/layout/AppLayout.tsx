@@ -8,6 +8,7 @@ import {
   Settings,
   CalendarDays,
   Activity,
+  CircleHelp,
   Bell,
   MessageSquare,
   Menu,
@@ -42,15 +43,23 @@ interface AppLayoutProps {
 
 const NOTIFICATIONS_SEEN_KEY_PREFIX = 'safeguard_notifications_seen';
 
-const navigation: Array<{ key: TranslationKey; href: string; icon: typeof LayoutDashboard; requiresDrill?: boolean }> = [
-  { key: 'nav_dashboard', href: '/', icon: LayoutDashboard },
-  { key: 'nav_emergency_chat', href: '/chat', icon: MessageSquare },
-  { key: 'nav_compliance_calendar', href: '/compliance-calendar', icon: CalendarDays },
-  { key: 'nav_health_officials', href: '/health-official-gaps', icon: Activity },
-  { key: 'nav_incidents', href: '/incidents', icon: AlertTriangle },
-  { key: 'nav_drills', href: '/drills', icon: Siren },
-  { key: 'nav_safety_checkin', href: '/check-in', icon: ShieldCheck, requiresDrill: true },
-  { key: 'nav_admin', href: '/admin', icon: Settings },
+const navigation: Array<{
+  key?: TranslationKey;
+  label?: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  requiresDrill?: boolean;
+  helpText: string;
+}> = [
+  { key: 'nav_dashboard', href: '/', icon: LayoutDashboard, helpText: 'Overview of incidents, drills, and compliance status.' },
+  { key: 'nav_emergency_chat', href: '/chat', icon: MessageSquare, helpText: 'Coordinate urgent communication during incidents and drills.' },
+  { key: 'nav_compliance_calendar', href: '/compliance-calendar', icon: CalendarDays, helpText: 'Track upcoming and overdue safety compliance checks.' },
+  { key: 'nav_health_officials', href: '/health-official-gaps', icon: Activity, helpText: 'Review health official coverage and identified staffing gaps.' },
+  { key: 'nav_incidents', href: '/incidents', icon: AlertTriangle, helpText: 'Report, triage, and resolve safety incidents.' },
+  { key: 'nav_drills', href: '/drills', icon: Siren, helpText: 'Create, start, and monitor evacuation or safety drills.' },
+  { key: 'nav_safety_checkin', href: '/check-in', icon: ShieldCheck, requiresDrill: true, helpText: 'Capture live safety status for personnel during active drills.' },
+  { label: 'Help Guide', href: '/help', icon: CircleHelp, helpText: 'Open detailed step-by-step guidance for using the platform.' },
+  { key: 'nav_admin', href: '/admin', icon: Settings, helpText: 'Configure buildings, users, permissions, and language settings.' },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -78,10 +87,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        <TooltipProvider>
+        <TooltipProvider delayDuration={1800}>
           {availableNavigation.map((item) => {
             const isActive = location.pathname === item.href;
             const isDisabled = item.requiresDrill && !isCheckInEnabled;
+            const itemLabel = item.label ?? (item.key ? t(activeLanguage, item.key) : '');
             
             if (isDisabled) {
               return (
@@ -91,31 +101,37 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/30 cursor-not-allowed"
                     >
                       <item.icon className="w-5 h-5" />
-                      {t(activeLanguage, item.key)}
+                      {itemLabel}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <p>No active drill in progress</p>
+                    <p>{`${item.helpText} No active drill in progress.`}</p>
                   </TooltipContent>
                 </Tooltip>
               );
             }
 
             return (
-              <Link
-                key={item.key}
-                to={item.href}
-                onClick={onNavigate}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {t(activeLanguage, item.key)}
-              </Link>
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to={item.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {itemLabel}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.helpText}</p>
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </TooltipProvider>

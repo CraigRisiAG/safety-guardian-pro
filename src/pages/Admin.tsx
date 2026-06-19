@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
   Building2, 
   Users, 
@@ -8,17 +8,16 @@ import {
   Settings,
   ShieldCheck,
   ArrowLeft,
-  ChevronRight,
   Award,
   ClipboardList,
   Activity,
   Bell,
   Languages
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { BuildingsManager } from '@/components/admin/BuildingsManager';
 import { UserPermissionsManager } from '@/components/admin/UserPermissionsManager';
 import { AdminAccountSecurity } from '@/components/admin/AdminAccountSecurity';
@@ -105,9 +104,10 @@ export default function Admin() {
   const currentPermission = findCurrentUserPermission(user, adminSettings.settings.userPermissions);
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout>
+      <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <header className="sticky top-0 z-40 h-14 sm:h-16 bg-sidebar border-b border-sidebar-border">
+      <header className="h-14 sm:h-16 bg-sidebar border border-sidebar-border rounded-lg">
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-4">
             <Link to="/">
@@ -137,7 +137,7 @@ export default function Admin() {
       </header>
 
       {/* Main Content */}
-      <div className="container max-w-7xl mx-auto p-4 sm:p-6">
+      <div className="container max-w-7xl mx-auto p-0 sm:p-0">
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card className="glass-card">
@@ -312,6 +312,7 @@ export default function Admin() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

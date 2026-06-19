@@ -30,12 +30,14 @@ import {
   SelectLabel,
   SelectSeparator,
 } from "@/components/ui/select";
-import { LogOut, KeyRound, UserCog, UserCheck, UserX, ShieldCheck } from "lucide-react";
+import { LogOut, KeyRound, UserCog, UserCheck, UserX, ShieldCheck, BookOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminSettings } from "@/hooks/useAdminSettings";
 import { t } from "@/lib/i18n";
 import { groupLanguages } from "@/lib/languageGroups";
 import { SYSTEM_LANGUAGE_LABELS, SystemLanguage } from "@/types/admin";
+import { HowToGuideContent } from "@/components/help/HowToGuideContent";
+import { DelayedHelpTooltip } from "@/components/help/DelayedHelpTooltip";
 import { toast } from "sonner";
 
 export const UserMenu: React.FC = () => {
@@ -59,6 +61,7 @@ export const UserMenu: React.FC = () => {
   const [resetOpen, setResetOpen] = useState(false);
   const [impersonateOpen, setImpersonateOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [howToOpen, setHowToOpen] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -235,6 +238,11 @@ export const UserMenu: React.FC = () => {
             <span>{t(user.preferredLanguage ?? settings.defaultLanguage, 'menu_language_preference')}</span>
           </DropdownMenuItem>
 
+          <DropdownMenuItem onClick={() => setHowToOpen(true)}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            <span>How-To Guide</span>
+          </DropdownMenuItem>
+
           {canAdministerUsers && (
             <>
               <DropdownMenuItem onClick={() => setResetOpen(true)}>
@@ -275,35 +283,45 @@ export const UserMenu: React.FC = () => {
           <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
+              <DelayedHelpTooltip content="Enter your existing account password for verification.">
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                />
+              </DelayedHelpTooltip>
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
+              <DelayedHelpTooltip content="Enter a new password with at least 6 characters.">
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+              </DelayedHelpTooltip>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
+              <DelayedHelpTooltip content="Re-enter your new password to confirm it matches.">
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                />
+              </DelayedHelpTooltip>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setChangeOpen(false)}>Cancel</Button>
-            <Button onClick={handleChangePassword}>Save Password</Button>
+            <DelayedHelpTooltip content="Close this dialog without saving changes.">
+              <Button variant="outline" onClick={() => setChangeOpen(false)}>Cancel</Button>
+            </DelayedHelpTooltip>
+            <DelayedHelpTooltip content="Save your new password after all fields are valid.">
+              <Button onClick={handleChangePassword}>Save Password</Button>
+            </DelayedHelpTooltip>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -318,9 +336,11 @@ export const UserMenu: React.FC = () => {
             <div className="space-y-2">
               <Label>User</Label>
               <Select value={resetUserId} onValueChange={setResetUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a user" />
-                </SelectTrigger>
+                <DelayedHelpTooltip content="Choose which user account should receive a password reset.">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a user" />
+                  </SelectTrigger>
+                </DelayedHelpTooltip>
                 <SelectContent>
                   {manageableUsers.map((entry) => (
                     <SelectItem key={entry.id} value={entry.id}>
@@ -332,17 +352,23 @@ export const UserMenu: React.FC = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="reset-password">New Password</Label>
-              <Input
-                id="reset-password"
-                type="password"
-                value={resetPasswordValue}
-                onChange={(event) => setResetPasswordValue(event.target.value)}
-              />
+              <DelayedHelpTooltip content="Enter the temporary password the selected user should use next.">
+                <Input
+                  id="reset-password"
+                  type="password"
+                  value={resetPasswordValue}
+                  onChange={(event) => setResetPasswordValue(event.target.value)}
+                />
+              </DelayedHelpTooltip>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
-            <Button onClick={handleResetPassword}>Reset Password</Button>
+            <DelayedHelpTooltip content="Close this dialog without resetting a user password.">
+              <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
+            </DelayedHelpTooltip>
+            <DelayedHelpTooltip content="Reset the selected user's password to the entered value.">
+              <Button onClick={handleResetPassword}>Reset Password</Button>
+            </DelayedHelpTooltip>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -357,9 +383,11 @@ export const UserMenu: React.FC = () => {
             <div className="space-y-2">
               <Label>User</Label>
               <Select value={impersonateUserId} onValueChange={setImpersonateUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a user" />
-                </SelectTrigger>
+                <DelayedHelpTooltip content="Select a user profile to temporarily impersonate for support.">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a user" />
+                  </SelectTrigger>
+                </DelayedHelpTooltip>
                 <SelectContent>
                   {manageableUsers.map((entry) => (
                     <SelectItem key={entry.id} value={entry.id}>
@@ -371,8 +399,12 @@ export const UserMenu: React.FC = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImpersonateOpen(false)}>Cancel</Button>
-            <Button onClick={handleImpersonate}>Impersonate</Button>
+            <DelayedHelpTooltip content="Close this dialog without starting impersonation.">
+              <Button variant="outline" onClick={() => setImpersonateOpen(false)}>Cancel</Button>
+            </DelayedHelpTooltip>
+            <DelayedHelpTooltip content="Switch into the selected user session for support/troubleshooting.">
+              <Button onClick={handleImpersonate}>Impersonate</Button>
+            </DelayedHelpTooltip>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -389,9 +421,11 @@ export const UserMenu: React.FC = () => {
           <div className="space-y-2">
             <Label>{t(user.preferredLanguage ?? settings.defaultLanguage, 'menu_language')}</Label>
             <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as SystemLanguage)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select language" />
-              </SelectTrigger>
+              <DelayedHelpTooltip content="Select the language you want for your interface labels and menus.">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+              </DelayedHelpTooltip>
               <SelectContent>
                 {groupedSupportedLanguages.map((group, index) => (
                   <React.Fragment key={group.id}>
@@ -411,10 +445,31 @@ export const UserMenu: React.FC = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLanguageOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdateLanguagePreference}>
-              {t(user.preferredLanguage ?? settings.defaultLanguage, 'language_dialog_save')}
-            </Button>
+            <DelayedHelpTooltip content="Close language settings without applying changes.">
+              <Button variant="outline" onClick={() => setLanguageOpen(false)}>Cancel</Button>
+            </DelayedHelpTooltip>
+            <DelayedHelpTooltip content="Apply this language as your personal interface preference.">
+              <Button onClick={handleUpdateLanguagePreference}>
+                {t(user.preferredLanguage ?? settings.defaultLanguage, 'language_dialog_save')}
+              </Button>
+            </DelayedHelpTooltip>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={howToOpen} onOpenChange={setHowToOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>How-To Guide</DialogTitle>
+            <DialogDescription>
+              Step-by-step guidance for common workflows across Safety Guardian.
+            </DialogDescription>
+          </DialogHeader>
+
+          <HowToGuideContent compact canViewAdminTopics={canAdministerUsers} enableSearch />
+
+          <DialogFooter>
+            <Button onClick={() => setHowToOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
