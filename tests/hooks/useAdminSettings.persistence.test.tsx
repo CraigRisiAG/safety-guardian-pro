@@ -306,4 +306,34 @@ describe('useAdminSettings persistence', () => {
     expect(saved).toBeDefined();
     expect(saved?.email).toBe('case.user@example.com');
   });
+
+  it('persists branding updates for corporate customization', () => {
+    const { result } = renderHook(() => useAdminSettings());
+
+    act(() => {
+      result.current.updateBranding({
+        appName: 'Acme Safety Hub',
+        appShortName: 'AcmeSafe',
+        faviconUrl: '/acme-favicon.svg',
+        themeColor: '#123456',
+      });
+    });
+
+    const storedRaw = localStorage.getItem(STORAGE_KEY);
+    expect(storedRaw).not.toBeNull();
+
+    const stored = JSON.parse(storedRaw as string) as {
+      branding?: {
+        appName?: string;
+        appShortName?: string;
+        faviconUrl?: string;
+        themeColor?: string;
+      };
+    };
+
+    expect(stored.branding?.appName).toBe('Acme Safety Hub');
+    expect(stored.branding?.appShortName).toBe('AcmeSafe');
+    expect(stored.branding?.faviconUrl).toBe('/acme-favicon.svg');
+    expect(stored.branding?.themeColor).toBe('#123456');
+  });
 });

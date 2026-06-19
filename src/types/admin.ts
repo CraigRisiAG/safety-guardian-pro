@@ -301,6 +301,28 @@ export interface CustomIncidentField {
   enabled: boolean;
 }
 
+export interface BrandingSettings {
+  appName: string;
+  appShortName: string;
+  appDescription: string;
+  themeColor: string;
+  backgroundColor: string;
+  faviconUrl: string;
+  appleTouchIconUrl: string;
+  socialImageUrl: string;
+}
+
+export const DEFAULT_BRANDING_SETTINGS: BrandingSettings = {
+  appName: 'Safety Guardian',
+  appShortName: 'Safety',
+  appDescription: 'Workplace safety management system for incidents, drills, and check-ins',
+  themeColor: '#0B3C5D',
+  backgroundColor: '#F7F9FB',
+  faviconUrl: '/favicon.svg',
+  appleTouchIconUrl: '/apple-touch-icon.png',
+  socialImageUrl: '/android-chrome-512x512.png',
+};
+
 // Admin Settings
 export interface AdminSettings {
   buildings: CustomBuilding[];
@@ -316,6 +338,7 @@ export interface AdminSettings {
   complianceScoring?: ComplianceScoringSettings;
   drillOperationTypes?: DrillOperationType[];
   drillSuccessCriteria?: DrillSuccessCriteria;
+  branding?: BrandingSettings;
 }
 
 export interface ComplianceScoringWeights {

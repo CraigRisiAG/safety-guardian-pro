@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -22,6 +23,7 @@ import ComplianceCalendar from "./pages/ComplianceCalendar";
 import EmergencyChat from "./pages/EmergencyChat";
 import HelpGuide from "./pages/HelpGuide";
 import { GlobalActionHints } from "./components/help/GlobalActionHints";
+import { applyBranding } from "./lib/branding";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,10 @@ const AppRoutes = () => {
   const { settings } = useAdminSettings();
   const currentPermission = findCurrentUserPermission(user, settings.userPermissions);
   const canManageUsers = canManageUsersForUser(currentPermission);
+
+  useEffect(() => {
+    applyBranding(settings.branding);
+  }, [settings.branding]);
 
   return (
     <Routes>

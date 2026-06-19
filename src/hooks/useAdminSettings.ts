@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AdminSettings,
   ALL_WORK_DAYS,
+  BrandingSettings,
   CustomBuilding,
   ComplianceScoringSettings,
+  DEFAULT_BRANDING_SETTINGS,
   DEFAULT_COMPLIANCE_SCORING_SETTINGS,
   DEFAULT_DRILL_OPERATION_TYPES,
   DEFAULT_DRILL_SUCCESS_CRITERIA,
@@ -96,6 +98,52 @@ const normalizeDefaultLanguage = (value: unknown, supportedLanguages: SystemLang
   return supportedLanguages[0] ?? 'english';
 };
 
+const normalizeBranding = (value: unknown): BrandingSettings => {
+  const parsed = (value ?? {}) as Partial<BrandingSettings>;
+  const validColor = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+  const sanitizeText = (input: unknown, fallback: string) => {
+    if (typeof input !== 'string') {
+      return fallback;
+    }
+    const trimmed = input.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  };
+
+  const sanitizePath = (input: unknown, fallback: string) => {
+    if (typeof input !== 'string') {
+      return fallback;
+    }
+
+    const trimmed = input.trim();
+    if (trimmed.length === 0 || /^javascript:/i.test(trimmed)) {
+      return fallback;
+    }
+
+    return trimmed;
+  };
+
+  const sanitizeColor = (input: unknown, fallback: string) => {
+    if (typeof input !== 'string') {
+      return fallback;
+    }
+
+    const trimmed = input.trim();
+    return validColor.test(trimmed) ? trimmed : fallback;
+  };
+
+  return {
+    appName: sanitizeText(parsed.appName, DEFAULT_BRANDING_SETTINGS.appName),
+    appShortName: sanitizeText(parsed.appShortName, DEFAULT_BRANDING_SETTINGS.appShortName),
+    appDescription: sanitizeText(parsed.appDescription, DEFAULT_BRANDING_SETTINGS.appDescription),
+    themeColor: sanitizeColor(parsed.themeColor, DEFAULT_BRANDING_SETTINGS.themeColor),
+    backgroundColor: sanitizeColor(parsed.backgroundColor, DEFAULT_BRANDING_SETTINGS.backgroundColor),
+    faviconUrl: sanitizePath(parsed.faviconUrl, DEFAULT_BRANDING_SETTINGS.faviconUrl),
+    appleTouchIconUrl: sanitizePath(parsed.appleTouchIconUrl, DEFAULT_BRANDING_SETTINGS.appleTouchIconUrl),
+    socialImageUrl: sanitizePath(parsed.socialImageUrl, DEFAULT_BRANDING_SETTINGS.socialImageUrl),
+  };
+};
+
 const parseAuthAccounts = (raw: string | null): AuthAccountRecord[] => {
   if (!raw) {
     return [];
@@ -122,6 +170,7 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
     const parsed = JSON.parse(stored) as {
       checkTypeFields?: unknown;
       healthOfficialsRequiredDays?: unknown;
+      branding?: unknown;
       complianceScoring?: Partial<ComplianceScoringSettings> & {
         weights?: Partial<ComplianceScoringSettings['weights']>;
       };
@@ -159,6 +208,7 @@ const parseStoredSettings = (stored: string | null): AdminSettings | null => {
         ...DEFAULT_DRILL_SUCCESS_CRITERIA,
         ...((parsed as { drillSuccessCriteria?: Partial<DrillSuccessCriteria> }).drillSuccessCriteria ?? {}),
       },
+      branding: normalizeBranding(parsed.branding),
       supportedLanguages: normalizeSupportedLanguages((parsed as { supportedLanguages?: unknown }).supportedLanguages),
       defaultLanguage: normalizeDefaultLanguage(
         (parsed as { defaultLanguage?: unknown }).defaultLanguage,
@@ -288,6 +338,7 @@ const getDefaultSettings = (): AdminSettings => ({
   complianceScoring: DEFAULT_COMPLIANCE_SCORING_SETTINGS,
   drillOperationTypes: DEFAULT_DRILL_OPERATION_TYPES,
   drillSuccessCriteria: DEFAULT_DRILL_SUCCESS_CRITERIA,
+  branding: DEFAULT_BRANDING_SETTINGS,
 });
 
 export function useAdminSettings() {
@@ -727,6 +778,22 @@ export function useAdminSettings() {
     });
   }, [logSettingsAction]);
 
+  const updateBranding = useCallback((updates: Partial<BrandingSettings>) => {
+    setSettings((prev) => ({
+      ...prev,
+      branding: normalizeBranding({
+        ...DEFAULT_BRANDING_SETTINGS,
+        ...(prev.branding ?? {}),
+        ...updates,
+      }),
+    }));
+
+    logSettingsAction({
+      action: 'update_branding_settings',
+      description: 'Updated application branding settings',
+    });
+  }, [logSettingsAction]);
+
   // Compliance check operations
   const addComplianceCheck = useCallback((check: Omit<ComplianceCheck, 'id'>) => {
     const newCheck: ComplianceCheck = {
@@ -1002,6 +1069,7 @@ export function useAdminSettings() {
     updateDrillSuccessCriteria,
     updateSupportedLanguages,
     updateDefaultLanguage,
+    updateBranding,
     // Compliance checks
     addComplianceCheck,
     updateComplianceCheck,

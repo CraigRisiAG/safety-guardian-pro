@@ -12,7 +12,8 @@ import {
   ClipboardList,
   Activity,
   Bell,
-  Languages
+  Languages,
+  Palette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,10 +35,11 @@ import { NotificationDeliverySettings } from '@/components/admin/NotificationDel
 import { NotificationCenter } from '@/components/admin/NotificationCenter';
 import { NotificationIntegrationPortal } from '@/components/admin/NotificationIntegrationPortal';
 import { LanguageSettings } from '@/components/admin/LanguageSettings';
+import { BrandingSettings } from '@/components/admin/BrandingSettings';
 import { useAdminSettings } from '@/hooks/useAdminSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { findCurrentUserPermission } from '@/lib/personnelAccess';
-import { DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
+import { DEFAULT_BRANDING_SETTINGS, DEFAULT_COMPLIANCE_SCORING_SETTINGS } from '@/types/admin';
 
 const adminSections = [
   { 
@@ -93,6 +95,12 @@ const adminSections = [
     name: 'Languages',
     icon: Languages,
     description: 'Configure supported system languages',
+  },
+  {
+    id: 'branding',
+    name: 'Branding',
+    icon: Palette,
+    description: 'Customize app icon and corporate metadata',
   },
 ];
 
@@ -308,6 +316,13 @@ export default function Admin() {
               defaultLanguage={adminSettings.settings.defaultLanguage}
               onSupportedLanguagesChange={adminSettings.updateSupportedLanguages}
               onDefaultLanguageChange={adminSettings.updateDefaultLanguage}
+            />
+          </TabsContent>
+
+          <TabsContent value="branding" className="space-y-6">
+            <BrandingSettings
+              settings={adminSettings.settings.branding ?? DEFAULT_BRANDING_SETTINGS}
+              onSave={adminSettings.updateBranding}
             />
           </TabsContent>
         </Tabs>
