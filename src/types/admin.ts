@@ -88,28 +88,72 @@ export type SystemLanguage =
   | 'afrikaans'
   | 'spanish'
   | 'french'
+  | 'german'
   | 'portuguese'
+  | 'portuguese_brazil'
+  | 'portuguese_portugal'
   | 'mandarin'
+  | 'chinese_simplified'
+  | 'chinese_traditional'
+  | 'tamil'
   | 'hindi'
   | 'arabic'
   | 'italian'
   | 'swahili'
   | 'isizulu'
-  | 'isixhosa';
+  | 'isixhosa'
+  | 'japanese'
+  | 'korean'
+  | 'russian'
+  | 'indonesian'
+  | 'bengali'
+  | 'urdu'
+  | 'turkish'
+  | 'vietnamese'
+  | 'persian'
+  | 'punjabi'
+  | 'swedish'
+  | 'norwegian'
+  | 'finnish'
+  | 'dutch'
+  | 'estonian'
+  | 'danish';
 
 export const SYSTEM_LANGUAGE_LABELS: Record<SystemLanguage, string> = {
   english: 'English',
   afrikaans: 'Afrikaans',
   spanish: 'Spanish',
   french: 'French',
+  german: 'German',
   portuguese: 'Portuguese',
+  portuguese_brazil: 'Portuguese (Brazil)',
+  portuguese_portugal: 'Portuguese (Portugal)',
   mandarin: 'Mandarin',
+  chinese_simplified: 'Chinese (Simplified)',
+  chinese_traditional: 'Chinese (Traditional)',
+  tamil: 'Tamil',
   hindi: 'Hindi',
   arabic: 'Arabic',
   italian: 'Italian',
   swahili: 'Swahili',
   isizulu: 'isiZulu',
   isixhosa: 'isiXhosa',
+  japanese: 'Japanese',
+  korean: 'Korean',
+  russian: 'Russian',
+  indonesian: 'Indonesian',
+  bengali: 'Bengali',
+  urdu: 'Urdu',
+  turkish: 'Turkish',
+  vietnamese: 'Vietnamese',
+  persian: 'Persian (Farsi)',
+  punjabi: 'Punjabi',
+  swedish: 'Swedish',
+  norwegian: 'Norwegian',
+  finnish: 'Finnish',
+  dutch: 'Dutch',
+  estonian: 'Estonian',
+  danish: 'Danish',
 };
 
 export const DEFAULT_SUPPORTED_LANGUAGES: SystemLanguage[] = [
@@ -117,14 +161,36 @@ export const DEFAULT_SUPPORTED_LANGUAGES: SystemLanguage[] = [
   'afrikaans',
   'spanish',
   'french',
+  'german',
   'portuguese',
+  'portuguese_brazil',
+  'portuguese_portugal',
   'mandarin',
+  'chinese_simplified',
+  'chinese_traditional',
+  'tamil',
   'hindi',
   'arabic',
   'italian',
   'swahili',
   'isizulu',
   'isixhosa',
+  'japanese',
+  'korean',
+  'russian',
+  'indonesian',
+  'bengali',
+  'urdu',
+  'turkish',
+  'vietnamese',
+  'persian',
+  'punjabi',
+  'swedish',
+  'norwegian',
+  'finnish',
+  'dutch',
+  'estonian',
+  'danish',
 ];
 
 export interface UserPermission {

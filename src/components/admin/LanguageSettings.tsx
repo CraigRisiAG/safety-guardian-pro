@@ -2,7 +2,8 @@ import { Languages } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { groupLanguages } from '@/lib/languageGroups';
 import {
   DEFAULT_SUPPORTED_LANGUAGES,
   SYSTEM_LANGUAGE_LABELS,
@@ -23,6 +24,8 @@ export function LanguageSettings({
   onDefaultLanguageChange,
 }: LanguageSettingsProps) {
   const enabledSet = new Set(supportedLanguages);
+  const groupedSupportedLanguages = groupLanguages(supportedLanguages);
+  const groupedAllLanguages = groupLanguages(DEFAULT_SUPPORTED_LANGUAGES);
 
   const toggleLanguage = (language: SystemLanguage) => {
     if (enabledSet.has(language)) {
@@ -61,10 +64,18 @@ export function LanguageSettings({
               <SelectValue placeholder="Select default language" />
             </SelectTrigger>
             <SelectContent>
-              {supportedLanguages.map((language) => (
-                <SelectItem key={language} value={language}>
-                  {SYSTEM_LANGUAGE_LABELS[language]}
-                </SelectItem>
+              {groupedSupportedLanguages.map((group, index) => (
+                <div key={group.id}>
+                  {index > 0 && <SelectSeparator />}
+                  <SelectGroup>
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.languages.map((language) => (
+                      <SelectItem key={language} value={language}>
+                        {SYSTEM_LANGUAGE_LABELS[language]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </div>
               ))}
             </SelectContent>
           </Select>
@@ -73,17 +84,24 @@ export function LanguageSettings({
 
         <div className="space-y-2">
           <Label>Supported Languages</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-md p-3">
-            {DEFAULT_SUPPORTED_LANGUAGES.map((language) => (
-              <div key={language} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`language-${language}`}
-                  checked={enabledSet.has(language)}
-                  onCheckedChange={() => toggleLanguage(language)}
-                />
-                <label htmlFor={`language-${language}`} className="text-sm cursor-pointer">
-                  {SYSTEM_LANGUAGE_LABELS[language]}
-                </label>
+          <div className="space-y-4 border rounded-md p-3">
+            {groupedAllLanguages.map((group) => (
+              <div key={group.id} className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {group.languages.map((language) => (
+                    <div key={language} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`language-${language}`}
+                        checked={enabledSet.has(language)}
+                        onCheckedChange={() => toggleLanguage(language)}
+                      />
+                      <label htmlFor={`language-${language}`} className="text-sm cursor-pointer">
+                        {SYSTEM_LANGUAGE_LABELS[language]}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

@@ -26,11 +26,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
 import { LogOut, KeyRound, UserCog, UserCheck, UserX, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminSettings } from "@/hooks/useAdminSettings";
 import { t } from "@/lib/i18n";
+import { groupLanguages } from "@/lib/languageGroups";
 import { SYSTEM_LANGUAGE_LABELS, SystemLanguage } from "@/types/admin";
 import { toast } from "sonner";
 
@@ -72,6 +76,10 @@ export const UserMenu: React.FC = () => {
   const manageableUsers = useMemo(
     () => (user ? systemUsers.filter((entry) => entry.id !== user.id) : []),
     [systemUsers, user],
+  );
+  const groupedSupportedLanguages = useMemo(
+    () => groupLanguages(settings.supportedLanguages),
+    [settings.supportedLanguages],
   );
 
   if (!user) return null;
@@ -385,10 +393,18 @@ export const UserMenu: React.FC = () => {
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
               <SelectContent>
-                {settings.supportedLanguages.map((language) => (
-                  <SelectItem key={language} value={language}>
-                    {SYSTEM_LANGUAGE_LABELS[language]}
-                  </SelectItem>
+                {groupedSupportedLanguages.map((group, index) => (
+                  <React.Fragment key={group.id}>
+                    {index > 0 && <SelectSeparator />}
+                    <SelectGroup>
+                      <SelectLabel>{group.label}</SelectLabel>
+                      {group.languages.map((language) => (
+                        <SelectItem key={language} value={language}>
+                          {SYSTEM_LANGUAGE_LABELS[language]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </React.Fragment>
                 ))}
               </SelectContent>
             </Select>
