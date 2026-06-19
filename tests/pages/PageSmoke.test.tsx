@@ -198,7 +198,7 @@ const baseSettings = {
 
 const renderWithRouter = (node: React.ReactNode, route = '/') =>
   render(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter initialEntries={[route]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path="*" element={node} />
       </Routes>

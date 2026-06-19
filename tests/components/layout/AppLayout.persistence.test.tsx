@@ -128,7 +128,7 @@ describe('AppLayout notification seen persistence', () => {
 
   it('persists notification signature with user-scoped seen key when notification menu opens', async () => {
     render(
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={['/']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AppLayout>
           <div>Dashboard</div>
         </AppLayout>

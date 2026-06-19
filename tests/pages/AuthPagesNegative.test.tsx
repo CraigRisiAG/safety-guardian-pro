@@ -29,14 +29,14 @@ vi.mock('sonner', () => ({
 
 const renderLogin = () =>
   render(
-    <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Login />
     </MemoryRouter>,
   );
 
 const renderRegister = () =>
   render(
-    <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Register />
     </MemoryRouter>,
   );

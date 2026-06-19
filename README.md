@@ -59,6 +59,47 @@ npm run perf:baseline:update
 npm run test:visual:update
 ```
 
+## Open-source release management
+
+This repository now uses automated release/version management with GitHub Actions + Release Please.
+
+### What is automated
+
+- Semantic version bumps in `package.json`
+- GitHub release tags (for example `v1.2.3`)
+- Release notes and changelog updates in `CHANGELOG.md`
+- Release PR creation and tracking
+
+### Workflow
+
+1. Merge changes to `main`.
+2. The `release-management` workflow runs automatically.
+3. Release Please opens or updates a release PR with:
+	- proposed version bump
+	- changelog entries
+4. Merge the release PR to cut an official release.
+5. Release Please creates the GitHub tag + GitHub release.
+
+### Commit message guidance
+
+Use Conventional Commit style to control version bump behavior:
+
+- `fix:` -> patch release
+- `feat:` -> minor release
+- `feat!:` or `BREAKING CHANGE:` footer -> major release
+
+Examples:
+
+```text
+fix: correct incident status filter logic
+feat: add multi-language admin grouping
+feat!: replace legacy drill schema with normalized model
+```
+
+### Manual release trigger
+
+You can also run release management manually from the GitHub Actions tab using `workflow_dispatch` on `release-management`.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).

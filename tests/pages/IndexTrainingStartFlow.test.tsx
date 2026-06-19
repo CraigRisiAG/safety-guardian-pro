@@ -211,7 +211,7 @@ describe('Index training start flow integration', () => {
 
   it('opens pending overdue training from dashboard, starts it, and persists the completed training record', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Index />
       </MemoryRouter>,
     );
